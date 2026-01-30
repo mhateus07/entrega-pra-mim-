@@ -1,0 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  CLIENTE
+  MOTOBOY
+}
+
+enum StatusMotoboy {
+  DISPONIVEL
+  EM_ENTREGA
+  OFFLINE
+}
+
+enum TipoServico {
+  EXPRESSA
+  AGENDADA
+  DOCUMENTOS
+}
+
+enum StatusPedido {
+  SOLICITADO
+  ACEITO
+  EM_COLETA
+  EM_ENTREGA
+  ENTREGUE
+  CANCELADO
+}
+
+enum DiaSemana {
+  DOMINGO
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+}
+
+enum MetodoPagamento {
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  DINHEIRO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PROCESSANDO
+  APROVADO
+  RECUSADO
+  CANCELADO
+  REEMBOLSADO
+}
+
+// Modelos
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  senha         String
+  nome          String
+  telefone      String?
+  role          UserRole  @default(CLIENTE)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  motoboy  Motoboy?
+  cliente  Cliente?
+  accounts Account[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Motoboy {
+  id              String        @id @default(cuid())
+  userId          String        @unique
+  cnh             String        @unique
+  veiculoTipo     String        // Moto, Bicicleta, etc
+  veiculoMarca    String
+  veiculoModelo   String
+  veiculoPlaca    String        @unique
+  status          StatusMotoboy @default(OFFLINE)
+  latitudeAtual   Float?
+  longitudeAtual  Float?
+  avaliacaoMedia  Float         @default(5.0)
+  totalEntregas   Int           @default(0)
+  ultimaAtividade DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  disponibilidades Disponibilidade[]
+  pedidos          Pedido[]
+  avaliacoes       Avaliacao[]
+  saldo            SaldoMotoboy?
+  transacoes       TransacaoMotoboy[]
+
+  @@map("motoboys")
+}
+
+model Disponibilidade {
+  id         String    @id @default(cuid())
+  motoboyId  String
+  diaSemana  DiaSemana
+  horaInicio String    // Formato HH:MM
+  horaFim    String    // Formato HH:MM
+  ativo      Boolean   @default(true)
+
+  motoboy Motoboy @relation(fields: [motoboyId], references: [id], onDelete: Cascade)
+
+  @@unique([motoboyId, diaSemana])
+  @@map("disponibilidades")
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  cpfCnpj   String?  @unique
+  tipoPessoa String  @default("PF") // PF ou PJ
+  razaoSocial String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enderecos  Endereco[]
+  pedidos    Pedido[]
+  pagamentos Pagamento[]
+
+  @@map("clientes")
+}
+
+model Endereco {
+  id           String   @id @default(cuid())
+  clienteId    String
+  apelido      String?  // Casa, Trabalho, etc
+  cep          String
+  logradouro   String
+  numero       String
+  complemento  String?
+  bairro       String
+  cidade       String
+  estado       String
+  latitude     Float?
+  longitude    Float?
+  favorito     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cliente          Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  pedidosOrigem    Pedido[] @relation("EnderecoOrigem")
+  pedidosDestino   Pedido[] @relation("EnderecoDestino")
+
+  @@map("enderecos")
+}
+
+model Pedido {
+  id               String       @id @default(cuid())
+  clienteId        String
+  motoboyId        String?
+  enderecoOrigemId String
+  enderecoDestinoId String
+  tipoServico      TipoServico
+  status           StatusPedido @default(SOLICITADO)
+
+  // Detalhes da entrega
+  descricaoItem    String?
+  observacoes      String?      @db.Text
+  pesoAproximado   Float?       // em kg
+
+  // Valores calculados
+  distanciaKm      Float
+  duracaoEstimada  Int          // em minutos
+  valorBase        Float
+  multiplicador    Float
+  valorTotal       Float
+
+  // Agendamento (para entregas agendadas)
+  dataAgendada     DateTime?
+
+  // Timestamps de status
+  aceitoEm         DateTime?
+  coletadoEm       DateTime?
+  entregueEm       DateTime?
+  canceladoEm      DateTime?
+  motivoCancelamento String?
+
+  // Confirmação (para documentos)
+  assinaturaRecebedor String?
+  fotoComprovante     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cliente         Cliente    @relation(fields: [clienteId], references: [id])
+  motoboy         Motoboy?   @relation(fields: [motoboyId], references: [id])
+  enderecoOrigem  Endereco   @relation("EnderecoOrigem", fields: [enderecoOrigemId], references: [id])
+  enderecoDestino Endereco   @relation("EnderecoDestino", fields: [enderecoDestinoId], references: [id])
+  avaliacao       Avaliacao?
+  mensagens       Mensagem[]
+  pagamento       Pagamento?
+  transacoes      TransacaoMotoboy[]
+
+  @@map("pedidos")
+}
+
+model Avaliacao {
+  id         String   @id @default(cuid())
+  pedidoId   String   @unique
+  motoboyId  String
+  nota       Int      // 1 a 5
+  comentario String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  pedido  Pedido  @relation(fields: [pedidoId], references: [id])
+  motoboy Motoboy @relation(fields: [motoboyId], references: [id])
+
+  @@map("avaliacoes")
+}
+
+model Mensagem {
+  id         String   @id @default(cuid())
+  pedidoId   String
+  remetente  String   // 'CLIENTE' ou 'MOTOBOY'
+  conteudo   String   @db.Text
+  lida       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@index([pedidoId])
+  @@map("mensagens")
+}
+
+model Pagamento {
+  id                String           @id @default(cuid())
+  pedidoId          String           @unique
+  clienteId         String
+
+  // Valores
+  valor             Float
+  taxaPlataforma    Float            @default(0) // Taxa cobrada pela plataforma
+  valorMotoboy      Float            @default(0) // Valor que vai para o motoboy
+
+  // Método e status
+  metodo            MetodoPagamento
+  status            StatusPagamento  @default(PENDENTE)
+
+  // Dados do pagamento (gateway)
+  gatewayId         String?          // ID da transação no gateway
+  gatewayResponse   String?          @db.Text // Resposta JSON do gateway
+
+  // PIX
+  pixQrCode         String?          @db.Text // QR Code em base64
+  pixCopiaCola      String?          @db.Text // Código copia e cola
+  pixExpiraEm       DateTime?
+
+  // Cartão (dados mascarados)
+  cartaoUltimos4    String?
+  cartaoBandeira    String?
+
+  // Timestamps
+  aprovadoEm        DateTime?
+  canceladoEm       DateTime?
+  reembolsadoEm     DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  pedido  Pedido  @relation(fields: [pedidoId], references: [id])
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@index([status])
+  @@map("pagamentos")
+}
+
+model SaldoMotoboy {
+  id              String   @id @default(cuid())
+  motoboyId       String   @unique
+  saldoDisponivel Float    @default(0)
+  saldoPendente   Float    @default(0) // Aguardando liberação
+  totalRecebido   Float    @default(0)
+  updatedAt       DateTime @updatedAt
+
+  motoboy Motoboy @relation(fields: [motoboyId], references: [id], onDelete: Cascade)
+
+  @@map("saldos_motoboy")
+}
+
+model TransacaoMotoboy {
+  id          String   @id @default(cuid())
+  motoboyId   String
+  pedidoId    String?
+  tipo        String   // 'CREDITO' ou 'SAQUE'
+  valor       Float
+  descricao   String
+  status      String   @default("PENDENTE") // PENDENTE, CONCLUIDO, CANCELADO
+  createdAt   DateTime @default(now())
+
+  motoboy Motoboy  @relation(fields: [motoboyId], references: [id])
+  pedido  Pedido?  @relation(fields: [pedidoId], references: [id])
+
+  @@index([motoboyId])
+  @@index([pedidoId])
+  @@map("transacoes_motoboy")
+}
