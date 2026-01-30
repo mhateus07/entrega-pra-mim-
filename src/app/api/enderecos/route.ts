@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
+import { createEnderecoSchema } from '@/lib/validations'
+import { geocodificarEndereco } from '@/lib/google-maps'
+import { ApiResponse } from '@/types'
+
+// GET /api/enderecos - Listar endereços (por cliente)
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams
+    const clienteId = searchParams.get('clienteId')
+
+    if (!clienteId) {
+      return NextResponse.json(
+        { success: false, error: 'clienteId é obrigatório' },
+        { status: 400 }
+      )
+    }
+
+    const enderecos = await prisma.endereco.findMany({
+      where: { clienteId },
+      orderBy: [{ favorito: 'desc' }, { createdAt: 'desc' }],
+    })
+
+    const response: ApiResponse<typeof enderecos> = {
+      success: true,
+      data: enderecos,
+    }
+
+    return NextResponse.json(response)
+  } catch (error) {
+    console.error('Erro ao listar endereços:', error)
+    return NextResponse.json(
+      { success: false, error: 'Erro ao listar endereços' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST /api/enderecos - Criar endereço
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json()
+
+    const validation = createEnderecoSchema.safeParse(body)
+    if (!validation.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Dados inválidos',
+          details: validation.error.issues,
+        },
+        { status: 400 }
+      )
+    }
+
+    const data = validation.data
+
+    // Verificar se cliente existe
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: data.clienteId },
+    })
+
+    if (!cliente) {
+      return NextResponse.json(
+        { success: false, error: 'Cliente não encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Geocodificar endereço se não tiver coordenadas
+    let latitude = data.latitude
+    let longitude = data.longitude
+
+    if (!latitude || !longitude) {
+      const geocode = await geocodificarEndereco({
+        logradouro: data.logradouro,
+        numero: data.numero,
+        bairro: data.bairro,
+        cidade: data.cidade,
+        estado: data.estado,
+        cep: data.cep,
+      })
+
+      if (geocode) {
+        latitude = geocode.latitude
+        longitude = geocode.longitude
+      }
+    }
+
+    // Se o novo endereço for favorito, remover favorito dos outros
+    if (data.favorito) {
+      await prisma.endereco.updateMany({
+        where: { clienteId: data.clienteId, favorito: true },
+        data: { favorito: false },
+      })
+    }
+
+    const endereco = await prisma.endereco.create({
+      data: {
+        ...data,
+        latitude,
+        longitude,
+      },
+    })
+
+    const response: ApiResponse<typeof endereco> = {
+      success: true,
+      data: endereco,
+      message: 'Endereço cadastrado com sucesso',
+    }
+
+    return NextResponse.json(response, { status: 201 })
+  } catch (error) {
+    console.error('Erro ao criar endereço:', error)
+    return NextResponse.json(
+      { success: false, error: 'Erro ao criar endereço' },
+      { status: 500 }
+    )
+  }
+}

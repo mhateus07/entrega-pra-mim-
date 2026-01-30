@@ -1,0 +1,29 @@
+{
+  "http": {
+    "routers": {
+      "entrega-http": {
+        "rule": "Host(`entregapramim.impulsiodigital.com`)",
+        "service": "entrega-service",
+        "entryPoints": ["http"],
+        "priority": 10,
+        "middlewares": ["redirect-to-https"]
+      },
+      "entrega-https": {
+        "rule": "Host(`entregapramim.impulsiodigital.com`)",
+        "service": "entrega-service",
+        "entryPoints": ["https"],
+        "priority": 10,
+        "tls": {}
+      }
+    },
+    "services": {
+      "entrega-service": {
+        "loadBalancer": {
+          "servers": [
+            {"url": "http://172.17.0.1:3001"}
+          ]
+        }
+      }
+    }
+  }
+}
