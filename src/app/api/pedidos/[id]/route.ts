@@ -176,10 +176,86 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           updateData.fotoComprovante = data.fotoComprovante
         }
 
-        // Atualizar status do motoboy para disponível e incrementar entregas
-        if (pedido.motoboyId) {
+        // Buscar pedido completo para obter valores
+        const pedidoCompleto = await prisma.pedido.findUnique({
+          where: { id },
+          select: { valorTotal: true, clienteId: true, motoboyId: true },
+        })
+
+        if (pedidoCompleto && pedidoCompleto.motoboyId) {
+          // Calcular valores (motoboy fica com 80%, plataforma 20%)
+          const taxaPlataforma = pedidoCompleto.valorTotal * 0.20
+          const valorMotoboy = pedidoCompleto.valorTotal - taxaPlataforma
+
+          // Criar ou atualizar pagamento
+          const pagamentoExistente = await prisma.pagamento.findUnique({
+            where: { pedidoId: id },
+          })
+
+          if (!pagamentoExistente) {
+            await prisma.pagamento.create({
+              data: {
+                pedidoId: id,
+                clienteId: pedidoCompleto.clienteId,
+                valor: pedidoCompleto.valorTotal,
+                valorMotoboy: valorMotoboy,
+                taxaPlataforma: taxaPlataforma,
+                metodo: 'PIX',
+                status: 'APROVADO',
+                aprovadoEm: new Date(),
+              },
+            })
+          } else {
+            await prisma.pagamento.update({
+              where: { pedidoId: id },
+              data: {
+                status: 'APROVADO',
+                aprovadoEm: new Date(),
+                valorMotoboy: valorMotoboy,
+                taxaPlataforma: taxaPlataforma,
+              },
+            })
+          }
+
+          // Criar transação para o motoboy
+          await prisma.transacaoMotoboy.create({
+            data: {
+              motoboyId: pedidoCompleto.motoboyId,
+              pedidoId: id,
+              tipo: 'CREDITO',
+              valor: valorMotoboy,
+              descricao: `Entrega #${id.slice(0, 8)}`,
+              status: 'CONCLUIDO',
+            },
+          })
+
+          // Atualizar ou criar saldo do motoboy
+          const saldoExistente = await prisma.saldoMotoboy.findUnique({
+            where: { motoboyId: pedidoCompleto.motoboyId },
+          })
+
+          if (saldoExistente) {
+            await prisma.saldoMotoboy.update({
+              where: { motoboyId: pedidoCompleto.motoboyId },
+              data: {
+                saldoDisponivel: { increment: valorMotoboy },
+                totalRecebido: { increment: valorMotoboy },
+              },
+            })
+          } else {
+            await prisma.saldoMotoboy.create({
+              data: {
+                motoboyId: pedidoCompleto.motoboyId,
+                saldoDisponivel: valorMotoboy,
+                saldoPendente: 0,
+                totalRecebido: valorMotoboy,
+              },
+            })
+          }
+
+          // Atualizar status do motoboy para disponível e incrementar entregas
           await prisma.motoboy.update({
-            where: { id: pedido.motoboyId },
+            where: { id: pedidoCompleto.motoboyId },
             data: {
               status: 'DISPONIVEL',
               totalEntregas: { increment: 1 },

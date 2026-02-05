@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button'
 import Header from '@/components/ui/Header'
 import { Card, CardContent } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
+import TrackingMap from '@/components/maps/TrackingMap'
 import { formatarMoeda } from '@/lib/pricing'
 import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO, LABELS_STATUS_MOTOBOY, CORES_STATUS_MOTOBOY } from '@/utils/helpers'
 import { StatusPedido, StatusMotoboy } from '@/types'
@@ -440,9 +441,32 @@ export default function MotoboyPage() {
         {/* Current Order */}
         {pedidoAtual && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Entrega Atual
             </h2>
+
+            {/* Mapa de rastreamento */}
+            {pedidoAtual.enderecoOrigem?.latitude && pedidoAtual.enderecoDestino?.latitude && (
+              <Card variant="bordered" className="mb-4">
+                <CardContent className="p-0">
+                  <TrackingMap
+                    origem={{
+                      lat: pedidoAtual.enderecoOrigem.latitude,
+                      lng: pedidoAtual.enderecoOrigem.longitude,
+                      label: 'Coleta'
+                    }}
+                    destino={{
+                      lat: pedidoAtual.enderecoDestino.latitude,
+                      lng: pedidoAtual.enderecoDestino.longitude,
+                      label: 'Entrega'
+                    }}
+                    motoboyLocation={null}
+                    className="h-64 md:h-80"
+                  />
+                </CardContent>
+              </Card>
+            )}
+
             <Card variant="bordered">
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-4">
@@ -460,48 +484,93 @@ export default function MotoboyPage() {
                       </Badge>
                     </div>
                   </div>
-                  <p className="text-lg font-bold text-gray-900">
+                  <p className="text-lg font-bold text-gray-900 dark:text-white">
                     {formatarMoeda(pedidoAtual.valorTotal)}
                   </p>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-4 mb-4">
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <p className="text-xs text-green-600 uppercase mb-1 font-medium">
+                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <p className="text-xs text-green-600 dark:text-green-400 uppercase mb-1 font-medium">
                       Coleta
                     </p>
-                    <p className="text-sm text-gray-900 font-medium">
-                      {pedidoAtual.enderecoOrigem.logradouro},{' '}
-                      {pedidoAtual.enderecoOrigem.numero}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {pedidoAtual.enderecoOrigem.bairro},{' '}
-                      {pedidoAtual.enderecoOrigem.cidade}
-                    </p>
+                    {pedidoAtual.enderecoOrigem.logradouro ? (
+                      <>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                          {pedidoAtual.enderecoOrigem.logradouro}
+                          {pedidoAtual.enderecoOrigem.numero && `, ${pedidoAtual.enderecoOrigem.numero}`}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {pedidoAtual.enderecoOrigem.bairro}, {pedidoAtual.enderecoOrigem.cidade}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-900 dark:text-white font-medium">
+                        {pedidoAtual.enderecoOrigem.bairro}, {pedidoAtual.enderecoOrigem.cidade}
+                      </p>
+                    )}
+                    {pedidoAtual.enderecoOrigem.latitude && (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${pedidoAtual.enderecoOrigem.latitude},${pedidoAtual.enderecoOrigem.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-2 text-xs text-green-600 dark:text-green-400 hover:underline"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Abrir no Maps
+                      </a>
+                    )}
                   </div>
-                  <div className="p-4 bg-red-50 rounded-lg">
-                    <p className="text-xs text-red-600 uppercase mb-1 font-medium">
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <p className="text-xs text-red-600 dark:text-red-400 uppercase mb-1 font-medium">
                       Entrega
                     </p>
-                    <p className="text-sm text-gray-900 font-medium">
-                      {pedidoAtual.enderecoDestino.logradouro},{' '}
-                      {pedidoAtual.enderecoDestino.numero}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      {pedidoAtual.enderecoDestino.bairro},{' '}
-                      {pedidoAtual.enderecoDestino.cidade}
-                    </p>
+                    {pedidoAtual.enderecoDestino.logradouro ? (
+                      <>
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                          {pedidoAtual.enderecoDestino.logradouro}
+                          {pedidoAtual.enderecoDestino.numero && `, ${pedidoAtual.enderecoDestino.numero}`}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {pedidoAtual.enderecoDestino.bairro}, {pedidoAtual.enderecoDestino.cidade}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-900 dark:text-white font-medium">
+                        {pedidoAtual.enderecoDestino.bairro}, {pedidoAtual.enderecoDestino.cidade}
+                      </p>
+                    )}
+                    {pedidoAtual.enderecoDestino.latitude && (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${pedidoAtual.enderecoDestino.latitude},${pedidoAtual.enderecoDestino.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-2 text-xs text-red-600 dark:text-red-400 hover:underline"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Abrir no Maps
+                      </a>
+                    )}
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-gray-100">
-                  <p className="text-xs text-gray-500 uppercase mb-1">Cliente</p>
-                  <p className="text-sm text-gray-900">
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Cliente</p>
+                  <p className="text-sm text-gray-900 dark:text-white">
                     {pedidoAtual.cliente.user.nome}
                   </p>
-                  <p className="text-sm text-gray-600">
+                  <a
+                    href={`tel:${pedidoAtual.cliente.user.telefone}`}
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                  >
                     {pedidoAtual.cliente.user.telefone}
-                  </p>
+                  </a>
                 </div>
 
                 {getNextStatus(pedidoAtual.status) && (
