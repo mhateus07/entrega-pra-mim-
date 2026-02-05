@@ -5,10 +5,15 @@ import { calcularRota } from '@/lib/google-maps'
 import { calcularPrecoCompleto, estimarTempo } from '@/lib/pricing'
 import { encontrarMelhorMotoboy } from '@/lib/alocacao'
 import { ApiResponse } from '@/types'
+import { requireAuth, requireClienteOwnership, serverError, forbidden } from '@/lib/auth-helpers'
 
-// GET /api/pedidos - Listar pedidos
+// GET /api/pedidos - Listar pedidos (filtrado por papel do usuário)
 export async function GET(request: NextRequest) {
   try {
+    // Requer autenticação
+    const auth = await requireAuth()
+    if (!auth.authenticated) return auth.response
+
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status')
     const tipoServico = searchParams.get('tipoServico')
@@ -19,10 +24,29 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {}
 
+    // Filtrar por papel do usuário (segurança)
+    if (auth.user.role === 'CLIENTE') {
+      // Cliente só vê seus próprios pedidos
+      where.clienteId = auth.user.clienteId
+    } else if (auth.user.role === 'MOTOBOY') {
+      // Motoboy vê pedidos disponíveis (SOLICITADO) ou atribuídos a ele
+      where.OR = [
+        { status: 'SOLICITADO' },
+        { motoboyId: auth.user.motoboyId },
+      ]
+    }
+    // Admin vê todos os pedidos
+
     if (status) where.status = status
     if (tipoServico) where.tipoServico = tipoServico
-    if (clienteId) where.clienteId = clienteId
-    if (motoboyId) where.motoboyId = motoboyId
+
+    // Clientes não podem filtrar por outros clienteIds
+    if (clienteId && auth.user.role === 'ADMIN') {
+      where.clienteId = clienteId
+    }
+    if (motoboyId && auth.user.role === 'ADMIN') {
+      where.motoboyId = motoboyId
+    }
 
     if (dataInicio || dataFim) {
       where.createdAt = {}
@@ -62,16 +86,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao listar pedidos:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao listar pedidos' },
-      { status: 500 }
-    )
+    return serverError('Erro ao listar pedidos')
   }
 }
 
-// POST /api/pedidos - Criar pedido
+// POST /api/pedidos - Criar pedido (cliente autenticado)
 export async function POST(request: NextRequest) {
   try {
+    // Requer autenticação
+    const auth = await requireAuth()
+    if (!auth.authenticated) return auth.response
+
     const body = await request.json()
 
     const validation = createPedidoSchema.safeParse(body)
@@ -87,6 +112,11 @@ export async function POST(request: NextRequest) {
     }
 
     const data = validation.data
+
+    // Cliente só pode criar pedido para si mesmo
+    if (auth.user.role === 'CLIENTE' && auth.user.clienteId !== data.clienteId) {
+      return forbidden('Você só pode criar pedidos para sua própria conta')
+    }
 
     // Verificar se cliente existe
     const cliente = await prisma.cliente.findUnique({
@@ -220,9 +250,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar pedido:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao criar pedido' },
-      { status: 500 }
-    )
+    return serverError('Erro ao criar pedido')
   }
 }

@@ -1,12 +1,12 @@
 'use client'
 
-import { useSession, signOut } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
-import ThemeToggle from '@/components/ui/ThemeToggle'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import Header from '@/components/ui/Header'
+import { Card, CardContent } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import { formatarMoeda } from '@/lib/pricing'
 import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO, LABELS_STATUS_MOTOBOY, CORES_STATUS_MOTOBOY } from '@/utils/helpers'
@@ -303,10 +303,6 @@ export default function MotoboyPage() {
     }
   }
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/' })
-  }
-
   if (status === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -340,46 +336,10 @@ export default function MotoboyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              </div>
-              <span className="text-xl font-bold text-gray-900">
-                Entrega Pra Mim
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <ThemeToggle />
-              <span className="text-gray-600">{session?.user?.name}</span>
-              <Link href="/motoboy/historico">
-                <Button variant="outline">Histórico</Button>
-              </Link>
-              <Button variant="outline" onClick={handleLogout}>
-                Sair
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <Header userName={session?.user?.name} userRole="MOTOBOY" />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Location Sharing Status */}
         {isSharing && (
           <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">

@@ -3,6 +3,8 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
+import { motion, AnimatePresence } from 'framer-motion'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
@@ -19,18 +21,13 @@ function RegistroForm() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  // Campos comuns
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [confirmarSenha, setConfirmarSenha] = useState('')
   const [telefone, setTelefone] = useState('')
-
-  // Campos de cliente
   const [cpfCnpj, setCpfCnpj] = useState('')
   const [tipoPessoa, setTipoPessoa] = useState('PF')
-
-  // Campos de motoboy
   const [cnh, setCnh] = useState('')
   const [veiculoTipo, setVeiculoTipo] = useState('')
   const [veiculoMarca, setVeiculoMarca] = useState('')
@@ -98,252 +95,311 @@ function RegistroForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-        <div className="max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg
-              className="w-8 h-8 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-cyan-50/30 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 py-12 px-4 relative overflow-hidden">
+        {/* Background elements */}
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-cyan-500/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+
+        <motion.div
+          className="max-w-md w-full text-center bg-white/80 dark:bg-slate-800/80 backdrop-blur-2xl rounded-3xl p-10 shadow-xl border border-white/20 dark:border-slate-700/50 relative z-10"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 200 }}
+        >
+          <motion.div
+            className="w-20 h-20 bg-gradient-to-br from-emerald-400 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/30"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring' }}
+          >
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          </motion.div>
+          <motion.h2
+            className="text-2xl font-bold text-gradient mb-2"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
             Conta criada com sucesso!
-          </h2>
-          <p className="text-gray-600">
+          </motion.h2>
+          <motion.p
+            className="text-slate-500 dark:text-slate-400"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+          >
             Redirecionando para o login...
-          </p>
-        </div>
+          </motion.p>
+        </motion.div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <Link href="/" className="flex justify-center items-center gap-2">
-            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-7 h-7 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-cyan-50/30 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Animated background */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 right-0 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      </div>
+
+      <motion.div
+        className="max-w-md w-full relative z-10"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <motion.div
+          className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-2xl rounded-3xl p-8 sm:p-10 shadow-xl shadow-cyan-500/5 border border-white/20 dark:border-slate-700/50"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1 }}
+        >
+          <div className="text-center">
+            <Link href="/" className="flex justify-center items-center gap-3">
+              <motion.div
+                className="w-16 h-16 relative rounded-2xl overflow-hidden"
+                whileHover={{ rotate: 5, scale: 1.1 }}
+                transition={{ type: 'spring', stiffness: 300 }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
-            </div>
-          </Link>
-          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
-            Crie sua conta
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Ja tem uma conta?{' '}
-            <Link
-              href="/login"
-              className="font-medium text-blue-600 hover:text-blue-500"
-            >
-              Faca login
+                <Image src="/icons/app-icon.png" alt="Entrega Pra Mim" fill className="object-cover" />
+              </motion.div>
             </Link>
-          </p>
-        </div>
-
-        {/* Seletor de tipo */}
-        <div className="flex rounded-lg bg-gray-100 p-1">
-          <button
-            type="button"
-            onClick={() => setTipo('cliente')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              tipo === 'cliente'
-                ? 'bg-white text-gray-900 shadow'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Sou Cliente
-          </button>
-          <button
-            type="button"
-            onClick={() => setTipo('motoboy')}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
-              tipo === 'motoboy'
-                ? 'bg-white text-gray-900 shadow'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Sou Motoboy
-          </button>
-        </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <Input
-              label="Nome completo"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Seu nome completo"
-              required
-            />
-
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-            />
-
-            <Input
-              label="Telefone"
-              type="tel"
-              value={telefone}
-              onChange={(e) => setTelefone(e.target.value)}
-              placeholder="(11) 99999-9999"
-              required
-            />
-
-            {tipo === 'cliente' && (
-              <>
-                <Select
-                  label="Tipo de pessoa"
-                  options={[
-                    { value: 'PF', label: 'Pessoa Fisica' },
-                    { value: 'PJ', label: 'Pessoa Juridica' },
-                  ]}
-                  value={tipoPessoa}
-                  onChange={(e) => setTipoPessoa(e.target.value)}
-                />
-
-                <Input
-                  label={tipoPessoa === 'PF' ? 'CPF' : 'CNPJ'}
-                  value={cpfCnpj}
-                  onChange={(e) => setCpfCnpj(e.target.value)}
-                  placeholder={
-                    tipoPessoa === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'
-                  }
-                />
-              </>
-            )}
-
-            {tipo === 'motoboy' && (
-              <>
-                <Input
-                  label="CNH"
-                  value={cnh}
-                  onChange={(e) => setCnh(e.target.value)}
-                  placeholder="00000000000"
-                  required
-                />
-
-                <Select
-                  label="Tipo de veiculo"
-                  options={[
-                    { value: 'Moto', label: 'Moto' },
-                    { value: 'Bicicleta', label: 'Bicicleta' },
-                    { value: 'Carro', label: 'Carro' },
-                  ]}
-                  value={veiculoTipo}
-                  onChange={(e) => setVeiculoTipo(e.target.value)}
-                  placeholder="Selecione o tipo"
-                  required
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Marca"
-                    value={veiculoMarca}
-                    onChange={(e) => setVeiculoMarca(e.target.value)}
-                    placeholder="Honda"
-                    required
-                  />
-
-                  <Input
-                    label="Modelo"
-                    value={veiculoModelo}
-                    onChange={(e) => setVeiculoModelo(e.target.value)}
-                    placeholder="CG 160"
-                    required
-                  />
-                </div>
-
-                <Input
-                  label="Placa"
-                  value={veiculoPlaca}
-                  onChange={(e) => setVeiculoPlaca(e.target.value)}
-                  placeholder="ABC1D23"
-                  required
-                />
-              </>
-            )}
-
-            <Input
-              label="Senha"
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="Minimo 6 caracteres"
-              required
-            />
-
-            <Input
-              label="Confirmar senha"
-              type="password"
-              value={confirmarSenha}
-              onChange={(e) => setConfirmarSenha(e.target.value)}
-              placeholder="Repita a senha"
-              required
-            />
+            <h2 className="mt-6 text-3xl font-bold text-gradient">Crie sua conta</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Já tem uma conta?{' '}
+              <Link href="/login" className="font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 transition-colors">
+                Faça login
+              </Link>
+            </p>
           </div>
 
-          <Button
-            type="submit"
-            className="w-full"
-            size="lg"
-            isLoading={isLoading}
+          {/* Seletor de tipo */}
+          <motion.div
+            className="mt-8 flex rounded-2xl bg-slate-100/80 dark:bg-slate-900/50 backdrop-blur-sm p-1.5"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
-            Criar conta
-          </Button>
+            <motion.button
+              type="button"
+              onClick={() => setTipo('cliente')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                tipo === 'cliente'
+                  ? 'bg-gradient-to-r from-[#0A4D68] to-cyan-500 text-white shadow-lg shadow-cyan-500/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400'
+              }`}
+              whileTap={{ scale: 0.98 }}
+            >
+              Sou Cliente
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setTipo('motoboy')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 ${
+                tipo === 'motoboy'
+                  ? 'bg-gradient-to-r from-[#0A4D68] to-cyan-500 text-white shadow-lg shadow-cyan-500/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400'
+              }`}
+              whileTap={{ scale: 0.98 }}
+            >
+              Sou Motoboy
+            </motion.button>
+          </motion.div>
 
-          <p className="text-xs text-center text-gray-500">
-            Ao criar uma conta, voce concorda com nossos{' '}
-            <a href="#" className="text-blue-600 hover:text-blue-500">
-              Termos de Servico
-            </a>{' '}
-            e{' '}
-            <a href="#" className="text-blue-600 hover:text-blue-500">
-              Politica de Privacidade
-            </a>
-            .
-          </p>
-        </form>
-      </div>
+          <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+            <AnimatePresence mode="wait">
+              {error && (
+                <motion.div
+                  className="bg-red-500/10 backdrop-blur-sm border border-red-500/20 text-red-600 dark:text-red-400 px-4 py-3 rounded-xl text-sm flex items-center gap-2"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <svg className="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {error}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <motion.div
+              className="space-y-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Input
+                label="Nome completo"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Seu nome completo"
+                required
+              />
+
+              <Input
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                required
+              />
+
+              <Input
+                label="Telefone"
+                type="tel"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(11) 99999-9999"
+                required
+              />
+
+              <AnimatePresence mode="wait">
+                {tipo === 'cliente' && (
+                  <motion.div
+                    className="space-y-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Select
+                      label="Tipo de pessoa"
+                      options={[
+                        { value: 'PF', label: 'Pessoa Física' },
+                        { value: 'PJ', label: 'Pessoa Jurídica' },
+                      ]}
+                      value={tipoPessoa}
+                      onChange={(e) => setTipoPessoa(e.target.value)}
+                    />
+
+                    <Input
+                      label={tipoPessoa === 'PF' ? 'CPF' : 'CNPJ'}
+                      value={cpfCnpj}
+                      onChange={(e) => setCpfCnpj(e.target.value)}
+                      placeholder={tipoPessoa === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'}
+                    />
+                  </motion.div>
+                )}
+
+                {tipo === 'motoboy' && (
+                  <motion.div
+                    className="space-y-4"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Input
+                      label="CNH"
+                      value={cnh}
+                      onChange={(e) => setCnh(e.target.value)}
+                      placeholder="00000000000"
+                      required
+                    />
+
+                    <Select
+                      label="Tipo de veículo"
+                      options={[
+                        { value: 'Moto', label: 'Moto' },
+                        { value: 'Bicicleta', label: 'Bicicleta' },
+                        { value: 'Carro', label: 'Carro' },
+                      ]}
+                      value={veiculoTipo}
+                      onChange={(e) => setVeiculoTipo(e.target.value)}
+                      placeholder="Selecione o tipo"
+                      required
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label="Marca"
+                        value={veiculoMarca}
+                        onChange={(e) => setVeiculoMarca(e.target.value)}
+                        placeholder="Honda"
+                        required
+                      />
+
+                      <Input
+                        label="Modelo"
+                        value={veiculoModelo}
+                        onChange={(e) => setVeiculoModelo(e.target.value)}
+                        placeholder="CG 160"
+                        required
+                      />
+                    </div>
+
+                    <Input
+                      label="Placa"
+                      value={veiculoPlaca}
+                      onChange={(e) => setVeiculoPlaca(e.target.value)}
+                      placeholder="ABC1D23"
+                      required
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <Input
+                label="Senha"
+                type="password"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                required
+              />
+
+              <Input
+                label="Confirmar senha"
+                type="password"
+                value={confirmarSenha}
+                onChange={(e) => setConfirmarSenha(e.target.value)}
+                placeholder="Repita a senha"
+                required
+              />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
+                Criar conta
+              </Button>
+            </motion.div>
+
+            <motion.p
+              className="text-xs text-center text-slate-500 dark:text-slate-400"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              Ao criar uma conta, você concorda com nossos{' '}
+              <a href="#" className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 transition-colors">Termos de Serviço</a>{' '}
+              e{' '}
+              <a href="#" className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 transition-colors">Política de Privacidade</a>.
+            </motion.p>
+          </form>
+        </motion.div>
+      </motion.div>
     </div>
   )
 }
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-cyan-50/30 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      <motion.div
+        className="w-12 h-12 border-3 border-cyan-500 border-t-transparent rounded-full"
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+      />
     </div>
   )
 }

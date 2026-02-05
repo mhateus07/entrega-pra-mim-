@@ -1,16 +1,18 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Montserrat } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 
-const inter = Inter({
+const montserrat = Montserrat({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-montserrat',
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
   title: 'Entrega Pra Mim - Plataforma de Entregas',
-  description: 'Plataforma completa para gerenciamento de entregas com motoboys',
+  description: 'Plataforma de tecnologia logística e delivery urbano. Velocidade, agilidade, precisão e confiabilidade.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -24,13 +26,13 @@ export const metadata: Metadata = {
     type: 'website',
     siteName: 'Entrega Pra Mim',
     title: 'Entrega Pra Mim - Plataforma de Entregas',
-    description: 'Plataforma completa para gerenciamento de entregas com motoboys',
+    description: 'Plataforma de tecnologia logística e delivery urbano. Velocidade, agilidade, precisão e confiabilidade.',
   },
 }
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#2563eb' },
+    { media: '(prefers-color-scheme: light)', color: '#0A4D68' },
     { media: '(prefers-color-scheme: dark)', color: '#1e293b' },
   ],
   width: 'device-width',
@@ -47,11 +49,16 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/icons/icon-96x96.png" type="image/png" />
+        <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${montserrat.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

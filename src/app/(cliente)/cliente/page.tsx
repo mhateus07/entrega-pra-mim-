@@ -1,13 +1,13 @@
 'use client'
 
-import { useSession, signOut } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Card, CardContent } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
-import ThemeToggle from '@/components/ui/ThemeToggle'
+import Header from '@/components/ui/Header'
 import { formatarMoeda } from '@/lib/pricing'
 import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO } from '@/utils/helpers'
 import { StatusPedido } from '@/types'
@@ -75,10 +75,6 @@ export default function ClientePage() {
     }
   }, [status, session])
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/' })
-  }
-
   if (status === 'loading' || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -95,55 +91,22 @@ export default function ClientePage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              </div>
-              <span className="text-xl font-bold text-gray-900">
-                Entrega Pra Mim
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <ThemeToggle />
-              <span className="text-gray-600">{session?.user?.name}</span>
-              <Button variant="outline" onClick={handleLogout}>
-                Sair
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <Header userName={session?.user?.name} userRole="CLIENTE" />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Actions */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Minhas Entregas</h1>
-          <Link href="/cliente/nova-entrega">
-            <Button>Nova Entrega</Button>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Minhas Entregas</h1>
+          <Link href="/cliente/nova-entrega" className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto">+ Nova Entrega</Button>
           </Link>
         </div>
 
         {/* Active Orders */}
         {pedidosAtivos.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="mb-6">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3">
               Entregas em Andamento
             </h2>
             <div className="grid gap-4">

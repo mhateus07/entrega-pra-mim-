@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updateMotoboySchema, updateDisponibilidadeSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
+import { requireMotoboyOwnership, requireAdmin, notFound, serverError } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// GET /api/motoboys/[id] - Buscar motoboy por ID
+// GET /api/motoboys/[id] - Buscar motoboy por ID (owner ou admin)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
+
+    // Verificar se é o dono ou admin
+    const auth = await requireMotoboyOwnership(id)
+    if (!auth.authenticated) return auth.response
 
     const motoboy = await prisma.motoboy.findUnique({
       where: { id },
@@ -45,10 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!motoboy) {
-      return NextResponse.json(
-        { success: false, error: 'Motoboy não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Motoboy não encontrado')
     }
 
     const response: ApiResponse<typeof motoboy> = {
@@ -59,17 +61,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao buscar motoboy:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao buscar motoboy' },
-      { status: 500 }
-    )
+    return serverError('Erro ao buscar motoboy')
   }
 }
 
-// PATCH /api/motoboys/[id] - Atualizar motoboy
+// PATCH /api/motoboys/[id] - Atualizar motoboy (owner ou admin)
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
+
+    // Verificar se é o dono ou admin
+    const auth = await requireMotoboyOwnership(id)
+    if (!auth.authenticated) return auth.response
+
     const body = await request.json()
 
     // Verificar se motoboy existe
@@ -78,10 +82,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!motoboy) {
-      return NextResponse.json(
-        { success: false, error: 'Motoboy não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Motoboy não encontrado')
     }
 
     // Verificar se está atualizando disponibilidades
@@ -226,27 +227,25 @@ $transaction(async (tx: any) => {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao atualizar motoboy:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao atualizar motoboy' },
-      { status: 500 }
-    )
+    return serverError('Erro ao atualizar motoboy')
   }
 }
 
-// DELETE /api/motoboys/[id] - Deletar motoboy
+// DELETE /api/motoboys/[id] - Deletar motoboy (apenas admin)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
+
+    // Apenas admin pode deletar motoboys
+    const auth = await requireAdmin()
+    if (!auth.authenticated) return auth.response
 
     const motoboy = await prisma.motoboy.findUnique({
       where: { id },
     })
 
     if (!motoboy) {
-      return NextResponse.json(
-        { success: false, error: 'Motoboy não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Motoboy não encontrado')
     }
 
     // Deletar em cascata (usuário -> motoboy -> disponibilidades)
@@ -260,9 +259,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Erro ao deletar motoboy:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao deletar motoboy' },
-      { status: 500 }
-    )
+    return serverError('Erro ao deletar motoboy')
   }
 }

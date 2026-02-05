@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { z } from 'zod'
 import {
   gerarPagamentoPix,
@@ -9,41 +7,62 @@ import {
   calcularTaxaPlataforma,
   calcularValorMotoboy,
   MetodoPagamento,
+  IS_PAYMENT_MOCK,
 } from '@/lib/pagamentos'
+import { requireAuth, applyRateLimit, serverError, badRequest, notFound, forbidden } from '@/lib/auth-helpers'
+
+// =============================================================================
+// Validação de dados de pagamento
+// =============================================================================
+// Validação mais rigorosa para dados de cartão
+// NOTA: Em produção com gateway real, use tokenização e nunca processe CVV no servidor
+
+const cartaoSchema = z.object({
+  // Número do cartão: 13-19 dígitos (aceita espaços)
+  numero: z.string()
+    .transform(val => val.replace(/\s/g, ''))
+    .refine(val => /^\d{13,19}$/.test(val), {
+      message: 'Número do cartão deve ter entre 13 e 19 dígitos',
+    }),
+  // Nome do titular: 3-50 caracteres, apenas letras e espaços
+  nome: z.string()
+    .min(3, 'Nome deve ter pelo menos 3 caracteres')
+    .max(50, 'Nome deve ter no máximo 50 caracteres')
+    .refine(val => /^[a-zA-ZÀ-ÿ\s]+$/.test(val), {
+      message: 'Nome deve conter apenas letras',
+    }),
+  // Validade: MM/YY
+  validade: z.string()
+    .regex(/^\d{2}\/\d{2}$/, 'Validade deve estar no formato MM/YY'),
+  // CVV: 3-4 dígitos (AMEX usa 4)
+  cvv: z.string()
+    .regex(/^\d{3,4}$/, 'CVV deve ter 3 ou 4 dígitos'),
+})
 
 const criarPagamentoSchema = z.object({
-  pedidoId: z.string(),
+  pedidoId: z.string().min(1, 'pedidoId é obrigatório'),
   metodo: z.enum(['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO']),
-  cartao: z
-    .object({
-      numero: z.string(),
-      nome: z.string(),
-      validade: z.string(),
-      cvv: z.string(),
-    })
-    .optional(),
+  cartao: cartaoSchema.optional(),
 })
 
 // GET /api/pagamentos - Listar pagamentos do usuário
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
+    // Requer autenticação
+    const auth = await requireAuth()
+    if (!auth.authenticated) return auth.response
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {}
+    const where: Record<string, unknown> = {}
 
     // Filtrar por usuário (exceto admin)
-    if (session.user.role === 'CLIENTE' && session.user.clienteId) {
-      where.clienteId = session.user.clienteId
+    if (auth.user.role === 'CLIENTE' && auth.user.clienteId) {
+      where.clienteId = auth.user.clienteId
+    } else if (auth.user.role === 'MOTOBOY') {
+      // Motoboy não deveria ver pagamentos diretamente
+      return forbidden('Acesso não permitido')
     }
 
     if (status) {
@@ -69,35 +88,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: pagamentos,
+      // Aviso sobre sistema mock
+      ...(IS_PAYMENT_MOCK && { _warning: 'Sistema de pagamento em modo de demonstração' }),
     })
   } catch (error) {
     console.error('Erro ao listar pagamentos:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return serverError('Erro ao listar pagamentos')
   }
 }
 
-// POST /api/pagamentos - Criar pagamento
+// POST /api/pagamentos - Criar pagamento (rate limited)
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json(
-        { success: false, error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
+    // Rate limit para pagamentos (20 req/min)
+    const rateLimit = applyRateLimit(request, 'sensitive')
+    if (!rateLimit.success) return rateLimit.response
+
+    // Requer autenticação
+    const auth = await requireAuth()
+    if (!auth.authenticated) return auth.response
 
     const body = await request.json()
     const validation = criarPagamentoSchema.safeParse(body)
 
     if (!validation.success) {
-      return NextResponse.json(
-        { success: false, error: 'Dados inválidos', details: validation.error.issues },
-        { status: 400 }
-      )
+      // Não expor detalhes de validação de cartão por segurança
+      return badRequest('Dados de pagamento inválidos')
     }
 
     const { pedidoId, metodo, cartao } = validation.data
@@ -112,26 +128,17 @@ export async function POST(request: NextRequest) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Pedido não encontrado')
     }
 
     // Verificar se é o dono do pedido
-    if (pedido.cliente.userId !== session.user.id && session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { success: false, error: 'Acesso negado' },
-        { status: 403 }
-      )
+    if (pedido.cliente.userId !== auth.user.id && auth.user.role !== 'ADMIN') {
+      return forbidden('Acesso negado')
     }
 
     // Verificar se já existe pagamento aprovado
     if (pedido.pagamento?.status === 'APROVADO') {
-      return NextResponse.json(
-        { success: false, error: 'Este pedido já foi pago' },
-        { status: 400 }
-      )
+      return badRequest('Este pedido já foi pago')
     }
 
     // Calcular valores
@@ -281,15 +288,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    return NextResponse.json(
-      { success: false, error: 'Método de pagamento inválido' },
-      { status: 400 }
-    )
+    return badRequest('Método de pagamento inválido')
   } catch (error) {
     console.error('Erro ao criar pagamento:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return serverError('Erro ao processar pagamento')
   }
 }

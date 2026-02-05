@@ -1,14 +1,30 @@
-// Biblioteca de Pagamentos
-// Preparada para integração com gateways reais (Mercado Pago, Stripe, etc.)
+// =============================================================================
+// Biblioteca de Pagamentos - SISTEMA MOCK
+// =============================================================================
+// AVISO: Este é um sistema SIMULADO para desenvolvimento/demonstração.
+// Para produção, integre com um gateway real (Mercado Pago, Stripe, Pagar.me).
+//
+// Checklist para produção:
+// [ ] Integrar com gateway de pagamento real
+// [ ] Implementar tokenização de cartões (NUNCA armazene números completos)
+// [ ] Configurar webhooks com verificação de assinatura
+// [ ] Adicionar idempotency keys para evitar cobranças duplicadas
+// [ ] Implementar PCI DSS compliance
+// =============================================================================
 
 export type MetodoPagamento = 'PIX' | 'CARTAO_CREDITO' | 'CARTAO_DEBITO' | 'DINHEIRO'
 export type StatusPagamento = 'PENDENTE' | 'PROCESSANDO' | 'APROVADO' | 'RECUSADO' | 'CANCELADO' | 'REEMBOLSADO'
+
+// Indica se o sistema está em modo mock (para exibir avisos na UI)
+export const IS_PAYMENT_MOCK = true
 
 // Configurações
 export const CONFIG_PAGAMENTO = {
   taxaPlataforma: 0.15, // 15% de taxa da plataforma
   pixExpiracaoMinutos: 30,
-  webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET || 'webhook-secret',
+  // IMPORTANTE: Em produção, esta variável DEVE estar configurada
+  // Não use fallback para evitar aceitar webhooks falsos
+  webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET,
 }
 
 // Tipos

@@ -3,10 +3,15 @@ import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { createMotoboySchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
+import { requireAuth, requireAdmin, serverError, applyRateLimit } from '@/lib/auth-helpers'
 
-// GET /api/motoboys - Listar motoboys
+// GET /api/motoboys - Listar motoboys (autenticado)
 export async function GET(request: NextRequest) {
   try {
+    // Requer autenticação para listar motoboys
+    const auth = await requireAuth()
+    if (!auth.authenticated) return auth.response
+
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status')
     const avaliacaoMinima = searchParams.get('avaliacaoMinima')
@@ -23,6 +28,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Para não-admins, limitar informações retornadas
+    const isAdmin = auth.user.role === 'ADMIN'
+
     const motoboys = await prisma.motoboy.findMany({
       where,
       include: {
@@ -30,11 +38,11 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             nome: true,
-            email: true,
-            telefone: true,
+            // Apenas admin vê email e telefone
+            ...(isAdmin ? { email: true, telefone: true } : {}),
           },
         },
-        disponibilidades: true,
+        disponibilidades: isAdmin,
       },
       orderBy: {
         createdAt: 'desc',
@@ -49,16 +57,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao listar motoboys:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao listar motoboys' },
-      { status: 500 }
-    )
+    return serverError('Erro ao listar motoboys')
   }
 }
 
-// POST /api/motoboys - Criar motoboy
+// POST /api/motoboys - Criar motoboy (rate limited - registro)
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit para registro (10 req/min)
+    const rateLimit = applyRateLimit(request, 'auth')
+    if (!rateLimit.success) return rateLimit.response
+
     const body = await request.json()
 
     const validation = createMotoboySchema.safeParse(body)

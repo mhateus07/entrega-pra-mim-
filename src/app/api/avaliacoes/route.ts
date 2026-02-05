@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createAvaliacaoSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
+import { requireAuth, requireClienteOwnership, serverError, badRequest, notFound, forbidden } from '@/lib/auth-helpers'
 
-// GET /api/avaliacoes - Listar avaliações
+// GET /api/avaliacoes - Listar avaliações (autenticado)
 export async function GET(request: NextRequest) {
   try {
+    // Requer autenticação
+    const auth = await requireAuth()
+    if (!auth.authenticated) return auth.response
+
     const searchParams = request.nextUrl.searchParams
     const motoboyId = searchParams.get('motoboyId')
 
@@ -13,6 +18,11 @@ export async function GET(request: NextRequest) {
 
     if (motoboyId) {
       where.motoboyId = motoboyId
+    }
+
+    // Motoboy só vê suas próprias avaliações
+    if (auth.user.role === 'MOTOBOY' && auth.user.motoboyId) {
+      where.motoboyId = auth.user.motoboyId
     }
 
     const avaliacoes = await prisma.avaliacao.findMany({
@@ -48,28 +58,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao listar avaliações:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao listar avaliações' },
-      { status: 500 }
-    )
+    return serverError('Erro ao listar avaliações')
   }
 }
 
-// POST /api/avaliacoes - Criar avaliação
+// POST /api/avaliacoes - Criar avaliação (apenas o cliente do pedido)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
 
     const validation = createAvaliacaoSchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Dados inválidos',
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
+      return badRequest('Dados inválidos')
     }
 
     const data = validation.data
@@ -81,31 +81,23 @@ export async function POST(request: NextRequest) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Pedido não encontrado')
     }
 
+    // Verificar se é o cliente do pedido
+    const auth = await requireClienteOwnership(pedido.clienteId)
+    if (!auth.authenticated) return auth.response
+
     if (pedido.status !== 'ENTREGUE') {
-      return NextResponse.json(
-        { success: false, error: 'Só é possível avaliar pedidos entregues' },
-        { status: 400 }
-      )
+      return badRequest('Só é possível avaliar pedidos entregues')
     }
 
     if (pedido.avaliacao) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido já foi avaliado' },
-        { status: 400 }
-      )
+      return badRequest('Pedido já foi avaliado')
     }
 
     if (!pedido.motoboyId) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido não possui motoboy atribuído' },
-        { status: 400 }
-      )
+      return badRequest('Pedido não possui motoboy atribuído')
     }
 
     // Criar avaliação
@@ -151,9 +143,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar avaliação:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao criar avaliação' },
-      { status: 500 }
-    )
+    return serverError('Erro ao criar avaliação')
   }
 }

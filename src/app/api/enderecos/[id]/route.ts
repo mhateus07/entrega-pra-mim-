@@ -3,12 +3,13 @@ import prisma from '@/lib/prisma'
 import { updateEnderecoSchema } from '@/lib/validations'
 import { geocodificarEndereco } from '@/lib/google-maps'
 import { ApiResponse } from '@/types'
+import { requireEnderecoAccess, notFound, badRequest, serverError } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// GET /api/enderecos/[id] - Buscar endereço por ID
+// GET /api/enderecos/[id] - Buscar endereço por ID (verificação de ownership)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
@@ -27,11 +28,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!endereco) {
-      return NextResponse.json(
-        { success: false, error: 'Endereço não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Endereço não encontrado')
     }
+
+    // Verificar se é o dono ou admin
+    const auth = await requireEnderecoAccess(endereco)
+    if (!auth.authenticated) return auth.response
 
     const response: ApiResponse<typeof endereco> = {
       success: true,
@@ -41,32 +43,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao buscar endereço:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao buscar endereço' },
-      { status: 500 }
-    )
+    return serverError('Erro ao buscar endereço')
   }
 }
 
-// PATCH /api/enderecos/[id] - Atualizar endereço
+// PATCH /api/enderecos/[id] - Atualizar endereço (verificação de ownership)
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
-    const body = await request.json()
-
-    const validation = updateEnderecoSchema.safeParse(body)
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Dados inválidos',
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-
-    const data = validation.data
 
     // Verificar se endereço existe
     const endereco = await prisma.endereco.findUnique({
@@ -74,11 +58,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!endereco) {
-      return NextResponse.json(
-        { success: false, error: 'Endereço não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Endereço não encontrado')
     }
+
+    // Verificar se é o dono ou admin
+    const auth = await requireEnderecoAccess(endereco)
+    if (!auth.authenticated) return auth.response
+
+    const body = await request.json()
+
+    const validation = updateEnderecoSchema.safeParse(body)
+    if (!validation.success) {
+      return badRequest('Dados inválidos')
+    }
+
+    const data = validation.data
 
     // Se está atualizando campos de endereço sem coordenadas, geocodificar
     const needsGeocode =
@@ -135,14 +129,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao atualizar endereço:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao atualizar endereço' },
-      { status: 500 }
-    )
+    return serverError('Erro ao atualizar endereço')
   }
 }
 
-// DELETE /api/enderecos/[id] - Deletar endereço
+// DELETE /api/enderecos/[id] - Deletar endereço (verificação de ownership)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
@@ -152,11 +143,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!endereco) {
-      return NextResponse.json(
-        { success: false, error: 'Endereço não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Endereço não encontrado')
     }
+
+    // Verificar se é o dono ou admin
+    const auth = await requireEnderecoAccess(endereco)
+    if (!auth.authenticated) return auth.response
 
     // Verificar se existem pedidos usando este endereço
     const pedidosUsando = await prisma.pedido.count({
@@ -166,13 +158,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
 
     if (pedidosUsando > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Não é possível excluir endereço com pedidos vinculados',
-        },
-        { status: 400 }
-      )
+      return badRequest('Não é possível excluir endereço com pedidos vinculados')
     }
 
     await prisma.endereco.delete({
@@ -185,9 +171,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Erro ao deletar endereço:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao deletar endereço' },
-      { status: 500 }
-    )
+    return serverError('Erro ao deletar endereço')
   }
 }
