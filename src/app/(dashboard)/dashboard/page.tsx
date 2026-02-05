@@ -4,6 +4,8 @@ import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
+import { motion } from 'framer-motion'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -169,8 +171,14 @@ export default function DashboardPage() {
 
   if (status === 'loading' || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 relative">
+            <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full" />
+            <div className="absolute inset-0 border-4 border-transparent border-t-cyan-500 rounded-full animate-spin" />
+          </div>
+          <p className="text-cyan-400 text-sm">Carregando dashboard...</p>
+        </div>
       </div>
     )
   }
@@ -179,309 +187,260 @@ export default function DashboardPage() {
     signOut({ callbackUrl: '/' })
   }
 
+  const navLinks = [
+    { href: '/dashboard', label: 'Visao Geral', active: true },
+    { href: '/dashboard/pedidos', label: 'Pedidos', active: false },
+    { href: '/dashboard/motoboys', label: 'Motoboys', active: false },
+    { href: '/dashboard/clientes', label: 'Clientes', active: false },
+  ]
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-950">
+      {/* Background effects */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+      </div>
+
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      <motion.header
+        className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-xl border-b border-cyan-500/10"
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold text-gray-900">Entrega Pra Mim</span>
-            </div>
+            <Link href="/dashboard" className="flex items-center gap-3 group">
+              <motion.div
+                className="w-10 h-10 relative rounded-xl overflow-hidden ring-2 ring-cyan-500/30 group-hover:ring-cyan-400/60 transition-all"
+                whileHover={{ scale: 1.1, rotate: 5 }}
+              >
+                <Image src="/icons/app-icon.png" alt="Entrega Pra Mim" fill className="object-cover" />
+              </motion.div>
+              <span className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                ENTREGA PRA MIM
+              </span>
+            </Link>
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              <Badge variant="info">{session?.user?.role}</Badge>
-              <span className="text-gray-600">{session?.user?.name}</span>
-              <Button variant="outline" onClick={handleLogout}>Sair</Button>
+              <Badge variant="info" className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                {session?.user?.role}
+              </Badge>
+              <span className="text-slate-400 text-sm hidden sm:block">{session?.user?.name}</span>
+              <Button
+                variant="outline"
+                onClick={handleLogout}
+                className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50"
+              >
+                Sair
+              </Button>
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Navigation */}
-      <nav className="bg-white border-b">
+      <nav className="sticky top-[73px] z-40 bg-slate-900/60 backdrop-blur-xl border-b border-cyan-500/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-8">
-            <Link href="/dashboard" className="py-4 px-1 border-b-2 border-blue-600 text-blue-600 font-medium">
-              Visão Geral
-            </Link>
-            <Link href="/dashboard/pedidos" className="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
-              Pedidos
-            </Link>
-            <Link href="/dashboard/motoboys" className="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
-              Motoboys
-            </Link>
-            <Link href="/dashboard/clientes" className="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
-              Clientes
-            </Link>
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`py-4 px-4 border-b-2 font-medium text-sm whitespace-nowrap transition-all ${
+                  link.active
+                    ? 'border-cyan-500 text-cyan-400'
+                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card variant="bordered">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-blue-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                      />
-                    </svg>
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          {[
+            { label: 'Pedidos Hoje', value: stats.pedidosHoje, icon: '📦', color: 'cyan' },
+            { label: 'Entregas Hoje', value: stats.entregasHoje, icon: '✅', color: 'green' },
+            { label: 'Faturamento Hoje', value: formatarMoeda(stats.faturamentoHoje), icon: '💰', color: 'yellow' },
+            { label: 'Motoboys Ativos', value: stats.motoboysAtivos, icon: '🏍️', color: 'purple' },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ scale: 1.02, y: -5 }}
+            >
+              <Card className="bg-slate-900/50 border-cyan-500/10 hover:border-cyan-500/30 transition-all">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center text-2xl">
+                      {stat.icon}
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-400">{stat.label}</p>
+                      <p className="text-2xl font-bold text-white">{stat.value}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">
-                    Pedidos Hoje
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {stats.pedidosHoje}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card variant="bordered">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-green-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">
-                    Entregas Hoje
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {stats.entregasHoje}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card variant="bordered">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-yellow-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">
-                    Faturamento Hoje
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {formatarMoeda(stats.faturamentoHoje)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card variant="bordered">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-6 h-6 text-purple-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">
-                    Motoboys Ativos
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {stats.motoboysAtivos}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </motion.div>
 
         {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <Card variant="bordered">
+        <motion.div
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card className="bg-slate-900/50 border-cyan-500/10">
             <CardHeader>
-              <CardTitle>Faturamento (Últimos 7 dias)</CardTitle>
+              <CardTitle className="text-white">Faturamento (Ultimos 7 dias)</CardTitle>
             </CardHeader>
             <CardContent>
               <FaturamentoChart data={chartData.faturamentoDiario} />
             </CardContent>
           </Card>
 
-          <Card variant="bordered">
+          <Card className="bg-slate-900/50 border-cyan-500/10">
             <CardHeader>
-              <CardTitle>Pedidos por Dia</CardTitle>
+              <CardTitle className="text-white">Pedidos por Dia</CardTitle>
             </CardHeader>
             <CardContent>
               <PedidosPorDiaChart data={chartData.pedidosPorDia} />
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <Card variant="bordered" className="lg:col-span-1">
+        <motion.div
+          className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <Card className="lg:col-span-1 bg-slate-900/50 border-cyan-500/10">
             <CardHeader>
-              <CardTitle>Status dos Pedidos</CardTitle>
+              <CardTitle className="text-white">Status dos Pedidos</CardTitle>
             </CardHeader>
             <CardContent>
               <StatusPedidosChart data={chartData.statusPedidos} />
             </CardContent>
           </Card>
 
-          <Card variant="bordered" className="lg:col-span-2">
+          <Card className="lg:col-span-2 bg-slate-900/50 border-cyan-500/10">
             <CardHeader>
-              <CardTitle>Resumo</CardTitle>
+              <CardTitle className="text-white">Resumo</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-3xl font-bold text-blue-600">{stats.totalPedidos}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total de Pedidos</p>
-                </div>
-                <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <p className="text-3xl font-bold text-green-600">{stats.entregasHoje}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Entregas Hoje</p>
-                </div>
-                <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                  <p className="text-3xl font-bold text-yellow-600">{stats.pedidosPendentes}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Pendentes</p>
-                </div>
-                <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                  <p className="text-3xl font-bold text-purple-600">{stats.motoboysAtivos}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Motoboys Ativos</p>
-                </div>
+                {[
+                  { label: 'Total de Pedidos', value: stats.totalPedidos, color: 'cyan' },
+                  { label: 'Entregas Hoje', value: stats.entregasHoje, color: 'green' },
+                  { label: 'Pendentes', value: stats.pedidosPendentes, color: 'yellow' },
+                  { label: 'Motoboys Ativos', value: stats.motoboysAtivos, color: 'purple' },
+                ].map((item) => (
+                  <div key={item.label} className="text-center p-4 bg-slate-800/50 rounded-xl border border-cyan-500/10">
+                    <p className="text-3xl font-bold text-cyan-400">{item.value}</p>
+                    <p className="text-sm text-slate-400">{item.label}</p>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
 
         {/* Recent Orders */}
-        <Card variant="bordered">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Pedidos Recentes</CardTitle>
-            <Link href="/dashboard/pedidos">
-              <Button variant="outline" size="sm">Ver Todos</Button>
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {pedidosRecentes.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">
-                Nenhum pedido encontrado
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        ID
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Cliente
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tipo
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Valor
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {pedidosRecentes.map((pedido) => (
-                      <Link key={pedido.id} href={`/dashboard/pedidos/${pedido.id}`} className="contents">
-                        <tr className="hover:bg-gray-50 cursor-pointer">
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
-                            {pedido.id.slice(0, 8)}...
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {pedido.cliente?.user?.nome || 'N/A'}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                            {pedido.tipoServico}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {formatarMoeda(pedido.valorTotal)}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                CORES_STATUS_PEDIDO[pedido.status]
-                              }`}
-                            >
-                              {LABELS_STATUS_PEDIDO[pedido.status]}
-                            </span>
-                          </td>
-                        </tr>
-                      </Link>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <Card className="bg-slate-900/50 border-cyan-500/10">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-white">Pedidos Recentes</CardTitle>
+              <Link href="/dashboard/pedidos">
+                <Button variant="outline" size="sm" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
+                  Ver Todos
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {pedidosRecentes.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">📭</div>
+                  <p className="text-slate-400">Nenhum pedido encontrado</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-cyan-500/10">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          ID
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Cliente
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Tipo
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Valor
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-cyan-500/10">
+                      {pedidosRecentes.map((pedido) => (
+                        <Link key={pedido.id} href={`/dashboard/pedidos/${pedido.id}`} className="contents">
+                          <tr className="hover:bg-cyan-500/5 cursor-pointer transition-colors">
+                            <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-cyan-400">
+                              {pedido.id.slice(0, 8)}...
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-white">
+                              {pedido.cliente?.user?.nome || 'N/A'}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-400">
+                              {pedido.tipoServico}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-white">
+                              {formatarMoeda(pedido.valorTotal)}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                  CORES_STATUS_PEDIDO[pedido.status]
+                                }`}
+                              >
+                                {LABELS_STATUS_PEDIDO[pedido.status]}
+                              </span>
+                            </td>
+                          </tr>
+                        </Link>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </main>
     </div>
   )

@@ -198,7 +198,7 @@ export default function LoginPage() {
             transition={{ delay: 0.4, type: 'spring' }}
           >
             <div className="absolute inset-0 bg-white/20 rounded-full blur-3xl" />
-            <Image src="/logo-badge.jpg" alt="Entrega Pra Mim" fill className="object-contain relative z-10 drop-shadow-2xl rounded-full" />
+            <Image src="/logo-badge.png" alt="Entrega Pra Mim" fill className="object-contain relative z-10 drop-shadow-2xl rounded-full" />
           </motion.div>
           <motion.h1
             className="text-4xl font-bold mb-4"
