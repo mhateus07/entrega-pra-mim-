@@ -1,0 +1,44 @@
+<svg viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E87A41"/>
+      <stop offset="100%" style="stop-color:#F5A623"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background shape with chevrons -->
+  <g transform="translate(5, 5)">
+    <!-- Dynamic chevron accents -->
+    <path d="M0 25 L8 15 L16 25" stroke="#E87A41" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M48 5 L56 0 L48 -5" stroke="#0A4D68" stroke-width="2" fill="none" stroke-linecap="round" transform="translate(0,10)"/>
+
+    <!-- Main icon background -->
+    <rect x="12" y="5" width="45" height="40" rx="4" fill="#0A4D68"/>
+
+    <!-- Abstract motorcycle -->
+    <g transform="translate(15, 10)">
+      <!-- Laptop/Package element -->
+      <rect x="0" y="5" width="12" height="10" rx="1" fill="#FFFFFF" opacity="0.9"/>
+      <rect x="1" y="6" width="10" height="7" rx="0.5" fill="#0A4D68"/>
+
+      <!-- Moto body abstract -->
+      <path d="M15 20 Q25 5 38 12 L35 20 Q28 18 20 22 Z" fill="#FFFFFF"/>
+
+      <!-- Wheels -->
+      <circle cx="18" cy="25" r="5" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+      <circle cx="18" cy="25" r="2" fill="#FFFFFF"/>
+      <circle cx="35" cy="25" r="5" fill="none" stroke="#FFFFFF" stroke-width="2"/>
+      <circle cx="35" cy="25" r="2" fill="#FFFFFF"/>
+
+      <!-- Speed lines -->
+      <line x1="5" y1="15" x2="0" y2="15" stroke="url(#accentGrad)" stroke-width="2" stroke-linecap="round"/>
+      <line x1="3" y1="20" x2="-2" y2="20" stroke="url(#accentGrad)" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Orange accent arrow -->
+    <path d="M50 35 L58 25 L50 15" stroke="url(#accentGrad)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Text -->
+  <text x="75" y="32" font-family="Montserrat, Arial, sans-serif" font-weight="700" font-size="16" fill="#0A4D68">ENTREGA PRA MIM</text>
+</svg>

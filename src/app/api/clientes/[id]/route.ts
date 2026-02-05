@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updateClienteSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
+import { requireClienteOwnership, notFound, serverError, requireAdmin } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// GET /api/clientes/[id] - Buscar cliente por ID
+// GET /api/clientes/[id] - Buscar cliente por ID (owner ou admin)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
+
+    // Verificar se é o dono ou admin
+    const auth = await requireClienteOwnership(id)
+    if (!auth.authenticated) return auth.response
 
     const cliente = await prisma.cliente.findUnique({
       where: { id },
@@ -43,10 +48,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!cliente) {
-      return NextResponse.json(
-        { success: false, error: 'Cliente não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Cliente não encontrado')
     }
 
     const response: ApiResponse<typeof cliente> = {
@@ -57,17 +59,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao buscar cliente:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao buscar cliente' },
-      { status: 500 }
-    )
+    return serverError('Erro ao buscar cliente')
   }
 }
 
-// PATCH /api/clientes/[id] - Atualizar cliente
+// PATCH /api/clientes/[id] - Atualizar cliente (owner ou admin)
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
+
+    // Verificar se é o dono ou admin
+    const auth = await requireClienteOwnership(id)
+    if (!auth.authenticated) return auth.response
+
     const body = await request.json()
 
     const validation = updateClienteSchema.safeParse(body)
@@ -90,10 +94,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!cliente) {
-      return NextResponse.json(
-        { success: false, error: 'Cliente não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Cliente não encontrado')
     }
 
     // Verificar se CPF/CNPJ já existe (se fornecido e diferente)
@@ -158,27 +159,25 @@ $transaction(async (tx: any) => {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao atualizar cliente:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao atualizar cliente' },
-      { status: 500 }
-    )
+    return serverError('Erro ao atualizar cliente')
   }
 }
 
-// DELETE /api/clientes/[id] - Deletar cliente
+// DELETE /api/clientes/[id] - Deletar cliente (apenas admin)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
+
+    // Apenas admin pode deletar clientes
+    const auth = await requireAdmin()
+    if (!auth.authenticated) return auth.response
 
     const cliente = await prisma.cliente.findUnique({
       where: { id },
     })
 
     if (!cliente) {
-      return NextResponse.json(
-        { success: false, error: 'Cliente não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Cliente não encontrado')
     }
 
     // Deletar em cascata (usuário -> cliente -> endereços)
@@ -192,9 +191,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Erro ao deletar cliente:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao deletar cliente' },
-      { status: 500 }
-    )
+    return serverError('Erro ao deletar cliente')
   }
 }

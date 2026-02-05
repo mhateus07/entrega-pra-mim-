@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updatePedidoStatusSchema } from '@/lib/validations'
 import { ApiResponse, StatusPedido } from '@/types'
+import { requirePedidoAccess, notFound, serverError, badRequest } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// GET /api/pedidos/[id] - Buscar pedido por ID
+// GET /api/pedidos/[id] - Buscar pedido por ID (verificação de acesso)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
@@ -50,11 +51,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Pedido não encontrado')
     }
+
+    // Verificar se usuário tem acesso a este pedido
+    const auth = await requirePedidoAccess(pedido)
+    if (!auth.authenticated) return auth.response
 
     const response: ApiResponse<typeof pedido> = {
       success: true,
@@ -64,44 +66,36 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao buscar pedido:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao buscar pedido' },
-      { status: 500 }
-    )
+    return serverError('Erro ao buscar pedido')
   }
 }
 
-// PATCH /api/pedidos/[id] - Atualizar status do pedido
+// PATCH /api/pedidos/[id] - Atualizar status do pedido (verificação de acesso)
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
-    const body = await request.json()
 
-    const validation = updatePedidoStatusSchema.safeParse(body)
-    if (!validation.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Dados inválidos',
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
-    }
-
-    const data = validation.data
-
-    // Verificar se pedido existe
+    // Buscar pedido primeiro para verificar acesso
     const pedido = await prisma.pedido.findUnique({
       where: { id },
     })
 
     if (!pedido) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Pedido não encontrado')
     }
+
+    // Verificar se usuário tem acesso a este pedido
+    const auth = await requirePedidoAccess(pedido)
+    if (!auth.authenticated) return auth.response
+
+    const body = await request.json()
+
+    const validation = updatePedidoStatusSchema.safeParse(body)
+    if (!validation.success) {
+      return badRequest('Dados inválidos')
+    }
+
+    const data = validation.data
 
     // Validar transição de status
     const transicoesValidas: Record<StatusPedido, StatusPedido[]> = {
@@ -246,14 +240,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao atualizar pedido:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao atualizar pedido' },
-      { status: 500 }
-    )
+    return serverError('Erro ao atualizar pedido')
   }
 }
 
-// DELETE /api/pedidos/[id] - Cancelar pedido (soft delete via status)
+// DELETE /api/pedidos/[id] - Cancelar pedido (verificação de acesso)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
@@ -264,18 +255,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Pedido não encontrado')
     }
+
+    // Verificar se usuário tem acesso a este pedido
+    const auth = await requirePedidoAccess(pedido)
+    if (!auth.authenticated) return auth.response
 
     // Só pode cancelar pedidos que não foram entregues ou já cancelados
     if (['ENTREGUE', 'CANCELADO'].includes(pedido.status)) {
-      return NextResponse.json(
-        { success: false, error: 'Pedido não pode ser cancelado' },
-        { status: 400 }
-      )
+      return badRequest('Pedido não pode ser cancelado')
     }
 
     // Se tinha motoboy atribuído, liberar
@@ -305,9 +294,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Erro ao cancelar pedido:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao cancelar pedido' },
-      { status: 500 }
-    )
+    return serverError('Erro ao cancelar pedido')
   }
 }

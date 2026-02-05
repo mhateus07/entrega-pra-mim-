@@ -3,10 +3,15 @@ import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { createClienteSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
+import { requireAdmin, serverError, applyRateLimit } from '@/lib/auth-helpers'
 
-// GET /api/clientes - Listar clientes
+// GET /api/clientes - Listar clientes (ADMIN apenas)
 export async function GET(request: NextRequest) {
   try {
+    // Apenas admin pode listar todos os clientes
+    const auth = await requireAdmin()
+    if (!auth.authenticated) return auth.response
+
     const searchParams = request.nextUrl.searchParams
     const tipoPessoa = searchParams.get('tipoPessoa')
 
@@ -58,16 +63,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     console.error('Erro ao listar clientes:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao listar clientes' },
-      { status: 500 }
-    )
+    return serverError('Erro ao listar clientes')
   }
 }
 
-// POST /api/clientes - Criar cliente
+// POST /api/clientes - Criar cliente (rate limited - registro)
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit para registro (10 req/min)
+    const rateLimit = applyRateLimit(request, 'auth')
+    if (!rateLimit.success) return rateLimit.response
+
     const body = await request.json()
 
     const validation = createClienteSchema.safeParse(body)

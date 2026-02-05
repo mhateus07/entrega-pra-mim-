@@ -1,32 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireMotoboyOwnership, requireAuth, notFound, badRequest, serverError } from '@/lib/auth-helpers'
 
-// POST /api/motoboys/[id]/localizacao - Atualizar localização
+// POST /api/motoboys/[id]/localizacao - Atualizar localização (apenas o próprio motoboy)
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
     const { id } = await params
 
-    if (!session) {
-      return NextResponse.json(
-        { success: false, error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
+    // Verificar se é o próprio motoboy (não permite admin atualizar localização de outro)
+    const auth = await requireMotoboyOwnership(id)
+    if (!auth.authenticated) return auth.response
 
     const body = await request.json()
     const { latitude, longitude } = body
 
     if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return NextResponse.json(
-        { success: false, error: 'Latitude e longitude são obrigatórios' },
-        { status: 400 }
-      )
+      return badRequest('Latitude e longitude são obrigatórios')
     }
 
     const motoboy = await prisma.motoboy.update({
@@ -49,20 +41,21 @@ export async function POST(
     })
   } catch (error) {
     console.error('Erro ao atualizar localização:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao atualizar localização' },
-      { status: 500 }
-    )
+    return serverError('Erro ao atualizar localização')
   }
 }
 
-// GET /api/motoboys/[id]/localizacao - Obter localização
+// GET /api/motoboys/[id]/localizacao - Obter localização (autenticado)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
+
+    // Requer autenticação para ver localização de motoboy
+    const auth = await requireAuth()
+    if (!auth.authenticated) return auth.response
 
     const motoboy = await prisma.motoboy.findUnique({
       where: { id },
@@ -81,10 +74,7 @@ export async function GET(
     })
 
     if (!motoboy) {
-      return NextResponse.json(
-        { success: false, error: 'Motoboy não encontrado' },
-        { status: 404 }
-      )
+      return notFound('Motoboy não encontrado')
     }
 
     return NextResponse.json({
@@ -93,9 +83,6 @@ export async function GET(
     })
   } catch (error) {
     console.error('Erro ao obter localização:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erro ao obter localização' },
-      { status: 500 }
-    )
+    return serverError('Erro ao obter localização')
   }
 }

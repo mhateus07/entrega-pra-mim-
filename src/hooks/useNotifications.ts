@@ -48,8 +48,8 @@ export function useNotifications() {
 
     try {
       const notification = new Notification(title, {
-        icon: '/icons/icon.svg',
-        badge: '/icons/icon.svg',
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-96x96.png',
         ...options,
       })
 
