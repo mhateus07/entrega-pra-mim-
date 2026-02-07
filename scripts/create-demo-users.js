@@ -90,7 +90,7 @@ async function main() {
       motoboyId: motoboy.id,
       saldoDisponivel: 150.00,
       saldoPendente: 45.00,
-      totalGanhos: 1250.00,
+      totalRecebido: 1250.00,
       updatedAt: new Date(),
     },
   });

@@ -1,20 +1,45 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 
+const authErrors: Record<string, string> = {
+  Configuration: 'Erro de configuração do servidor. Tente novamente mais tarde.',
+  AccessDenied: 'Acesso negado. Você não tem permissão para acessar.',
+  Verification: 'O link de verificação expirou ou já foi usado.',
+  Default: 'Ocorreu um erro na autenticação. Tente novamente.',
+  CredentialsSignin: 'Email ou senha incorretos.',
+  SessionRequired: 'Você precisa estar logado para acessar essa página.',
+}
+
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
+  )
+}
+
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam) {
+      setError(authErrors[errorParam] || authErrors.Default)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

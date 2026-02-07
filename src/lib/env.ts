@@ -5,11 +5,11 @@ const requiredEnvVars = [
   'DATABASE_URL',
   'NEXTAUTH_SECRET',
   'NEXTAUTH_URL',
-  'GOOGLE_MAPS_API_KEY',
-  'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY',
 ] as const
 
 const optionalEnvVars = [
+  'GOOGLE_MAPS_API_KEY',
+  'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY',
   'PAYMENT_WEBHOOK_SECRET',
 ] as const
 
@@ -104,10 +104,10 @@ export const env = {
     return getEnv('NEXTAUTH_URL')
   },
   get GOOGLE_MAPS_API_KEY() {
-    return getEnv('GOOGLE_MAPS_API_KEY')
+    return getOptionalEnv('GOOGLE_MAPS_API_KEY') || ''
   },
   get NEXT_PUBLIC_GOOGLE_MAPS_API_KEY() {
-    return getEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY')
+    return getOptionalEnv('NEXT_PUBLIC_GOOGLE_MAPS_API_KEY') || ''
   },
   get PAYMENT_WEBHOOK_SECRET() {
     return getOptionalEnv('PAYMENT_WEBHOOK_SECRET')
