@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Regex patterns
-const telefoneRegex = /^\d{10,11}$/
+const telefoneRegex = /^\d{10,12}$/
 const cepRegex = /^\d{8}$/
 const cnhRegex = /^\d{11}$/
 const placaRegex = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i
