@@ -9,6 +9,32 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 
+function formatTelefone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 12)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 8)}-${digits.slice(8)}`
+}
+
+function formatCPF(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+}
+
+function formatCNPJ(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 14)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
+}
+
 function RegistroForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -254,8 +280,10 @@ function RegistroForm() {
                 label="Telefone"
                 type="tel"
                 value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
+                onChange={(e) => setTelefone(formatTelefone(e.target.value))}
                 placeholder="(11) 99999-9999"
+                maxLength={16}
+                inputMode="numeric"
                 required
               />
 
@@ -275,14 +303,18 @@ function RegistroForm() {
                         { value: 'PJ', label: 'Pessoa Jurídica' },
                       ]}
                       value={tipoPessoa}
-                      onChange={(e) => setTipoPessoa(e.target.value)}
+                      onChange={(e) => { setTipoPessoa(e.target.value); setCpfCnpj('') }}
                     />
 
                     <Input
                       label={tipoPessoa === 'PF' ? 'CPF' : 'CNPJ'}
                       value={cpfCnpj}
-                      onChange={(e) => setCpfCnpj(e.target.value)}
+                      onChange={(e) =>
+                        setCpfCnpj(tipoPessoa === 'PF' ? formatCPF(e.target.value) : formatCNPJ(e.target.value))
+                      }
                       placeholder={tipoPessoa === 'PF' ? '000.000.000-00' : '00.000.000/0000-00'}
+                      maxLength={tipoPessoa === 'PF' ? 14 : 18}
+                      inputMode="numeric"
                     />
                   </motion.div>
                 )}
@@ -351,6 +383,7 @@ function RegistroForm() {
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="Mínimo 6 caracteres"
+                minLength={6}
                 required
               />
 
@@ -360,6 +393,7 @@ function RegistroForm() {
                 value={confirmarSenha}
                 onChange={(e) => setConfirmarSenha(e.target.value)}
                 placeholder="Repita a senha"
+                minLength={6}
                 required
               />
             </motion.div>
