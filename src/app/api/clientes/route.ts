@@ -1,4 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { parsePagination, paginationMeta, enumFilter } from '@/lib/pagination'
+import { OperacaoError } from '@/lib/operacao-error'
+import { Prisma } from '@prisma/client'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { createClienteSchema } from '@/lib/validations'
@@ -13,16 +17,19 @@ export async function GET(request: NextRequest) {
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
-    const tipoPessoa = searchParams.get('tipoPessoa')
+    const paging = parsePagination(searchParams)
+    const tipoPessoa = enumFilter(searchParams.get('tipoPessoa'), ['PF', 'PJ'] as const)
 
-    const where: Record<string, unknown> = {}
+    const where: Prisma.ClienteWhereInput = {}
 
+    const busca = searchParams.get('q')?.trim().slice(0, 100)
+    if (busca) where.user = { OR: [{ nome: { contains: busca } }, { email: { contains: busca } }, { telefone: { contains: busca } }] }
     if (tipoPessoa) {
       where.tipoPessoa = tipoPessoa
     }
 
     const clientes = await prisma.cliente.findMany({
-      where,
+      where, skip: paging.skip, take: paging.take,
       include: {
         user: {
           select: {
@@ -37,12 +44,7 @@ export async function GET(request: NextRequest) {
           where: { favorito: true },
           take: 1,
         },
-        pedidos: {
-          select: {
-            valorTotal: true,
-            status: true,
-          },
-        },
+
         _count: {
           select: {
             pedidos: true,
@@ -50,18 +52,22 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     })
 
-    const response: ApiResponse<typeof clientes> = {
+    const gastos = await prisma.pedido.groupBy({
+      by: ['clienteId'], where: { clienteId: { in: clientes.map(c => c.id) }, status: 'ENTREGUE' }, _sum: { valorTotal: true },
+    })
+    const total = await prisma.cliente.count({ where })
+    const response = {
+      pagination: paginationMeta(paging.page, paging.pageSize, total),
       success: true,
-      data: clientes,
+      data: clientes.map(c => ({ ...c, totalGasto: gastos.find(g => g.clienteId === c.id)?._sum.valorTotal ?? 0 })),
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao listar clientes:', error)
     return serverError('Erro ao listar clientes')
   }
@@ -78,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     const validation = createClienteSchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error: 'Dados inválidos',
@@ -96,7 +102,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Email já cadastrado' },
         { status: 400 }
       )
@@ -109,7 +115,7 @@ export async function POST(request: NextRequest) {
       })
 
       if (existingDoc) {
-        return NextResponse.json(
+        return jsonResponse(
           { success: false, error: 'CPF/CNPJ já cadastrado' },
           { status: 400 }
         )
@@ -160,10 +166,11 @@ $transaction(async (tx: any) => {
       message: 'Cliente cadastrado com sucesso',
     }
 
-    return NextResponse.json(response, { status: 201 })
+    return jsonResponse(response, { status: 201 })
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao criar cliente:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro ao criar cliente' },
       { status: 500 }
     )

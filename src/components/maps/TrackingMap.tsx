@@ -24,16 +24,19 @@ export default function TrackingMap({
 }: TrackingMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<google.maps.Map | null>(null)
-  const [markers, setMarkers] = useState<{
+  const markersRef = useRef<{
     origem: google.maps.Marker | null
     destino: google.maps.Marker | null
     motoboy: google.maps.Marker | null
   }>({ origem: null, destino: null, motoboy: null })
+  const initialOrigin = useRef(origem)
   const [directionsRenderer, setDirectionsRenderer] = useState<google.maps.DirectionsRenderer | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
   // Inicializar mapa
   useEffect(() => {
+    let cancelled = false
+    let rendererToClean: google.maps.DirectionsRenderer | null = null
     const initMap = async () => {
       const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
@@ -44,10 +47,10 @@ export default function TrackingMap({
       try {
         await loader.load()
 
-        if (!mapRef.current) return
+        if (cancelled || !mapRef.current) return
 
-        const center = origem
-          ? { lat: origem.lat, lng: origem.lng }
+        const center = initialOrigin.current
+          ? { lat: initialOrigin.current.lat, lng: initialOrigin.current.lng }
           : { lat: -23.5505, lng: -46.6333 } // São Paulo como fallback
 
         const mapInstance = new google.maps.Map(mapRef.current, {
@@ -74,6 +77,7 @@ export default function TrackingMap({
           },
         })
 
+        rendererToClean = renderer
         setMap(mapInstance)
         setDirectionsRenderer(renderer)
         setIsLoaded(true)
@@ -83,11 +87,25 @@ export default function TrackingMap({
     }
 
     initMap()
+    const markers = markersRef.current
+    return () => {
+      cancelled = true
+      rendererToClean?.setMap(null)
+      for (const key of ['origem', 'destino', 'motoboy'] as const) {
+        markers[key]?.setMap(null)
+        markers[key] = null
+      }
+    }
   }, [])
 
   // Atualizar marcadores
   useEffect(() => {
     if (!map || !isLoaded) return
+
+    const markers = markersRef.current
+    for (const [key, position] of [['origem', origem], ['destino', destino], ['motoboy', motoboyLocation]] as const) {
+      if (!position) { markers[key]?.setMap(null); markers[key] = null }
+    }
 
     // Marcador de origem
     if (origem) {
@@ -107,7 +125,7 @@ export default function TrackingMap({
           },
           title: 'Coleta',
         })
-        setMarkers(prev => ({ ...prev, origem: marker }))
+        markers.origem = marker
       }
     }
 
@@ -129,7 +147,7 @@ export default function TrackingMap({
           },
           title: 'Entrega',
         })
-        setMarkers(prev => ({ ...prev, destino: marker }))
+        markers.destino = marker
       }
     }
 
@@ -154,7 +172,7 @@ export default function TrackingMap({
           title: 'Motoboy',
           zIndex: 1000,
         })
-        setMarkers(prev => ({ ...prev, motoboy: marker }))
+        markers.motoboy = marker
       }
 
       // Centralizar no motoboy
@@ -166,6 +184,7 @@ export default function TrackingMap({
   useEffect(() => {
     if (!map || !directionsRenderer || !origem || !destino) return
 
+    let active = true
     const directionsService = new google.maps.DirectionsService()
 
     directionsService.route(
@@ -175,11 +194,12 @@ export default function TrackingMap({
         travelMode: google.maps.TravelMode.DRIVING,
       },
       (result, status) => {
-        if (status === 'OK' && result) {
+        if (active && status === 'OK' && result) {
           directionsRenderer.setDirections(result)
         }
       }
     )
+    return () => { active = false }
   }, [map, directionsRenderer, origem, destino])
 
   // Ajustar bounds para mostrar todos os pontos

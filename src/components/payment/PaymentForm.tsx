@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ELECTRONIC_PAYMENTS_AVAILABLE } from '@/lib/payment-policy'
 import Button from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import toast from 'react-hot-toast'
@@ -134,9 +135,14 @@ export default function PaymentForm({
           </p>
         </div>
 
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          {ELECTRONIC_PAYMENTS_AVAILABLE
+            ? 'Ambiente de demonstração: PIX e cartão são simulados. Não informe dados reais de cartão.'
+            : 'No momento, o pagamento é realizado em dinheiro na entrega.'}
+        </p>
         {/* Seleção de método */}
         <div className="grid grid-cols-2 gap-3">
-          {(['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] as MetodoPagamento[]).map(
+          {(['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] as MetodoPagamento[]).filter(m => ELECTRONIC_PAYMENTS_AVAILABLE || m === 'DINHEIRO').map(
             (m) => (
               <button
                 key={m}

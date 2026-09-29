@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updateClienteSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       data: cliente,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao buscar cliente:', error)
     return serverError('Erro ao buscar cliente')
@@ -76,7 +77,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     const validation = updateClienteSchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error: 'Dados inválidos',
@@ -107,7 +108,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       })
 
       if (existingDoc) {
-        return NextResponse.json(
+        return jsonResponse(
           { success: false, error: 'CPF/CNPJ já cadastrado' },
           { status: 400 }
         )
@@ -156,7 +157,7 @@ $transaction(async (tx: any) => {
       message: 'Cliente atualizado com sucesso',
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao atualizar cliente:', error)
     return serverError('Erro ao atualizar cliente')
@@ -185,7 +186,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id: cliente.userId },
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       message: 'Cliente deletado com sucesso',
     })

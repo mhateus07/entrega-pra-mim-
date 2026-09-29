@@ -3,6 +3,8 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
+import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -39,6 +41,7 @@ interface Pedido {
 }
 
 interface Stats {
+  cancelados: number
   totalEntregas: number
   ganhoTotal: number
   avaliacaoMedia: number
@@ -47,10 +50,11 @@ interface Stats {
 export default function HistoricoMotoboyPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [pedidos, setPedidos] = useState<Pedido[]>([])
-  const [stats, setStats] = useState<Stats>({ totalEntregas: 0, ganhoTotal: 0, avaliacaoMedia: 5.0 })
+  const [stats, setStats] = useState<Stats>({ cancelados: 0, totalEntregas: 0, ganhoTotal: 0, avaliacaoMedia: 5.0 })
   const [isLoading, setIsLoading] = useState(true)
   const [filtroStatus, setFiltroStatus] = useState<'TODOS' | 'ENTREGUE' | 'CANCELADO'>('TODOS')
+
+  const list = usePaginatedList<Pedido>(status === 'authenticated' && session?.user.motoboyId ? `/api/pedidos?motoboyId=${session.user.motoboyId}&grupo=finalizados${filtroStatus === 'TODOS' ? '' : `&status=${filtroStatus}`}` : null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -63,30 +67,11 @@ export default function HistoricoMotoboyPage() {
       if (!session?.user?.motoboyId) return
 
       try {
-        const response = await fetch(`/api/pedidos?motoboyId=${session.user.motoboyId}`)
+        const response = await fetch(`/api/motoboys/${session.user.motoboyId}/resumo`)
         const data = await response.json()
 
         if (data.success) {
-          const pedidosFinalizados = data.data.filter(
-            (p: Pedido) => ['ENTREGUE', 'CANCELADO'].includes(p.status)
-          )
-          setPedidos(pedidosFinalizados)
-
-          // Calcular estatísticas
-          const entregues = pedidosFinalizados.filter((p: Pedido) => p.status === 'ENTREGUE')
-          const ganhoTotal = entregues.reduce((acc: number, p: Pedido) => acc + p.valorTotal, 0)
-          const avaliacoes = entregues
-            .filter((p: Pedido) => p.avaliacao)
-            .map((p: Pedido) => p.avaliacao!.nota)
-          const avaliacaoMedia = avaliacoes.length > 0
-            ? avaliacoes.reduce((a: number, b: number) => a + b, 0) / avaliacoes.length
-            : 5.0
-
-          setStats({
-            totalEntregas: entregues.length,
-            ganhoTotal,
-            avaliacaoMedia,
-          })
+          setStats(data.data)
         }
       } catch (error) {
         console.error('Erro ao carregar historico:', error)
@@ -112,9 +97,7 @@ export default function HistoricoMotoboyPage() {
     )
   }
 
-  const pedidosFiltrados = filtroStatus === 'TODOS'
-    ? pedidos
-    : pedidos.filter(p => p.status === filtroStatus)
+  const pedidosFiltrados = list.data
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -174,7 +157,7 @@ export default function HistoricoMotoboyPage() {
                 : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
             }`}
           >
-            Todos ({pedidos.length})
+            Todos ({stats.totalEntregas + stats.cancelados})
           </button>
           <button
             onClick={() => setFiltroStatus('ENTREGUE')}
@@ -184,7 +167,7 @@ export default function HistoricoMotoboyPage() {
                 : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
             }`}
           >
-            Entregues ({pedidos.filter(p => p.status === 'ENTREGUE').length})
+            Entregues ({stats.totalEntregas})
           </button>
           <button
             onClick={() => setFiltroStatus('CANCELADO')}
@@ -194,7 +177,7 @@ export default function HistoricoMotoboyPage() {
                 : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
             }`}
           >
-            Cancelados ({pedidos.filter(p => p.status === 'CANCELADO').length})
+            Cancelados ({stats.cancelados})
           </button>
         </div>
 
@@ -253,6 +236,7 @@ export default function HistoricoMotoboyPage() {
             ))}
           </div>
         )}
+        <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />
       </main>
     </div>
   )

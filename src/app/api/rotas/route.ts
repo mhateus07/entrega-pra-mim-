@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import { calcularRotaSchema } from '@/lib/validations'
 import { calcularRota, calcularDistanciaHaversine } from '@/lib/google-maps'
 import { calcularPrecoCompleto, estimarTempo, validarDistancia } from '@/lib/pricing'
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
 
     const validation = calcularRotaSchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error: 'Dados inválidos',
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     // Validar distância
     const validacao = validarDistancia(distanciaKm)
     if (!validacao.valido) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: validacao.mensagem },
         { status: 400 }
       )
@@ -76,10 +77,10 @@ export async function POST(request: NextRequest) {
       data: resultado,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao calcular rota:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro ao calcular rota' },
       { status: 500 }
     )

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
@@ -32,14 +33,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Pedido não encontrado' },
         { status: 404 }
       )
     }
 
     if (pedido.motoboy?.userId !== session.user.id) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Acesso negado' },
         { status: 403 }
       )
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Verificar status do pedido
     if (pedido.status !== 'EM_ENTREGA') {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Pedido não está em entrega' },
         { status: 400 }
       )
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const file = formData.get('foto') as File | null
 
     if (!file) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Nenhuma foto enviada' },
         { status: 400 }
       )
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Validar tipo de arquivo
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Tipo de arquivo não permitido. Use JPG, PNG ou WebP.' },
         { status: 400 }
       )
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Validar tamanho (max 5MB)
     const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Arquivo muito grande. Máximo 5MB.' },
         { status: 400 }
       )
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: { fotoComprovante: fotoUrl },
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: {
         fotoUrl,
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Erro ao fazer upload do comprovante:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     )
@@ -129,7 +130,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
@@ -147,7 +148,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Pedido não encontrado' },
         { status: 404 }
       )
@@ -158,13 +159,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const isAdmin = session.user.role === 'ADMIN'
 
     if (!isCliente && !isMotoboy && !isAdmin) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Acesso negado' },
         { status: 403 }
       )
     }
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: {
         fotoUrl: pedido.fotoComprovante,
@@ -172,7 +173,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     })
   } catch (error) {
     console.error('Erro ao buscar comprovante:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     )

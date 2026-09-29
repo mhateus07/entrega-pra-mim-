@@ -3,6 +3,8 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
+import Pagination from '@/components/ui/Pagination'
 import { motion } from 'framer-motion'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -30,9 +32,10 @@ interface Motoboy {
 export default function MotoboysAdminPage() {
   const { status } = useSession()
   const router = useRouter()
-  const [motoboys, setMotoboys] = useState<Motoboy[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [filtroStatus, setFiltroStatus] = useState<StatusMotoboy | 'TODOS'>('TODOS')
+
+  const list = usePaginatedList<Motoboy>(status === 'authenticated' ? `/api/motoboys${filtroStatus === 'TODOS' ? '' : `?status=${filtroStatus}`}` : null)
+  const motoboys = list.data
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -40,28 +43,7 @@ export default function MotoboysAdminPage() {
     }
   }, [status, router])
 
-  useEffect(() => {
-    const fetchMotoboys = async () => {
-      try {
-        const response = await fetch('/api/motoboys')
-        const data = await response.json()
-
-        if (data.success) {
-          setMotoboys(data.data)
-        }
-      } catch (error) {
-        console.error('Erro ao carregar motoboys:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (status === 'authenticated') {
-      fetchMotoboys()
-    }
-  }, [status])
-
-  if (status === 'loading' || isLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -75,9 +57,7 @@ export default function MotoboysAdminPage() {
     )
   }
 
-  const motoboysFiltrados = filtroStatus === 'TODOS'
-    ? motoboys
-    : motoboys.filter(m => m.status === filtroStatus)
+  const motoboysFiltrados = motoboys
 
   const statusOptions: (StatusMotoboy | 'TODOS')[] = ['TODOS', 'DISPONIVEL', 'EM_ENTREGA', 'OFFLINE']
 
@@ -99,7 +79,7 @@ export default function MotoboysAdminPage() {
           animate={{ opacity: 1, y: 0 }}
         >
           <h1 className="text-2xl font-bold text-white">Motoboys</h1>
-          <p className="text-slate-400">{motoboysFiltrados.length} motoboys encontrados</p>
+          <p className="text-slate-400">{list.pagination.total} motoboys encontrados</p>
         </motion.div>
 
         {/* Estatísticas */}
@@ -111,25 +91,25 @@ export default function MotoboysAdminPage() {
         >
           <Card className="bg-slate-900/50 border-cyan-500/10">
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-white">{motoboys.length}</p>
+              <p className="text-3xl font-bold text-white">{Object.values(list.summary).reduce((a, b) => a + b, 0)}</p>
               <p className="text-sm text-slate-400">Total</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-cyan-500/10">
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-green-400">{motoboys.filter(m => m.status === 'DISPONIVEL').length}</p>
+              <p className="text-3xl font-bold text-green-400">{list.summary.DISPONIVEL ?? 0}</p>
               <p className="text-sm text-slate-400">Disponíveis</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-cyan-500/10">
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-cyan-400">{motoboys.filter(m => m.status === 'EM_ENTREGA').length}</p>
+              <p className="text-3xl font-bold text-cyan-400">{list.summary.EM_ENTREGA ?? 0}</p>
               <p className="text-sm text-slate-400">Em Entrega</p>
             </CardContent>
           </Card>
           <Card className="bg-slate-900/50 border-cyan-500/10">
             <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-slate-500">{motoboys.filter(m => m.status === 'OFFLINE').length}</p>
+              <p className="text-3xl font-bold text-slate-500">{list.summary.OFFLINE ?? 0}</p>
               <p className="text-sm text-slate-400">Offline</p>
             </CardContent>
           </Card>
@@ -224,6 +204,7 @@ export default function MotoboysAdminPage() {
             ))}
           </motion.div>
         )}
+        <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />
       </main>
     </div>
   )

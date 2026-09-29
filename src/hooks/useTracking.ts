@@ -82,7 +82,7 @@ export function useTracking({
       } else {
         setError(result.error || 'Erro ao carregar rastreamento')
       }
-    } catch (err) {
+    } catch {
       setError('Erro de conexão')
     } finally {
       setIsLoading(false)
@@ -116,77 +116,37 @@ export function useTracking({
 
 // Hook para motoboy enviar sua localização
 export function useLocationSharing(motoboyId: string | null, enabled = false) {
-  const [isSharing, setIsSharing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const watchIdRef = useRef<number | null>(null)
-
-  const startSharing = useCallback(() => {
-    if (!motoboyId || !enabled) return
-
-    if (!navigator.geolocation) {
-      setError('Geolocalização não suportada')
-      return
-    }
-
-    setIsSharing(true)
-    setError(null)
-
-    const sendLocation = async (position: GeolocationPosition) => {
-      try {
-        await fetch(`/api/motoboys/${motoboyId}/localizacao`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          }),
-        })
-      } catch (err) {
-        console.error('Erro ao enviar localização:', err)
-      }
-    }
-
-    // Enviar localização imediatamente
-    navigator.geolocation.getCurrentPosition(sendLocation, (err) => {
-      setError(`Erro de localização: ${err.message}`)
-    })
-
-    // Continuar atualizando
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      sendLocation,
-      (err) => {
-        setError(`Erro de localização: ${err.message}`)
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 5000,
-      }
-    )
-  }, [motoboyId, enabled])
-
-  const stopSharing = useCallback(() => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current)
-      watchIdRef.current = null
-    }
-    setIsSharing(false)
-  }, [])
-
+  const [requested, setRequested] = useState(true)
+  const [locationState, setLocationState] = useState<{ id: string; sharing: boolean; error: string | null } | null>(null)
   useEffect(() => {
-    if (enabled && motoboyId) {
-      startSharing()
-    } else {
-      stopSharing()
+    if (!enabled || !requested || !motoboyId || !navigator.geolocation) return
+    let active = true
+    const controller = new AbortController()
+    const sendLocation = async (position: GeolocationPosition) => {
+      if (!active) return
+      try {
+        const response = await fetch(`/api/motoboys/${motoboyId}/localizacao`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+          body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        })
+        if (!response.ok) throw new Error('Não foi possível compartilhar localização')
+        if (active) setLocationState({ id: motoboyId, sharing: true, error: null })
+      } catch (error) {
+        if (active) setLocationState({ id: motoboyId, sharing: false, error: error instanceof Error ? error.message : 'Erro de localização' })
+      }
     }
-
-    return () => stopSharing()
-  }, [enabled, motoboyId, startSharing, stopSharing])
-
+    const fail = (error: GeolocationPositionError) => {
+      if (active) setLocationState({ id: motoboyId, sharing: false, error: `Erro de localização: ${error.message}` })
+    }
+    navigator.geolocation.getCurrentPosition(sendLocation, fail)
+    const watchId = navigator.geolocation.watchPosition(sendLocation, fail, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 })
+    return () => { active = false; controller.abort(); navigator.geolocation.clearWatch(watchId) }
+  }, [enabled, requested, motoboyId])
+  const startSharing = useCallback(() => setRequested(true), [])
+  const stopSharing = useCallback(() => setRequested(false), [])
   return {
-    isSharing,
-    error,
-    startSharing,
-    stopSharing,
+    isSharing: enabled && requested && locationState?.id === motoboyId && locationState.sharing,
+    error: locationState?.id === motoboyId ? locationState.error : null,
+    startSharing, stopSharing,
   }
 }

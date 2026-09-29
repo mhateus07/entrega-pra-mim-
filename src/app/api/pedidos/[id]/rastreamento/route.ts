@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 
 // GET /api/pedidos/[id]/rastreamento - Obter dados de rastreamento do pedido
@@ -55,7 +56,7 @@ export async function GET(
     })
 
     if (!pedido) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Pedido não encontrado' },
         { status: 404 }
       )
@@ -69,7 +70,7 @@ export async function GET(
       etaMinutos = 15 // Tempo estimado até entrega
     }
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: {
         ...pedido,
@@ -79,7 +80,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Erro ao obter rastreamento:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro ao obter rastreamento' },
       { status: 500 }
     )

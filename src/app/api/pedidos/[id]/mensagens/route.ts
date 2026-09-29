@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Pedido não encontrado' },
         { status: 404 }
       )
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const isAdmin = session.user.role === 'ADMIN'
 
     if (!isCliente && !isMotoboy && !isAdmin) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Acesso negado' },
         { status: 403 }
       )
@@ -69,13 +70,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       data: { lida: true },
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: mensagens,
     })
   } catch (error) {
     console.error('Erro ao buscar mensagens:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     )
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Validar dados
     const validation = mensagemSchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Mensagem inválida', details: validation.error.issues },
         { status: 400 }
       )
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!pedido) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Pedido não encontrado' },
         { status: 404 }
       )
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const isMotoboy = pedido.motoboy?.userId === session.user.id
 
     if (!isCliente && !isMotoboy) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Acesso negado' },
         { status: 403 }
       )
@@ -133,7 +134,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Verificar se o pedido está em andamento
     if (['ENTREGUE', 'CANCELADO', 'SOLICITADO'].includes(pedido.status)) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Chat não disponível para este pedido' },
         { status: 400 }
       )
@@ -148,13 +149,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: mensagem,
     })
   } catch (error) {
     console.error('Erro ao enviar mensagem:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     )

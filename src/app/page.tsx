@@ -43,17 +43,17 @@ function TechParticles() {
           key={i}
           className="absolute w-1 h-1 bg-cyan-400 rounded-full"
           style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
+            left: `${(i * 37 + 11) % 100}%`,
+            top: `${(i * 53 + 7) % 100}%`,
           }}
           animate={{
             opacity: [0, 1, 0],
             scale: [0, 1.5, 0],
           }}
           transition={{
-            duration: 2 + Math.random() * 2,
+            duration: 2 + (i % 5) * 0.4,
             repeat: Infinity,
-            delay: Math.random() * 2,
+            delay: (i % 7) * 0.25,
           }}
         />
       ))}
@@ -158,13 +158,9 @@ function TestimonialCard({ name, role, text, rating, delay }: {
 }
 
 export default function Home() {
-  const [isVisible, setIsVisible] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const statsRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    setIsVisible(true)
-  }, [])
 
   const testimonials = [
     { name: 'Carlos Silva', role: 'E-commerce', text: 'Nunca vi entregas tão rápidas! Meus clientes adoraram. O rastreamento em tempo real é sensacional.', rating: 5 },
@@ -453,7 +449,7 @@ export default function Home() {
               >
                 <span className="text-3xl mb-2 block">{stat.icon}</span>
                 <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent mb-2">
-                  {isVisible && <AnimatedCounter value={stat.value} suffix={stat.suffix} />}
+                  <AnimatedCounter value={stat.value} suffix={stat.suffix} />
                 </div>
                 <p className="text-slate-400 text-sm">{stat.label}</p>
               </motion.div>

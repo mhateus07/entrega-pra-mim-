@@ -1,9 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { parsePagination, paginationMeta, enumFilter } from '@/lib/pagination'
+import { OperacaoError } from '@/lib/operacao-error'
+import { Prisma } from '@prisma/client'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { createMotoboySchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireAdmin, serverError, applyRateLimit } from '@/lib/auth-helpers'
+import { requireAuth, serverError, applyRateLimit } from '@/lib/auth-helpers'
 
 // GET /api/motoboys - Listar motoboys (autenticado)
 export async function GET(request: NextRequest) {
@@ -13,15 +17,17 @@ export async function GET(request: NextRequest) {
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
-    const status = searchParams.get('status')
+    const paging = parsePagination(searchParams)
+    const status = enumFilter(searchParams.get('status'), ['DISPONIVEL', 'EM_ENTREGA', 'OFFLINE'] as const)
     const avaliacaoMinima = searchParams.get('avaliacaoMinima')
 
-    const where: Record<string, unknown> = {}
+    const where: Prisma.MotoboyWhereInput = {}
 
     if (status) {
       where.status = status
     }
 
+    if (avaliacaoMinima && (!Number.isFinite(Number(avaliacaoMinima)) || Number(avaliacaoMinima) < 0 || Number(avaliacaoMinima) > 5)) throw new OperacaoError('Avaliação inválida', 400)
     if (avaliacaoMinima) {
       where.avaliacaoMedia = {
         gte: parseFloat(avaliacaoMinima),
@@ -32,8 +38,13 @@ export async function GET(request: NextRequest) {
     const isAdmin = auth.user.role === 'ADMIN'
 
     const motoboys = await prisma.motoboy.findMany({
-      where,
-      include: {
+      where, skip: paging.skip, take: paging.take,
+      select: {
+        id: true, status: true, veiculoTipo: true, avaliacaoMedia: true, totalEntregas: true,
+        ...(isAdmin ? {
+          userId: true, cnh: true, veiculoMarca: true, veiculoModelo: true, veiculoPlaca: true,
+          latitudeAtual: true, longitudeAtual: true, ultimaAtividade: true, createdAt: true, updatedAt: true,
+        } : {}),
         user: {
           select: {
             id: true,
@@ -44,18 +55,22 @@ export async function GET(request: NextRequest) {
         },
         disponibilidades: isAdmin,
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     })
 
-    const response: ApiResponse<typeof motoboys> = {
+    const counts = await prisma.motoboy.groupBy({ by: ['status'], _count: { _all: true } })
+    const summary = Object.fromEntries(counts.map(g => [g.status, g._count._all]))
+    const total = await prisma.motoboy.count({ where })
+    const response = {
+      summary,
+      pagination: paginationMeta(paging.page, paging.pageSize, total),
       success: true,
       data: motoboys,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao listar motoboys:', error)
     return serverError('Erro ao listar motoboys')
   }
@@ -72,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     const validation = createMotoboySchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error: 'Dados inválidos',
@@ -90,7 +105,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Email já cadastrado' },
         { status: 400 }
       )
@@ -102,7 +117,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingCNH) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'CNH já cadastrada' },
         { status: 400 }
       )
@@ -114,7 +129,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingPlaca) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Placa já cadastrada' },
         { status: 400 }
       )
@@ -166,10 +181,11 @@ $transaction(async (tx: any) => {
       message: 'Motoboy cadastrado com sucesso',
     }
 
-    return NextResponse.json(response, { status: 201 })
+    return jsonResponse(response, { status: 201 })
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao criar motoboy:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro ao criar motoboy' },
       { status: 500 }
     )

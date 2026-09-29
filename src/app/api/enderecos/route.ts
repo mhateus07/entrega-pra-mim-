@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createEnderecoSchema } from '@/lib/validations'
 import { geocodificarEndereco } from '@/lib/google-maps'
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
       data: enderecos,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao listar endereços:', error)
     return serverError('Erro ao listar endereços')
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
       message: 'Endereço cadastrado com sucesso',
     }
 
-    return NextResponse.json(response, { status: 201 })
+    return jsonResponse(response, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar endereço:', error)
     return serverError('Erro ao criar endereço')

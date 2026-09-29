@@ -472,7 +472,7 @@ export default function PedidoMotoboyDetailPage() {
               </div>
 
               {/* Confirmação de dinheiro */}
-              {pedido.pagamento.metodo === 'DINHEIRO' && pedido.pagamento.status === 'PENDENTE' && pedidoEmAndamento && (
+              {pedido.pagamento.metodo === 'DINHEIRO' && pedido.pagamento.status === 'PENDENTE' && ['EM_ENTREGA', 'ENTREGUE'].includes(pedido.status) && (
                 <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">💵</span>

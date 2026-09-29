@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Verificar se é o próprio motoboy ou admin
     if (session.user.motoboyId !== id && session.user.role !== 'ADMIN') {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Acesso negado' },
         { status: 403 }
       )
@@ -40,13 +41,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       update: {},
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: saldo,
     })
   } catch (error) {
     console.error('Erro ao buscar saldo:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro interno do servidor' },
       { status: 500 }
     )

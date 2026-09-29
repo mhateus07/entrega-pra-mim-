@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updateEnderecoSchema } from '@/lib/validations'
 import { geocodificarEndereco } from '@/lib/google-maps'
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       data: endereco,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao buscar endereço:', error)
     return serverError('Erro ao buscar endereço')
@@ -126,7 +127,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       message: 'Endereço atualizado com sucesso',
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao atualizar endereço:', error)
     return serverError('Erro ao atualizar endereço')
@@ -165,7 +166,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id },
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       message: 'Endereço deletado com sucesso',
     })

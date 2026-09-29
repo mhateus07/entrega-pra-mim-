@@ -1,18 +1,23 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useSyncExternalStore, useCallback } from 'react'
 import toast from 'react-hot-toast'
 
+const permissionSnapshot = (): NotificationPermission | 'unsupported' =>
+  typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported'
+const serverPermission = () => 'unsupported' as const
+function subscribePermission(callback: () => void) {
+  window.addEventListener('focus', callback)
+  window.addEventListener('notification-permission', callback)
+  return () => {
+    window.removeEventListener('focus', callback)
+    window.removeEventListener('notification-permission', callback)
+  }
+}
 export function useNotifications() {
-  const [permission, setPermission] = useState<NotificationPermission>('default')
-  const [isSupported, setIsSupported] = useState(false)
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setIsSupported(true)
-      setPermission(Notification.permission)
-    }
-  }, [])
+  const snapshot = useSyncExternalStore(subscribePermission, permissionSnapshot, serverPermission)
+  const isSupported = snapshot !== 'unsupported'
+  const permission: NotificationPermission = isSupported ? snapshot : 'default'
 
   const requestPermission = useCallback(async () => {
     if (!isSupported) {
@@ -22,7 +27,7 @@ export function useNotifications() {
 
     try {
       const result = await Notification.requestPermission()
-      setPermission(result)
+      window.dispatchEvent(new Event('notification-permission'))
 
       if (result === 'granted') {
         toast.success('Notificações ativadas!')
