@@ -30,7 +30,7 @@ export function useNotifications() {
       window.dispatchEvent(new Event('notification-permission'))
 
       if (result === 'granted') {
-        toast.success('Notificações ativadas!')
+        toast.success('Avisos ativados')
         return true
       } else {
         toast.error('Permissão de notificação negada')
@@ -45,9 +45,7 @@ export function useNotifications() {
   const sendNotification = useCallback((title: string, options?: NotificationOptions) => {
     if (!isSupported || permission !== 'granted') {
       // Fallback para toast
-      toast(title, {
-        icon: '🔔',
-      })
+      toast(title)
       return
     }
 
@@ -67,31 +65,31 @@ export function useNotifications() {
       setTimeout(() => notification.close(), 5000)
     } catch (error) {
       console.error('Erro ao enviar notificação:', error)
-      toast(title, { icon: '🔔' })
+      toast(title)
     }
   }, [isSupported, permission])
 
   const notifyOrderStatus = useCallback((status: string, pedidoId: string) => {
     const messages: Record<string, { title: string; body: string }> = {
       ACEITO: {
-        title: 'Pedido Aceito! 🏍️',
-        body: 'Um motoboy aceitou seu pedido e está a caminho da coleta.',
+        title: 'Pedido aceito',
+        body: 'Um entregador aceitou seu pedido e está a caminho da coleta.',
       },
       EM_COLETA: {
-        title: 'Em Coleta 📦',
-        body: 'O motoboy chegou ao local de coleta.',
+        title: 'Em coleta',
+        body: 'O entregador chegou ao local de coleta.',
       },
       EM_ENTREGA: {
-        title: 'Em Entrega 🚀',
-        body: 'Seu pedido está a caminho! Acompanhe em tempo real.',
+        title: 'Saiu para entrega',
+        body: 'Seu pedido está a caminho. Acompanhe o trajeto pelo app.',
       },
       ENTREGUE: {
-        title: 'Entregue! ✅',
-        body: 'Seu pedido foi entregue com sucesso. Avalie a entrega!',
+        title: 'Pedido entregue',
+        body: 'A entrega foi concluída. Você pode avaliar o serviço no pedido.',
       },
       CANCELADO: {
-        title: 'Pedido Cancelado ❌',
-        body: 'Infelizmente seu pedido foi cancelado.',
+        title: 'Pedido cancelado',
+        body: 'Seu pedido foi cancelado.',
       },
     }
 
@@ -105,8 +103,8 @@ export function useNotifications() {
   }, [sendNotification])
 
   const notifyNewOrder = useCallback((valorTotal: number, bairroOrigem: string) => {
-    sendNotification('Novo Pedido Disponível! 💰', {
-      body: `R$ ${valorTotal.toFixed(2)} - Coleta em ${bairroOrigem}`,
+    sendNotification('Novo pedido disponível', {
+      body: `${valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · coleta em ${bairroOrigem}`,
       tag: 'novo-pedido',
     })
   }, [sendNotification])

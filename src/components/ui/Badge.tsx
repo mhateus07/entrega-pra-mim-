@@ -1,43 +1,38 @@
-'use client'
-
 import { HTMLAttributes, forwardRef } from 'react'
 import { cn } from '@/utils/cn'
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info'
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'brand' | 'outline'
   size?: 'sm' | 'md'
+  dot?: boolean
+}
+
+const variants = {
+  default: 'bg-surface-2 text-fg-2',
+  success: 'bg-success-soft text-success',
+  warning: 'bg-warning-soft text-warning',
+  danger: 'bg-danger-soft text-danger',
+  info: 'bg-info-soft text-info',
+  brand: 'bg-brand-soft text-brand',
+  outline: 'border border-line text-fg-2',
 }
 
 const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
-  ({ className, variant = 'default', size = 'md', children, ...props }, ref) => {
-    const variants = {
-      default: 'bg-gray-100 text-gray-800',
-      success: 'bg-green-100 text-green-800',
-      warning: 'bg-yellow-100 text-yellow-800',
-      danger: 'bg-red-100 text-red-800',
-      info: 'bg-blue-100 text-blue-800',
-    }
-
-    const sizes = {
-      sm: 'px-2 py-0.5 text-xs',
-      md: 'px-2.5 py-1 text-sm',
-    }
-
-    return (
-      <span
-        ref={ref}
-        className={cn(
-          'inline-flex items-center font-medium rounded-full',
-          variants[variant],
-          sizes[size],
-          className
-        )}
-        {...props}
-      >
-        {children}
-      </span>
-    )
-  }
+  ({ className, variant = 'default', size = 'sm', dot, children, ...props }, ref) => (
+    <span
+      ref={ref}
+      className={cn(
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md font-medium',
+        size === 'sm' ? 'h-5 px-1.5 text-[11.5px]' : 'h-6 px-2 text-xs',
+        variants[variant],
+        className
+      )}
+      {...props}
+    >
+      {dot && <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />}
+      {children}
+    </span>
+  )
 )
 
 Badge.displayName = 'Badge'

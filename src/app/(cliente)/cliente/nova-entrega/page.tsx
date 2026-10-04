@@ -4,11 +4,17 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { AlertCircle, ArrowLeft, Check, CheckCircle2, MapPin, Plus } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/Card'
-import { formatarMoeda, formatarDistancia, formatarTempo } from '@/lib/pricing'
+import Textarea from '@/components/ui/Textarea'
+import Header from '@/components/ui/Header'
+import { Card, CardHeader, CardTitle, CardFooter } from '@/components/ui/Card'
+import { Alert, DataRow, FullPageLoader, Spinner } from '@/components/ui/Feedback'
+import { formatarMoeda, formatarDistancia, formatarTempo, DESCRICOES_SERVICO, MULTIPLICADORES, PRECO_POR_KM } from '@/lib/pricing'
+import { LABELS_TIPO_SERVICO } from '@/utils/helpers'
+import { cn } from '@/utils/cn'
 import { TipoServico } from '@/types'
 import PaymentForm from '@/components/payment/PaymentForm'
 import PixPayment from '@/components/payment/PixPayment'
@@ -47,11 +53,12 @@ interface PagamentoResult {
 
 type Step = 'form' | 'payment' | 'pix' | 'success'
 
-const tiposServico = [
-  { value: 'AGENDADA', label: 'Entrega Agendada - 1.0x (R$ 3,00/km)' },
-  { value: 'DOCUMENTOS', label: 'Documentos - 1.2x (R$ 3,60/km)' },
-  { value: 'EXPRESSA', label: 'Entrega Expressa - 1.5x (R$ 4,50/km)' },
-]
+const tiposServico = (['AGENDADA', 'DOCUMENTOS', 'EXPRESSA'] as const).map((value) => ({
+  value,
+  nome: LABELS_TIPO_SERVICO[value],
+  descricao: DESCRICOES_SERVICO[value],
+  preco: formatarMoeda(PRECO_POR_KM * MULTIPLICADORES[value]),
+}))
 
 export default function NovaEntregaPage() {
   const { data: session, status } = useSession()
@@ -66,6 +73,7 @@ export default function NovaEntregaPage() {
   const [currentStep, setCurrentStep] = useState<Step>('form')
   const [pedidoCriado, setPedidoCriado] = useState<{ id: string; valorTotal: number } | null>(null)
   const [pagamentoData, setPagamentoData] = useState<PagamentoResult | null>(null)
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false)
 
   // Form state
   const [enderecoOrigemId, setEnderecoOrigemId] = useState('')
@@ -288,420 +296,292 @@ export default function NovaEntregaPage() {
     setPagamentoData(null)
   }
 
-  if (status === 'loading' || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  if (status === 'loading' || isLoading) return <FullPageLoader />
 
-  // Success step
-  if (currentStep === 'success') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            {pagamentoData?.metodo === 'DINHEIRO' ? 'Pedido Confirmado!' : 'Pagamento Aprovado!'}
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {pagamentoData?.metodo === 'DINHEIRO'
-              ? 'Seu pedido foi criado. O pagamento será feito na entrega.'
-              : 'Seu pedido foi pago com sucesso. Em breve um motoboy aceitará sua entrega.'}
-          </p>
-          <div className="space-y-3">
-            <Button onClick={() => router.push(`/cliente/pedido/${pedidoCriado?.id}`)} className="w-full">
-              Ver Pedido
-            </Button>
-            <Button variant="outline" onClick={() => router.push('/cliente')} className="w-full">
-              Voltar ao Início
-            </Button>
-          </div>
+  const etapaAtual = currentStep === 'form' ? 0 : currentStep === 'success' ? 2 : 1
+
+  const shell = (children: React.ReactNode, voltar?: React.ReactNode) => (
+    <div className="min-h-screen bg-page">
+      <Header userName={session?.user?.name} userRole="CLIENTE" />
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        {voltar ?? (
+          <Link href="/cliente" className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">
+            <ArrowLeft className="h-4 w-4" /> Minhas entregas
+          </Link>
+        )}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <h1 className="text-[22px] font-semibold tracking-tight text-fg">Nova entrega</h1>
+          <ol className="flex items-center gap-2 text-[13px]" aria-label="Etapas">
+            {['Detalhes', 'Pagamento', 'Confirmação'].map((e, i) => (
+              <li key={e} className="flex items-center gap-2">
+                {i > 0 && <span className="h-px w-5 bg-line-strong" aria-hidden="true" />}
+                <span
+                  className={cn(
+                    'flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold',
+                    i < etapaAtual ? 'bg-fg text-page' : i === etapaAtual ? 'bg-brand text-white' : 'bg-surface-3 text-fg-3'
+                  )}
+                  aria-current={i === etapaAtual ? 'step' : undefined}
+                >
+                  {i < etapaAtual ? <Check className="h-3 w-3" strokeWidth={3} /> : i + 1}
+                </span>
+                <span className={i === etapaAtual ? 'font-medium text-fg' : 'text-fg-3'}>{e}</span>
+              </li>
+            ))}
+          </ol>
         </div>
-      </div>
+        {children}
+      </main>
+    </div>
+  )
+
+  if (currentStep === 'success') {
+    return shell(
+      <div className="mx-auto max-w-md rounded-xl border border-line bg-surface p-8 text-center shadow-xs">
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-success">
+          <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <h2 className="text-lg font-semibold text-fg">
+          {pagamentoData?.metodo === 'DINHEIRO' ? 'Pedido confirmado' : 'Pagamento aprovado'}
+        </h2>
+        <p className="mt-1.5 text-sm text-fg-2">
+          {pagamentoData?.metodo === 'DINHEIRO'
+            ? 'Seu pedido foi criado. O pagamento será feito na entrega.'
+            : 'Seu pedido está pago. Assim que um entregador aceitar, você poderá acompanhar o trajeto.'}
+        </p>
+        <div className="mt-6 grid gap-2">
+          <Button onClick={() => router.push(`/cliente/pedido/${pedidoCriado?.id}`)} className="w-full">Acompanhar pedido</Button>
+          <Button variant="outline" onClick={() => router.push('/cliente')} className="w-full">Voltar ao início</Button>
+        </div>
+      </div>,
+      <span className="mb-4 block h-5" />
     )
   }
 
-  // PIX payment step
   if (currentStep === 'pix' && pagamentoData?.pix && pedidoCriado) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <header className="bg-white dark:bg-gray-800 shadow-sm">
-          <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setCurrentStep('payment')}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Pagamento PIX</h1>
-            </div>
-          </div>
-        </header>
-
-        <main className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <PixPayment
-            pagamentoId={pagamentoData.id}
-            valorTotal={pedidoCriado.valorTotal}
-            qrCode={pagamentoData.pix.qrCode}
-            copiaCola={pagamentoData.pix.copiaCola}
-            expiraEm={pagamentoData.pix.expiraEm}
-            onAprovado={handlePixAprovado}
-            onCancelado={handlePaymentCancelled}
-          />
-        </main>
-      </div>
+    return shell(
+      <div className="mx-auto max-w-lg">
+        <PixPayment
+          pagamentoId={pagamentoData.id}
+          valorTotal={pedidoCriado.valorTotal}
+          qrCode={pagamentoData.pix.qrCode}
+          copiaCola={pagamentoData.pix.copiaCola}
+          expiraEm={pagamentoData.pix.expiraEm}
+          onAprovado={handlePixAprovado}
+          onCancelado={handlePaymentCancelled}
+        />
+      </div>,
+      <button type="button" onClick={() => setCurrentStep('payment')} className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">
+        <ArrowLeft className="h-4 w-4" /> Escolher outra forma de pagamento
+      </button>
     )
   }
 
-  // Payment step
   if (currentStep === 'payment' && pedidoCriado) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <header className="bg-white dark:bg-gray-800 shadow-sm">
-          <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => {
-                  if (confirm('Voltar vai cancelar este pedido. Deseja continuar?')) {
-                    // TODO: Cancelar pedido
-                    setCurrentStep('form')
-                    setPedidoCriado(null)
-                  }
-                }}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Pagamento</h1>
+    return shell(
+      <div className="mx-auto max-w-lg space-y-4">
+        {error && <Alert variant="danger" icon={AlertCircle}>{error}</Alert>}
+        {confirmarDescarte ? (
+          <Alert variant="warning" icon={AlertCircle} title="Descartar este pedido?">
+            <p>O pedido criado não será pago e você voltará ao formulário.</p>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setConfirmarDescarte(false)}>Continuar pagamento</Button>
+              <Button size="sm" variant="danger" onClick={() => { setConfirmarDescarte(false); setCurrentStep('form'); setPedidoCriado(null) }}>Descartar</Button>
             </div>
-          </div>
-        </header>
-
-        <main className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {error && (
-            <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <PaymentForm
-            pedidoId={pedidoCriado.id}
-            valorTotal={pedidoCriado.valorTotal}
-            onSuccess={handlePaymentSuccess}
-            onCancel={() => {
-              if (confirm('Cancelar vai descartar este pedido. Deseja continuar?')) {
-                setCurrentStep('form')
-                setPedidoCriado(null)
-              }
-            }}
-          />
-        </main>
-      </div>
+          </Alert>
+        ) : null}
+        <PaymentForm
+          pedidoId={pedidoCriado.id}
+          valorTotal={pedidoCriado.valorTotal}
+          onSuccess={handlePaymentSuccess}
+          onCancel={() => setConfirmarDescarte(true)}
+        />
+      </div>,
+      <button type="button" onClick={() => setConfirmarDescarte(true)} className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">
+        <ArrowLeft className="h-4 w-4" /> Voltar aos detalhes
+      </button>
     )
   }
 
   const enderecosOptions = enderecos.map((e) => ({
     value: e.id,
-    label: e.apelido || `${e.logradouro}, ${e.numero} - ${e.bairro}`,
+    label: e.apelido ? `${e.apelido} — ${e.logradouro}, ${e.numero}` : `${e.logradouro}, ${e.numero} - ${e.bairro}`,
   }))
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/cliente" className="text-gray-500 hover:text-gray-700">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <h1 className="text-xl font-bold text-gray-900">Nova Entrega</h1>
-          </div>
+  const campoEndereco = (tipo: 'origem' | 'destino') => {
+    const valor = tipo === 'origem' ? enderecoOrigemId : enderecoDestinoId
+    const setValor = tipo === 'origem' ? setEnderecoOrigemId : setEnderecoDestinoId
+    return (
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label htmlFor={`end-${tipo}`} className="flex items-center gap-2 text-[13px] font-medium text-fg-2">
+            {tipo === 'origem'
+              ? <span className="h-2.5 w-2.5 rounded-full border-2 border-fg" aria-hidden="true" />
+              : <span className="h-2.5 w-2.5 rounded-full bg-brand" aria-hidden="true" />}
+            {tipo === 'origem' ? 'Endereço de coleta' : 'Endereço de entrega'}
+          </label>
+          <button
+            type="button"
+            onClick={() => { setNovoEnderecoTipo(tipo); setMostrarNovoEndereco(true) }}
+            className="inline-flex items-center gap-1 text-[13px] font-medium text-fg-2 hover:text-fg"
+          >
+            <Plus className="h-3.5 w-3.5" /> Novo endereço
+          </button>
         </div>
-      </header>
+        {enderecosOptions.length > 0 ? (
+          <Select
+            id={`end-${tipo}`}
+            options={enderecosOptions}
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            placeholder="Selecione um endereço salvo"
+            required
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setNovoEnderecoTipo(tipo); setMostrarNovoEndereco(true) }}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-line-strong px-4 py-4 text-sm text-fg-2 hover:border-fg-3 hover:text-fg"
+          >
+            <MapPin className="h-4 w-4" /> Cadastrar endereço
+          </button>
+        )}
+      </div>
+    )
+  }
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
+  const resumo = (
+    <aside className="lg:sticky lg:top-20">
+      <div className="rounded-xl border border-line bg-surface p-5 shadow-xs">
+        <h2 className="text-[15px] font-semibold text-fg">Resumo</h2>
+        <div className="mt-4 divide-y divide-line text-sm">
+          <DataRow label="Serviço">{tiposServico.find((t) => t.value === tipoServico)?.nome}</DataRow>
+          <DataRow label="Distância">{rotaCalculada ? formatarDistancia(rotaCalculada.distanciaKm) : '—'}</DataRow>
+          <DataRow label="Tempo estimado">{rotaCalculada ? formatarTempo(rotaCalculada.duracaoMinutos) : '—'}</DataRow>
+        </div>
+        <div className="mt-4 flex items-end justify-between border-t border-line pt-4">
+          <span className="text-sm text-fg-2">Total</span>
+          <span className="text-2xl font-semibold tracking-tight tabular text-fg">
+            {calculandoRota ? <Spinner className="h-5 w-5" /> : rotaCalculada ? formatarMoeda(rotaCalculada.valorTotal) : '—'}
+          </span>
+        </div>
+        <Button
+          type="submit"
+          form="nova-entrega"
+          className="mt-5 w-full"
+          size="lg"
+          isLoading={isSubmitting}
+          disabled={!rotaCalculada || calculandoRota || !enderecoOrigemId || !enderecoDestinoId}
+        >
+          Continuar para pagamento
+        </Button>
+        {!rotaCalculada && !calculandoRota && (
+          <p className="mt-3 text-center text-xs text-fg-3">Selecione coleta e entrega para calcular o valor.</p>
+        )}
+      </div>
+    </aside>
+  )
+
+  return shell(
+    <>
+      {error && <Alert variant="danger" icon={AlertCircle} className="mb-4">{error}</Alert>}
+
+      {mostrarNovoEndereco ? (
+        <Card className="mx-auto max-w-2xl">
+          <CardHeader>
+            <CardTitle>Novo endereço de {novoEnderecoTipo === 'origem' ? 'coleta' : 'entrega'}</CardTitle>
+          </CardHeader>
+          <div className="space-y-4">
+            <Input
+              label="Apelido (opcional)"
+              value={novoEndereco.apelido}
+              onChange={(e) => setNovoEndereco({ ...novoEndereco, apelido: e.target.value })}
+              placeholder="Ex.: Loja, Escritório"
+            />
+            <div className="grid grid-cols-[1fr_96px] gap-4 sm:grid-cols-[160px_1fr_96px]">
+              <Input label="CEP" value={novoEndereco.cep} onChange={(e) => setNovoEndereco({ ...novoEndereco, cep: e.target.value })} placeholder="00000-000" inputMode="numeric" required />
+              <div className="order-last col-span-2 sm:order-none sm:col-span-1">
+                <Input label="Cidade" value={novoEndereco.cidade} onChange={(e) => setNovoEndereco({ ...novoEndereco, cidade: e.target.value })} required />
+              </div>
+              <Input label="UF" value={novoEndereco.estado} onChange={(e) => setNovoEndereco({ ...novoEndereco, estado: e.target.value.toUpperCase() })} placeholder="MG" maxLength={2} required />
+            </div>
+            <div className="grid grid-cols-[1fr_96px] gap-4">
+              <Input label="Logradouro" value={novoEndereco.logradouro} onChange={(e) => setNovoEndereco({ ...novoEndereco, logradouro: e.target.value })} placeholder="Rua, avenida…" required />
+              <Input label="Número" value={novoEndereco.numero} onChange={(e) => setNovoEndereco({ ...novoEndereco, numero: e.target.value })} required />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Bairro" value={novoEndereco.bairro} onChange={(e) => setNovoEndereco({ ...novoEndereco, bairro: e.target.value })} required />
+              <Input label="Complemento (opcional)" value={novoEndereco.complemento} onChange={(e) => setNovoEndereco({ ...novoEndereco, complemento: e.target.value })} placeholder="Sala, apto, referência" />
+            </div>
           </div>
-        )}
-
-        {/* Formulário de novo endereço */}
-        {mostrarNovoEndereco && (
-          <Card variant="bordered" className="mb-6">
-            <CardHeader>
-              <CardTitle>
-                Novo Endereço de {novoEnderecoTipo === 'origem' ? 'Coleta' : 'Entrega'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                label="Apelido (opcional)"
-                value={novoEndereco.apelido}
-                onChange={(e) => setNovoEndereco({ ...novoEndereco, apelido: e.target.value })}
-                placeholder="Ex: Casa, Trabalho"
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="CEP"
-                  value={novoEndereco.cep}
-                  onChange={(e) => setNovoEndereco({ ...novoEndereco, cep: e.target.value })}
-                  placeholder="00000-000"
-                  required
-                />
-                <Input
-                  label="Estado"
-                  value={novoEndereco.estado}
-                  onChange={(e) => setNovoEndereco({ ...novoEndereco, estado: e.target.value })}
-                  placeholder="SP"
-                  maxLength={2}
-                  required
-                />
+          <CardFooter className="justify-end">
+            <Button variant="outline" onClick={() => setMostrarNovoEndereco(false)}>Cancelar</Button>
+            <Button onClick={handleSalvarEndereco} isLoading={salvandoEndereco}>Salvar endereço</Button>
+          </CardFooter>
+        </Card>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+          <form id="nova-entrega" onSubmit={handleSubmit} className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle>Trajeto</CardTitle></CardHeader>
+              <div className="space-y-5">
+                {campoEndereco('origem')}
+                {campoEndereco('destino')}
               </div>
-              <Input
-                label="Cidade"
-                value={novoEndereco.cidade}
-                onChange={(e) => setNovoEndereco({ ...novoEndereco, cidade: e.target.value })}
-                placeholder="São Paulo"
-                required
-              />
-              <Input
-                label="Bairro"
-                value={novoEndereco.bairro}
-                onChange={(e) => setNovoEndereco({ ...novoEndereco, bairro: e.target.value })}
-                placeholder="Centro"
-                required
-              />
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <Input
-                    label="Logradouro"
-                    value={novoEndereco.logradouro}
-                    onChange={(e) => setNovoEndereco({ ...novoEndereco, logradouro: e.target.value })}
-                    placeholder="Rua das Flores"
-                    required
-                  />
-                </div>
-                <Input
-                  label="Número"
-                  value={novoEndereco.numero}
-                  onChange={(e) => setNovoEndereco({ ...novoEndereco, numero: e.target.value })}
-                  placeholder="123"
-                  required
-                />
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle>Tipo de serviço</CardTitle></CardHeader>
+              <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Tipo de serviço">
+                {tiposServico.map((t) => {
+                  const ativo = tipoServico === t.value
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={ativo}
+                      onClick={() => setTipoServico(t.value)}
+                      className={cn(
+                        'rounded-lg border p-3.5 text-left transition-colors',
+                        ativo ? 'border-fg ring-1 ring-fg' : 'border-line-strong hover:border-fg-3'
+                      )}
+                    >
+                      <span className="block text-sm font-medium text-fg">{t.nome}</span>
+                      <span className="mt-0.5 block text-xs text-fg-3">{t.descricao}</span>
+                      <span className="mt-2 block text-[13px] tabular text-fg-2">{t.preco}/km</span>
+                    </button>
+                  )
+                })}
               </div>
-              <Input
-                label="Complemento (opcional)"
-                value={novoEndereco.complemento}
-                onChange={(e) => setNovoEndereco({ ...novoEndereco, complemento: e.target.value })}
-                placeholder="Apto 101"
-              />
-            </CardContent>
-            <CardFooter className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setMostrarNovoEndereco(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSalvarEndereco} isLoading={salvandoEndereco}>
-                Salvar Endereço
-              </Button>
-            </CardFooter>
-          </Card>
-        )}
-
-        {/* Formulário principal */}
-        {!mostrarNovoEndereco && (
-          <form onSubmit={handleSubmit}>
-            <Card variant="bordered">
-              <CardContent className="p-6 space-y-6">
-                {/* Endereço de Origem */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Endereço de Coleta (Origem)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNovoEnderecoTipo('origem')
-                        setMostrarNovoEndereco(true)
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-700"
-                    >
-                      + Novo endereço
-                    </button>
-                  </div>
-                  {enderecosOptions.length > 0 ? (
-                    <Select
-                      options={enderecosOptions}
-                      value={enderecoOrigemId}
-                      onChange={(e) => setEnderecoOrigemId(e.target.value)}
-                      placeholder="Selecione o endereço de coleta"
-                      required
-                    />
-                  ) : (
-                    <div className="p-4 bg-gray-50 rounded-lg text-center">
-                      <p className="text-gray-500 mb-2">Nenhum endereço cadastrado</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setNovoEnderecoTipo('origem')
-                          setMostrarNovoEndereco(true)
-                        }}
-                      >
-                        Cadastrar endereço
-                      </Button>
-                    </div>
-                  )}
+              {tipoServico === 'AGENDADA' && (
+                <div className="mt-4 sm:max-w-xs">
+                  <Input type="datetime-local" label="Data e hora da coleta" value={dataAgendada} onChange={(e) => setDataAgendada(e.target.value)} />
                 </div>
+              )}
+            </Card>
 
-                {/* Endereço de Destino */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Endereço de Entrega (Destino)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNovoEnderecoTipo('destino')
-                        setMostrarNovoEndereco(true)
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-700"
-                    >
-                      + Novo endereço
-                    </button>
-                  </div>
-                  {enderecosOptions.length > 0 ? (
-                    <Select
-                      options={enderecosOptions}
-                      value={enderecoDestinoId}
-                      onChange={(e) => setEnderecoDestinoId(e.target.value)}
-                      placeholder="Selecione o endereço de entrega"
-                      required
-                    />
-                  ) : (
-                    <div className="p-4 bg-gray-50 rounded-lg text-center">
-                      <p className="text-gray-500 mb-2">Nenhum endereço cadastrado</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setNovoEnderecoTipo('destino')
-                          setMostrarNovoEndereco(true)
-                        }}
-                      >
-                        Cadastrar endereço
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Tipo de Serviço */}
-                <Select
-                  label="Tipo de Serviço"
-                  options={tiposServico}
-                  value={tipoServico}
-                  onChange={(e) => setTipoServico(e.target.value as TipoServico)}
-                  required
-                />
-
-                {/* Data Agendada (para entregas agendadas) */}
-                {tipoServico === 'AGENDADA' && (
-                  <Input
-                    type="datetime-local"
-                    label="Data e Hora da Coleta"
-                    value={dataAgendada}
-                    onChange={(e) => setDataAgendada(e.target.value)}
-                  />
-                )}
-
-                {/* Descrição do Item */}
+            <Card>
+              <CardHeader><CardTitle>Detalhes do envio</CardTitle></CardHeader>
+              <div className="space-y-4">
                 <Input
                   label="O que será entregue? (opcional)"
                   value={descricaoItem}
                   onChange={(e) => setDescricaoItem(e.target.value)}
-                  placeholder="Ex: Documentos, Caixa pequena, Envelope"
+                  placeholder="Ex.: envelope, caixa pequena, chaves"
                 />
-
-                {/* Observações */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Observações (opcional)
-                  </label>
-                  <textarea
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-                    rows={3}
-                    value={observacoes}
-                    onChange={(e) => setObservacoes(e.target.value)}
-                    placeholder="Instruções especiais para o motoboy..."
-                  />
-                </div>
-
-                {/* Resumo da Rota */}
-                {calculandoRota && (
-                  <div className="p-4 bg-gray-50 rounded-lg flex items-center justify-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                    <span className="text-gray-500">Calculando rota...</span>
-                  </div>
-                )}
-
-                {rotaCalculada && (
-                  <div className="p-4 bg-blue-50 rounded-lg space-y-3">
-                    <h4 className="font-medium text-blue-900">Resumo da Entrega</h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-600">Distância:</span>
-                        <span className="ml-2 font-medium">{formatarDistancia(rotaCalculada.distanciaKm)}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-600">Tempo Estimado:</span>
-                        <span className="ml-2 font-medium">{formatarTempo(rotaCalculada.duracaoMinutos)}</span>
-                      </div>
-                    </div>
-                    <div className="pt-3 border-t border-blue-200 flex justify-between items-center">
-                      <span className="text-gray-700 font-medium">Valor Total:</span>
-                      <span className="text-2xl font-bold text-blue-700">
-                        {formatarMoeda(rotaCalculada.valorTotal)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-
-              <CardFooter className="flex justify-between items-center">
-                <Link href="/cliente">
-                  <Button type="button" variant="outline">
-                    Cancelar
-                  </Button>
-                </Link>
-                <Button
-                  type="submit"
-                  isLoading={isSubmitting}
-                  disabled={!rotaCalculada || calculandoRota || !enderecoOrigemId || !enderecoDestinoId}
-                >
-                  Solicitar Entrega - {rotaCalculada ? formatarMoeda(rotaCalculada.valorTotal) : '...'}
-                </Button>
-              </CardFooter>
+                <Textarea
+                  label="Instruções para o entregador (opcional)"
+                  rows={3}
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Ponto de referência, com quem retirar, horário…"
+                />
+              </div>
             </Card>
           </form>
-        )}
-      </main>
-    </div>
+          {resumo}
+        </div>
+      )}
+    </>
   )
 }

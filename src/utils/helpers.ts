@@ -45,7 +45,7 @@ export function formatarData(data: Date | string): string {
 
 export function formatarDataHora(data: Date | string): string {
   const d = new Date(data)
-  return d.toLocaleString('pt-BR')
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 export function formatarHora(data: Date | string): string {
@@ -139,15 +139,15 @@ export function validarPlaca(placa: string): boolean {
 export const LABELS_STATUS_PEDIDO: Record<StatusPedido, string> = {
   SOLICITADO: 'Solicitado',
   ACEITO: 'Aceito',
-  EM_COLETA: 'Em Coleta',
-  EM_ENTREGA: 'Em Entrega',
+  EM_COLETA: 'Em coleta',
+  EM_ENTREGA: 'Em entrega',
   ENTREGUE: 'Entregue',
   CANCELADO: 'Cancelado',
 }
 
 export const LABELS_STATUS_MOTOBOY: Record<StatusMotoboy, string> = {
   DISPONIVEL: 'Disponível',
-  EM_ENTREGA: 'Em Entrega',
+  EM_ENTREGA: 'Em entrega',
   OFFLINE: 'Offline',
 }
 
@@ -169,21 +169,25 @@ export const LABELS_DIA_SEMANA: Record<DiaSemana, string> = {
 
 // Cores para status
 export const CORES_STATUS_PEDIDO: Record<StatusPedido, string> = {
-  SOLICITADO: 'bg-yellow-100 text-yellow-800',
-  ACEITO: 'bg-blue-100 text-blue-800',
-  EM_COLETA: 'bg-purple-100 text-purple-800',
-  EM_ENTREGA: 'bg-indigo-100 text-indigo-800',
-  ENTREGUE: 'bg-green-100 text-green-800',
-  CANCELADO: 'bg-red-100 text-red-800',
+  SOLICITADO: 'bg-warning-soft text-warning',
+  ACEITO: 'bg-info-soft text-info',
+  EM_COLETA: 'bg-info-soft text-info',
+  EM_ENTREGA: 'bg-brand-soft text-brand',
+  ENTREGUE: 'bg-success-soft text-success',
+  CANCELADO: 'bg-surface-2 text-fg-3',
 }
 
 export const CORES_STATUS_MOTOBOY: Record<StatusMotoboy, string> = {
-  DISPONIVEL: 'bg-green-100 text-green-800',
-  EM_ENTREGA: 'bg-blue-100 text-blue-800',
-  OFFLINE: 'bg-gray-100 text-gray-800',
+  DISPONIVEL: 'bg-success-soft text-success',
+  EM_ENTREGA: 'bg-brand-soft text-brand',
+  OFFLINE: 'bg-surface-2 text-fg-3',
 }
 
 // Utilitários
+export function codigoPedido(id: string): string {
+  return `#${id.slice(-6).toUpperCase()}`
+}
+
 export function gerarCodigoPedido(): string {
   const timestamp = Date.now().toString(36).toUpperCase()
   const random = Math.random().toString(36).substring(2, 6).toUpperCase()

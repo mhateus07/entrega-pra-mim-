@@ -4,21 +4,25 @@ import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import Button from '@/components/ui/Button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
-import Badge from '@/components/ui/Badge'
+import { AlertTriangle, ArrowLeft, Bell, Phone, Star } from 'lucide-react'
+import Button, { buttonClass } from '@/components/ui/Button'
+import Header from '@/components/ui/Header'
+import Textarea from '@/components/ui/Textarea'
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
+import { Alert, DataRow, EmptyState, FullPageLoader } from '@/components/ui/Feedback'
+import { PedidoStatusBadge, PagamentoStatusBadge } from '@/components/ui/StatusBadge'
+import { RotaEnderecos, LinhaDoTempo, Estrelas } from '@/components/pedido/PedidoParts'
+import { cn } from '@/utils/cn'
 import TrackingMap from '@/components/maps/TrackingMap'
 import ChatBox from '@/components/chat/ChatBox'
 import { useTracking } from '@/hooks/useTracking'
 import { useNotifications } from '@/hooks/useNotifications'
 import { formatarMoeda, formatarDistancia, formatarTempo } from '@/lib/pricing'
-import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO, formatarDataHora } from '@/utils/helpers'
-import { StatusPedido } from '@/types'
+import { LABELS_STATUS_PEDIDO, LABELS_TIPO_SERVICO, codigoPedido, formatarDataHora } from '@/utils/helpers'
+import type { StatusPedido, TipoServico } from '@prisma/client'
 import toast from 'react-hot-toast'
 import {
   LABELS_METODO_PAGAMENTO,
-  LABELS_STATUS_PAGAMENTO,
-  CORES_STATUS_PAGAMENTO,
   formatarValor,
   type MetodoPagamento,
   type StatusPagamento,
@@ -93,7 +97,7 @@ interface Pedido {
 }
 
 export default function PedidoDetalhePage() {
-  const { status } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const params = useParams()
   const pedidoId = params.id as string
@@ -106,7 +110,8 @@ export default function PedidoDetalhePage() {
   const [rating, setRating] = useState(5)
   const [comentario, setComentario] = useState('')
   const [error, setError] = useState('')
-  const [showTracking, setShowTracking] = useState(false)
+  const [showTracking, setShowTracking] = useState(true)
+  const [confirmarCancelamento, setConfirmarCancelamento] = useState(false)
 
   const { permission, requestPermission } = useNotifications()
 
@@ -153,8 +158,6 @@ export default function PedidoDetalhePage() {
   }, [status, pedidoId])
 
   const handleCancelar = async () => {
-    if (!confirm('Tem certeza que deseja cancelar este pedido?')) return
-
     setIsCancelling(true)
     try {
       const response = await fetch(`/api/pedidos/${pedidoId}`, {
@@ -166,7 +169,7 @@ export default function PedidoDetalhePage() {
       const data = await response.json()
 
       if (data.success) {
-        setPedido({ ...pedido!, status: 'CANCELADO', canceladoEm: new Date().toISOString() })
+        setPedido({ ...pedido!, status: 'CANCELADO', canceladoEm: new Date().toISOString(), motivoCancelamento: 'Cancelado pelo cliente' })
       } else {
         setError(data.error || 'Erro ao cancelar')
       }
@@ -174,6 +177,7 @@ export default function PedidoDetalhePage() {
       setError('Erro ao cancelar pedido')
     } finally {
       setIsCancelling(false)
+      setConfirmarCancelamento(false)
     }
   }
 
@@ -207,23 +211,17 @@ export default function PedidoDetalhePage() {
     }
   }
 
-  if (status === 'loading' || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  if (status === 'loading' || isLoading) return <FullPageLoader label="Carregando pedido…" />
 
   if (error && !pedido) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Link href="/cliente">
-            <Button>Voltar</Button>
-          </Link>
-        </div>
+      <div className="min-h-screen bg-page">
+        <EmptyState
+          className="min-h-screen"
+          icon={AlertTriangle}
+          title={error}
+          action={<Link href="/cliente" className={buttonClass('outline')}>Voltar às entregas</Link>}
+        />
       </div>
     )
   }
@@ -233,430 +231,222 @@ export default function PedidoDetalhePage() {
   const podeCancelar = ['SOLICITADO', 'ACEITO'].includes(pedido.status)
   const podeAvaliar = pedido.status === 'ENTREGUE' && !pedido.avaliacao && pedido.motoboy
 
-  const statusTimeline = [
-    { status: 'SOLICITADO', label: 'Solicitado', time: pedido.createdAt },
-    { status: 'ACEITO', label: 'Aceito', time: pedido.aceitoEm },
-    { status: 'EM_COLETA', label: 'Em Coleta', time: pedido.coletadoEm },
-    { status: 'EM_ENTREGA', label: 'Em Entrega', time: null },
-    { status: 'ENTREGUE', label: 'Entregue', time: pedido.entregueEm },
-  ]
-
-  const currentStatusIndex = statusTimeline.findIndex(s => s.status === pedido.status)
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <Link href="/cliente" className="text-gray-500 hover:text-gray-700">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Pedido #{pedido.id.slice(0, 8)}</h1>
-              <p className="text-sm text-gray-500">{formatarDataHora(pedido.createdAt)}</p>
+    <div className="min-h-screen bg-page">
+      <Header userName={session?.user?.name} userRole="CLIENTE" />
+
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <Link href="/cliente" className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">
+          <ArrowLeft className="h-4 w-4" /> Minhas entregas
+        </Link>
+
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-mono text-[22px] font-semibold tracking-tight text-fg">{codigoPedido(pedido.id)}</h1>
+              <PedidoStatusBadge status={pedido.status} />
             </div>
+            <p className="mt-1 text-sm text-fg-3">{LABELS_TIPO_SERVICO[pedido.tipoServico as TipoServico] ?? pedido.tipoServico} · criado em {formatarDataHora(pedido.createdAt)}</p>
           </div>
+          <p className="text-[26px] font-semibold tracking-tight tabular text-fg">{formatarMoeda(pedido.valorTotal)}</p>
         </div>
-      </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        )}
+        {error && <Alert variant="danger" icon={AlertTriangle} className="mb-4">{error}</Alert>}
 
-        {/* Status */}
-        <Card variant="bordered">
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${CORES_STATUS_PEDIDO[pedido.status]}`}>
-                  {LABELS_STATUS_PEDIDO[pedido.status]}
-                </span>
-                <Badge variant="info" size="sm" className="ml-2">
-                  {pedido.tipoServico}
-                </Badge>
+        <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
+          <div className="space-y-4">
+            {pedido.status === 'CANCELADO' && (
+              <Alert variant="danger" title="Pedido cancelado">{pedido.motivoCancelamento || 'Este pedido foi cancelado.'}</Alert>
+            )}
+
+            {isTrackingEnabled && (
+              <Card padding={false} className="overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                    </span>
+                    <CardTitle>Acompanhamento ao vivo</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {trackingData?.etaMinutos ? (
+                      <span className="text-[13px] text-fg-3">Chega em <span className="font-semibold tabular text-fg">{trackingData.etaMinutos} min</span></span>
+                    ) : null}
+                    <Button variant="ghost" size="sm" onClick={() => setShowTracking(!showTracking)}>
+                      {showTracking ? 'Ocultar mapa' : 'Ver mapa'}
+                    </Button>
+                  </div>
+                </div>
+                {showTracking && (
+                  <div className="h-[320px] border-t border-line">
+                    <TrackingMap
+                      origem={pedido.enderecoOrigem.latitude && pedido.enderecoOrigem.longitude ? { lat: pedido.enderecoOrigem.latitude, lng: pedido.enderecoOrigem.longitude } : null}
+                      destino={pedido.enderecoDestino.latitude && pedido.enderecoDestino.longitude ? { lat: pedido.enderecoDestino.latitude, lng: pedido.enderecoDestino.longitude } : null}
+                      motoboyLocation={trackingData?.motoboy?.latitudeAtual && trackingData?.motoboy?.longitudeAtual ? { lat: trackingData.motoboy.latitudeAtual, lng: trackingData.motoboy.longitudeAtual } : null}
+                      className="h-full"
+                    />
+                  </div>
+                )}
+                {trackingData?.motoboy && (
+                  <p className="border-t border-line px-5 py-2.5 text-xs text-fg-3">
+                    Última posição: {trackingData.motoboy.ultimaAtividade ? formatarDataHora(trackingData.motoboy.ultimaAtividade) : 'aguardando…'}
+                  </p>
+                )}
+              </Card>
+            )}
+
+            {permission !== 'granted' && isTrackingEnabled && (
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Bell className="h-4 w-4 text-fg-3" aria-hidden="true" />
+                  <p className="text-sm text-fg-2">Receba um aviso quando o status do pedido mudar.</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={requestPermission}>Ativar avisos</Button>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{formatarMoeda(pedido.valorTotal)}</p>
-            </div>
+            )}
 
-            {/* Timeline */}
-            {pedido.status !== 'CANCELADO' && (
-              <div className="flex justify-between mb-4">
-                {statusTimeline.map((item, index) => (
-                  <div key={item.status} className="flex flex-col items-center flex-1">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      index <= currentStatusIndex ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      {index < currentStatusIndex ? '✓' : index + 1}
+            <Card>
+              <CardHeader><CardTitle>Trajeto</CardTitle></CardHeader>
+              <RotaEnderecos origem={pedido.enderecoOrigem} destino={pedido.enderecoDestino} />
+              <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line">
+                <div className="bg-surface-2/60 px-3 py-2.5">
+                  <p className="text-xs text-fg-3">Distância</p>
+                  <p className="text-sm font-medium tabular text-fg">{formatarDistancia(pedido.distanciaKm)}</p>
+                </div>
+                <div className="bg-surface-2/60 px-3 py-2.5">
+                  <p className="text-xs text-fg-3">Tempo estimado</p>
+                  <p className="text-sm font-medium tabular text-fg">{formatarTempo(pedido.duracaoEstimada)}</p>
+                </div>
+              </div>
+              {(pedido.descricaoItem || pedido.observacoes) && (
+                <div className="mt-4 divide-y divide-line border-t border-line">
+                  {pedido.descricaoItem && <DataRow label="Item">{pedido.descricaoItem}</DataRow>}
+                  {pedido.observacoes && <DataRow label="Observações">{pedido.observacoes}</DataRow>}
+                </div>
+              )}
+            </Card>
+
+            {pedido.fotoComprovante && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Comprovante de entrega</CardTitle>
+                  <CardDescription>Foto registrada pelo entregador no destino</CardDescription>
+                </CardHeader>
+                <div className="relative aspect-video overflow-hidden rounded-lg border border-line bg-surface-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- rota autenticada: o otimizador do next/image não envia o cookie de sessão */}
+                  <img src={pedido.fotoComprovante} alt="Comprovante de entrega" className="h-full w-full object-contain" />
+                </div>
+              </Card>
+            )}
+
+            {showRatingForm && (
+              <Card>
+                <CardHeader><CardTitle>Avaliar entrega</CardTitle></CardHeader>
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-2 text-[13px] font-medium text-fg-2">Como foi a entrega?</p>
+                    <div className="flex gap-1" role="radiogroup" aria-label="Nota">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`${n} estrelas`} onClick={() => setRating(n)} className="rounded-md p-1 hover:bg-surface-2">
+                          <Star className={cn('h-7 w-7', n <= rating ? 'fill-current text-chart-4' : 'text-line-strong')} />
+                        </button>
+                      ))}
                     </div>
-                    <p className={`text-xs mt-1 text-center ${index <= currentStatusIndex ? 'text-blue-600 font-medium' : 'text-gray-400'}`}>
-                      {item.label}
+                  </div>
+                  <Textarea label="Comentário (opcional)" rows={3} value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Conte como foi sua experiência" />
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowRatingForm(false)}>Cancelar</Button>
+                    <Button onClick={handleAvaliar} isLoading={isRating}>Enviar avaliação</Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {pedido.status !== 'CANCELADO' && (
+              <Card>
+                <CardHeader><CardTitle>Andamento</CardTitle></CardHeader>
+                <LinhaDoTempo pedido={pedido} />
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader><CardTitle>Entregador</CardTitle></CardHeader>
+              {pedido.motoboy ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-fg">{pedido.motoboy.user.nome}</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[13px] text-fg-3">
+                      <Star className="h-3.5 w-3.5 fill-current text-chart-4" aria-hidden="true" />
+                      {pedido.motoboy.avaliacaoMedia.toFixed(1)}
                     </p>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {pedido.status === 'CANCELADO' && (
-              <div className="bg-red-50 p-4 rounded-lg">
-                <p className="text-red-700 font-medium">Pedido cancelado</p>
-                {pedido.motivoCancelamento && (
-                  <p className="text-red-600 text-sm mt-1">{pedido.motivoCancelamento}</p>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Notificações */}
-        {permission !== 'granted' && isTrackingEnabled && (
-          <Card variant="bordered" className="bg-blue-50 dark:bg-blue-900/20 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🔔</span>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">Ativar notificações</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Receba alertas sobre o status do pedido</p>
-                  </div>
-                </div>
-                <Button size="sm" onClick={requestPermission}>
-                  Ativar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Rastreamento em Tempo Real */}
-        {isTrackingEnabled && (
-          <Card variant="bordered">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                </span>
-                Rastreamento ao Vivo
-              </CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowTracking(!showTracking)}
-              >
-                {showTracking ? 'Ocultar Mapa' : 'Ver no Mapa'}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {trackingData?.etaMinutos && (
-                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Tempo estimado</p>
-                  <p className="text-2xl font-bold text-blue-600">{trackingData.etaMinutos} min</p>
-                </div>
-              )}
-
-              {showTracking && (
-                <div className="h-[300px] mb-4">
-                  <TrackingMap
-                    origem={pedido.enderecoOrigem.latitude && pedido.enderecoOrigem.longitude ? {
-                      lat: pedido.enderecoOrigem.latitude,
-                      lng: pedido.enderecoOrigem.longitude,
-                    } : null}
-                    destino={pedido.enderecoDestino.latitude && pedido.enderecoDestino.longitude ? {
-                      lat: pedido.enderecoDestino.latitude,
-                      lng: pedido.enderecoDestino.longitude,
-                    } : null}
-                    motoboyLocation={trackingData?.motoboy?.latitudeAtual && trackingData?.motoboy?.longitudeAtual ? {
-                      lat: trackingData.motoboy.latitudeAtual,
-                      lng: trackingData.motoboy.longitudeAtual,
-                    } : null}
-                    className="h-full"
-                  />
-                </div>
-              )}
-
-              {trackingData?.motoboy && (
-                <p className="text-sm text-gray-500">
-                  Última atualização: {trackingData.motoboy.ultimaAtividade
-                    ? formatarDataHora(trackingData.motoboy.ultimaAtividade)
-                    : 'Aguardando...'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Motoboy */}
-        {pedido.motoboy && (
-          <Card variant="bordered">
-            <CardHeader>
-              <CardTitle>Motoboy</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium text-gray-900">{pedido.motoboy.user.nome}</p>
-                  <p className="text-sm text-gray-600">{pedido.motoboy.user.telefone}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <div className="flex items-center gap-1">
-                      <span className="text-yellow-500">★</span>
-                      <span className="font-medium">{pedido.motoboy.avaliacaoMedia.toFixed(1)}</span>
-                    </div>
-                  </div>
-                  <a
-                    href={`tel:${pedido.motoboy.user.telefone}`}
-                    className="p-2 bg-green-100 dark:bg-green-900/30 rounded-full text-green-600 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
+                  <a href={`tel:${pedido.motoboy.user.telefone}`} className={buttonClass('outline', 'sm')} aria-label={`Ligar para ${pedido.motoboy.user.nome}`}>
+                    <Phone className="h-3.5 w-3.5" /> Ligar
                   </a>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Endereços */}
-        <Card variant="bordered">
-          <CardHeader>
-            <CardTitle>Endereços</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-4">
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase font-medium">Coleta</p>
-                <p className="text-gray-900">{pedido.enderecoOrigem.logradouro}, {pedido.enderecoOrigem.numero}</p>
-                {pedido.enderecoOrigem.complemento && <p className="text-gray-600 text-sm">{pedido.enderecoOrigem.complemento}</p>}
-                <p className="text-gray-600 text-sm">{pedido.enderecoOrigem.bairro}, {pedido.enderecoOrigem.cidade} - {pedido.enderecoOrigem.estado}</p>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase font-medium">Entrega</p>
-                <p className="text-gray-900">{pedido.enderecoDestino.logradouro}, {pedido.enderecoDestino.numero}</p>
-                {pedido.enderecoDestino.complemento && <p className="text-gray-600 text-sm">{pedido.enderecoDestino.complemento}</p>}
-                <p className="text-gray-600 text-sm">{pedido.enderecoDestino.bairro}, {pedido.enderecoDestino.cidade} - {pedido.enderecoDestino.estado}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Detalhes */}
-        <Card variant="bordered">
-          <CardHeader>
-            <CardTitle>Detalhes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Distância</p>
-                <p className="font-medium text-gray-900">{formatarDistancia(pedido.distanciaKm)}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Tempo Estimado</p>
-                <p className="font-medium text-gray-900">{formatarTempo(pedido.duracaoEstimada)}</p>
-              </div>
-              {pedido.descricaoItem && (
-                <div className="col-span-2">
-                  <p className="text-gray-500">Item</p>
-                  <p className="font-medium text-gray-900">{pedido.descricaoItem}</p>
-                </div>
+              ) : (
+                <p className="text-sm text-fg-3">{pedido.status === 'CANCELADO' ? 'Nenhum entregador atribuído.' : 'Procurando um entregador disponível…'}</p>
               )}
-              {pedido.observacoes && (
-                <div className="col-span-2">
-                  <p className="text-gray-500">Observações</p>
-                  <p className="font-medium text-gray-900">{pedido.observacoes}</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            </Card>
 
-        {/* Pagamento */}
-        {pedido.pagamento && (
-          <Card variant="bordered">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Pagamento</span>
-                <span className={`px-3 py-1 text-xs font-medium rounded-full ${CORES_STATUS_PAGAMENTO[pedido.pagamento.status]}`}>
-                  {LABELS_STATUS_PAGAMENTO[pedido.pagamento.status]}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400">Método</p>
-                  <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-                    {pedido.pagamento.metodo === 'PIX' && '📱'}
-                    {(pedido.pagamento.metodo === 'CARTAO_CREDITO' || pedido.pagamento.metodo === 'CARTAO_DEBITO') && '💳'}
-                    {pedido.pagamento.metodo === 'DINHEIRO' && '💵'}
-                    {LABELS_METODO_PAGAMENTO[pedido.pagamento.metodo]}
-                  </p>
+            {pedido.pagamento && (
+              <Card>
+                <div className="mb-3 flex items-center justify-between">
+                  <CardTitle>Pagamento</CardTitle>
+                  <PagamentoStatusBadge status={pedido.pagamento.status} />
                 </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400">Valor</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {formatarValor(pedido.pagamento.valor)}
-                  </p>
+                <div className="divide-y divide-line">
+                  <DataRow label="Forma">{LABELS_METODO_PAGAMENTO[pedido.pagamento.metodo]}</DataRow>
+                  <DataRow label="Valor"><span className="tabular">{formatarValor(pedido.pagamento.valor)}</span></DataRow>
+                  {pedido.pagamento.cartaoUltimos4 && (
+                    <DataRow label="Cartão"><span className="tabular">•••• {pedido.pagamento.cartaoUltimos4}</span> {pedido.pagamento.cartaoBandeira}</DataRow>
+                  )}
+                  {pedido.pagamento.aprovadoEm && <DataRow label="Aprovado em"><span className="tabular">{formatarDataHora(pedido.pagamento.aprovadoEm)}</span></DataRow>}
                 </div>
-                {pedido.pagamento.cartaoUltimos4 && (
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-400">Cartão</p>
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      **** {pedido.pagamento.cartaoUltimos4} ({pedido.pagamento.cartaoBandeira})
-                    </p>
-                  </div>
-                )}
-                {pedido.pagamento.aprovadoEm && (
-                  <div>
-                    <p className="text-gray-500 dark:text-gray-400">Aprovado em</p>
-                    <p className="font-medium text-gray-900 dark:text-white">
-                      {formatarDataHora(pedido.pagamento.aprovadoEm)}
-                    </p>
-                  </div>
-                )}
                 {pedido.pagamento.metodo === 'DINHEIRO' && pedido.pagamento.status === 'PENDENTE' && (
-                  <div className="col-span-2">
-                    <p className="text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg">
-                      O pagamento será confirmado pelo motoboy no momento da entrega.
-                    </p>
-                  </div>
+                  <p className="mt-3 text-[13px] text-fg-3">O pagamento será confirmado pelo entregador no momento da entrega.</p>
                 )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </Card>
+            )}
 
-        {/* Avaliação existente */}
-        {pedido.avaliacao && (
-          <Card variant="bordered">
-            <CardHeader>
-              <CardTitle>Sua Avaliação</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 mb-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <span key={star} className={`text-2xl ${star <= pedido.avaliacao!.nota ? 'text-yellow-500' : 'text-gray-300'}`}>
-                    ★
-                  </span>
-                ))}
-              </div>
-              {pedido.avaliacao.comentario && (
-                <p className="text-gray-600">{pedido.avaliacao.comentario}</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
+            {pedido.avaliacao && (
+              <Card>
+                <CardHeader><CardTitle>Sua avaliação</CardTitle></CardHeader>
+                <Estrelas nota={pedido.avaliacao.nota} />
+                {pedido.avaliacao.comentario && <p className="mt-2 text-sm text-fg-2">“{pedido.avaliacao.comentario}”</p>}
+              </Card>
+            )}
 
-        {/* Formulário de avaliação */}
-        {showRatingForm && (
-          <Card variant="bordered">
-            <CardHeader>
-              <CardTitle>Avaliar Entrega</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-600 mb-2">Como foi a entrega?</p>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setRating(star)}
-                      className={`text-3xl transition-colors ${star <= rating ? 'text-yellow-500' : 'text-gray-300'}`}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Comentário (opcional)
-                </label>
-                <textarea
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white text-gray-900"
-                  rows={3}
-                  value={comentario}
-                  onChange={(e) => setComentario(e.target.value)}
-                  placeholder="Conte como foi sua experiência..."
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setShowRatingForm(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleAvaliar} isLoading={isRating}>
-                  Enviar Avaliação
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Comprovante de Entrega */}
-        {pedido.fotoComprovante && (
-          <Card variant="bordered">
-            <CardHeader>
-              <CardTitle>Comprovante de Entrega</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element -- rota autenticada: o otimizador do next/image não envia o cookie de sessão */}
-                <img
-                  src={pedido.fotoComprovante}
-                  alt="Comprovante de entrega"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <p className="text-sm text-gray-500 mt-2 text-center">
-                Foto registrada pelo motoboy na entrega
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Ações */}
-        <div className="flex justify-between">
-          <Link href="/cliente">
-            <Button variant="outline">Voltar</Button>
-          </Link>
-          <div className="flex gap-3">
-            {podeCancelar && (
-              <Button variant="danger" onClick={handleCancelar} isLoading={isCancelling}>
-                Cancelar Pedido
+            {podeAvaliar && !showRatingForm && (
+              <Button className="w-full" onClick={() => setShowRatingForm(true)}>
+                <Star className="h-4 w-4" /> Avaliar entrega
               </Button>
             )}
-            {podeAvaliar && !showRatingForm && (
-              <Button onClick={() => setShowRatingForm(true)}>
-                Avaliar Entrega
-              </Button>
+
+            {podeCancelar && (
+              confirmarCancelamento ? (
+                <Card>
+                  <p className="text-sm text-fg-2">Deseja mesmo cancelar este pedido?</p>
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={() => setConfirmarCancelamento(false)} disabled={isCancelling}>Voltar</Button>
+                    <Button variant="danger" className="flex-1" onClick={handleCancelar} isLoading={isCancelling}>Cancelar pedido</Button>
+                  </div>
+                </Card>
+              ) : (
+                <Button variant="ghost" className="w-full text-danger hover:text-danger" onClick={() => setConfirmarCancelamento(true)}>
+                  Cancelar pedido
+                </Button>
+              )
             )}
           </div>
         </div>
       </main>
 
-      {/* Chat com Motoboy */}
       {pedido.motoboy && ['ACEITO', 'EM_COLETA', 'EM_ENTREGA'].includes(pedido.status) && (
-        <ChatBox
-          pedidoId={pedidoId}
-          userType="CLIENTE"
-          enabled={true}
-        />
+        <ChatBox pedidoId={pedidoId} userType="CLIENTE" enabled={true} />
       )}
     </div>
   )

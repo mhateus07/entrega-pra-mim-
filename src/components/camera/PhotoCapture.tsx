@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { Camera, Check, Image as ImageIcon, RotateCcw, X } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import toast from 'react-hot-toast'
 
@@ -130,7 +131,7 @@ export default function PhotoCapture({
       const data = await uploadResponse.json()
 
       if (data.success) {
-        toast.success('Comprovante enviado com sucesso!')
+        toast.success('Comprovante enviado')
         onPhotoSent?.(data.data.fotoUrl)
         handleClose()
       } else {
@@ -157,219 +158,58 @@ export default function PhotoCapture({
 
   return (
     <div className={className}>
-      {/* Botão para abrir */}
-      <Button onClick={handleOpen} variant="primary" className="w-full">
-        <svg
-          className="w-5 h-5 mr-2"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-        </svg>
-        Tirar Foto do Comprovante
+      <Button onClick={handleOpen} variant="primary" size="lg" className="w-full">
+        <Camera className="h-4 w-4" /> Registrar foto da entrega
       </Button>
 
-      {/* Modal */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-lg w-full overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Foto do Comprovante
-              </h3>
-              <button
-                onClick={handleClose}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Foto do comprovante">
+          <div className="w-full max-w-lg overflow-hidden rounded-t-2xl border border-line bg-surface shadow-pop sm:rounded-2xl">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <h3 className="text-[15px] font-semibold text-fg">Comprovante de entrega</h3>
+              <button type="button" onClick={handleClose} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-3 hover:bg-surface-2 hover:text-fg" aria-label="Fechar">
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Content */}
             <div className="p-4">
               {!capturedImage && !isCameraActive && (
                 <div className="space-y-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-                    Tire uma foto da entrega como comprovante
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button onClick={startCamera} variant="primary">
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                      Usar Câmera
-                    </Button>
-                    <Button
-                      onClick={() => fileInputRef.current?.click()}
-                      variant="outline"
-                    >
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      Galeria
-                    </Button>
+                  <p className="text-center text-sm text-fg-2">Fotografe o item entregue ou o local da entrega.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={startCamera} variant="primary" size="lg"><Camera className="h-4 w-4" /> Câmera</Button>
+                    <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="lg"><ImageIcon className="h-4 w-4" /> Galeria</Button>
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                 </div>
               )}
 
               {isCameraActive && (
                 <div className="space-y-4">
-                  <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="relative aspect-video overflow-hidden rounded-lg bg-black">
+                    <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
                   </div>
-                  <div className="flex gap-4">
-                    <Button
-                      onClick={() => {
-                        stopCamera()
-                      }}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button onClick={capturePhoto} className="flex-1">
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                        />
-                        <circle cx="12" cy="13" r="3" />
-                      </svg>
-                      Capturar
-                    </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={() => { stopCamera() }} variant="outline" className="flex-1">Cancelar</Button>
+                    <Button onClick={capturePhoto} className="flex-1"><Camera className="h-4 w-4" /> Capturar</Button>
                   </div>
                 </div>
               )}
 
               {capturedImage && (
                 <div className="space-y-4">
-                  <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                  <div className="relative aspect-video overflow-hidden rounded-lg bg-black">
                     {/* eslint-disable-next-line @next/next/no-img-element -- prévia local (data URL) */}
-                    <img
-                      src={capturedImage}
-                      alt="Foto capturada"
-                      className="w-full h-full object-contain"
-                    />
+                    <img src={capturedImage} alt="Foto capturada" className="h-full w-full object-contain" />
                   </div>
-                  <div className="flex gap-4">
-                    <Button
-                      onClick={retakePhoto}
-                      variant="outline"
-                      className="flex-1"
-                      disabled={isUploading}
-                    >
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
-                      Tirar Outra
-                    </Button>
-                    <Button
-                      onClick={uploadPhoto}
-                      className="flex-1"
-                      isLoading={isUploading}
-                    >
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      Enviar
-                    </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={retakePhoto} variant="outline" className="flex-1" disabled={isUploading}><RotateCcw className="h-4 w-4" /> Refazer</Button>
+                    <Button onClick={uploadPhoto} className="flex-1" isLoading={isUploading}>{!isUploading && <Check className="h-4 w-4" />} Enviar foto</Button>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Canvas oculto para captura */}
             <canvas ref={canvasRef} className="hidden" />
           </div>
         </div>

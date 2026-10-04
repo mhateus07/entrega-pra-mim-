@@ -2,8 +2,12 @@
 
 import { useState } from 'react'
 import { ELECTRONIC_PAYMENTS_AVAILABLE } from '@/lib/payment-policy'
+import { Banknote, CreditCard, Info, QrCode } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import Input from '@/components/ui/Input'
+import { Card, CardTitle } from '@/components/ui/Card'
+import { Alert } from '@/components/ui/Feedback'
+import { cn } from '@/utils/cn'
 import toast from 'react-hot-toast'
 import {
   formatarValor,
@@ -121,163 +125,98 @@ export default function PaymentForm({
     }
   }
 
-  return (
-    <Card variant="bordered">
-      <CardHeader>
-        <CardTitle>Forma de Pagamento</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Valor */}
-        <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Valor a pagar</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">
-            {formatarValor(valorTotal)}
-          </p>
-        </div>
+  const icones: Record<MetodoPagamento, typeof QrCode> = {
+    PIX: QrCode,
+    CARTAO_CREDITO: CreditCard,
+    CARTAO_DEBITO: CreditCard,
+    DINHEIRO: Banknote,
+  }
 
-        <p className="text-sm text-gray-600 dark:text-gray-300">
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between border-b border-line pb-4">
+        <CardTitle>Pagamento</CardTitle>
+        <p className="text-2xl font-semibold tracking-tight tabular text-fg">{formatarValor(valorTotal)}</p>
+      </div>
+
+      <div className="mt-5 space-y-5">
+        <Alert variant={ELECTRONIC_PAYMENTS_AVAILABLE ? 'info' : 'warning'} icon={Info}>
           {ELECTRONIC_PAYMENTS_AVAILABLE
-            ? 'Ambiente de demonstração: PIX e cartão são simulados. Não informe dados reais de cartão.'
+            ? 'Ambiente de demonstração: Pix e cartão são simulados. Não informe dados reais de cartão.'
             : 'No momento, o pagamento é realizado em dinheiro na entrega.'}
-        </p>
-        {/* Seleção de método */}
-        <div className="grid grid-cols-2 gap-3">
-          {(['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] as MetodoPagamento[]).filter(m => ELECTRONIC_PAYMENTS_AVAILABLE || m === 'DINHEIRO').map(
-            (m) => (
+        </Alert>
+
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Forma de pagamento">
+          {(['PIX', 'CARTAO_CREDITO', 'CARTAO_DEBITO', 'DINHEIRO'] as MetodoPagamento[]).filter(m => ELECTRONIC_PAYMENTS_AVAILABLE || m === 'DINHEIRO').map((m) => {
+            const Icon = icones[m]
+            const ativo = metodo === m
+            return (
               <button
                 key={m}
                 type="button"
+                role="radio"
+                aria-checked={ativo}
                 onClick={() => setMetodo(m)}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
-                  metodo === m
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
-                }`}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg border p-3.5 text-left transition-colors',
+                  ativo ? 'border-fg ring-1 ring-fg' : 'border-line-strong hover:border-fg-3'
+                )}
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">
-                    {m === 'PIX' && '📱'}
-                    {m === 'CARTAO_CREDITO' && '💳'}
-                    {m === 'CARTAO_DEBITO' && '💳'}
-                    {m === 'DINHEIRO' && '💵'}
-                  </span>
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">
-                      {LABELS_METODO_PAGAMENTO[m]}
-                    </p>
-                    {m === 'PIX' && (
-                      <p className="text-xs text-green-600">Aprovação instantânea</p>
-                    )}
-                  </div>
-                </div>
+                <Icon className={cn('h-[18px] w-[18px] shrink-0', ativo ? 'text-brand' : 'text-fg-3')} aria-hidden="true" />
+                <span>
+                  <span className="block text-sm font-medium text-fg">{LABELS_METODO_PAGAMENTO[m]}</span>
+                  {m === 'PIX' && <span className="block text-xs text-fg-3">Aprovação imediata</span>}
+                  {m === 'DINHEIRO' && <span className="block text-xs text-fg-3">Pago na entrega</span>}
+                </span>
               </button>
             )
-          )}
+          })}
         </div>
 
-        {/* Formulário de cartão */}
         {(metodo === 'CARTAO_CREDITO' || metodo === 'CARTAO_DEBITO') && (
-          <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Número do Cartão
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={cartao.numero}
-                  onChange={handleNumeroChange}
-                  placeholder="0000 0000 0000 0000"
-                  maxLength={19}
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                />
-                {bandeira && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500">
-                    {bandeira}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Nome no Cartão
-              </label>
-              <input
-                type="text"
-                value={cartao.nome}
-                onChange={(e) =>
-                  setCartao({ ...cartao, nome: e.target.value.toUpperCase() })
-                }
-                placeholder="NOME COMO ESTÁ NO CARTÃO"
-                className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              />
-            </div>
-
+          <div className="space-y-4 rounded-lg border border-line bg-surface-2/50 p-4">
+            <Input
+              label="Número do cartão"
+              value={cartao.numero}
+              onChange={handleNumeroChange}
+              placeholder="0000 0000 0000 0000"
+              maxLength={19}
+              inputMode="numeric"
+              autoComplete="cc-number"
+              trailing={bandeira ? <span className="pr-1 text-xs font-medium text-fg-3">{bandeira}</span> : undefined}
+            />
+            <Input
+              label="Nome impresso no cartão"
+              value={cartao.nome}
+              onChange={(e) => setCartao({ ...cartao, nome: e.target.value.toUpperCase() })}
+              autoComplete="cc-name"
+            />
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Validade
-                </label>
-                <input
-                  type="text"
-                  value={cartao.validade}
-                  onChange={handleValidadeChange}
-                  placeholder="MM/AA"
-                  maxLength={5}
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  CVV
-                </label>
-                <input
-                  type="text"
-                  value={cartao.cvv}
-                  onChange={(e) =>
-                    setCartao({ ...cartao, cvv: e.target.value.replace(/\D/g, '') })
-                  }
-                  placeholder="123"
-                  maxLength={4}
-                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                />
-              </div>
+              <Input label="Validade" value={cartao.validade} onChange={handleValidadeChange} placeholder="MM/AA" maxLength={5} inputMode="numeric" autoComplete="cc-exp" />
+              <Input label="CVV" value={cartao.cvv} onChange={(e) => setCartao({ ...cartao, cvv: e.target.value.replace(/\D/g, '') })} maxLength={4} inputMode="numeric" autoComplete="cc-csc" />
             </div>
           </div>
         )}
 
-        {/* Mensagem para dinheiro */}
         {metodo === 'DINHEIRO' && (
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              O pagamento será realizado diretamente ao motoboy no momento da entrega.
-              Tenha o valor em mãos.
-            </p>
-          </div>
+          <p className="text-[13px] text-fg-2">O pagamento é feito diretamente ao entregador no momento da entrega. Tenha o valor em mãos.</p>
         )}
 
-        {/* Botões */}
-        <div className="flex gap-3">
+        <div className="flex gap-2 border-t border-line pt-5">
           {onCancel && (
             <Button variant="outline" onClick={onCancel} className="flex-1">
               Cancelar
             </Button>
           )}
-          <Button
-            onClick={handlePagar}
-            isLoading={isLoading}
-            disabled={!metodo}
-            className="flex-1"
-          >
-            {metodo === 'PIX' && 'Gerar PIX'}
-            {metodo === 'CARTAO_CREDITO' && 'Pagar com Crédito'}
-            {metodo === 'CARTAO_DEBITO' && 'Pagar com Débito'}
-            {metodo === 'DINHEIRO' && 'Confirmar Dinheiro'}
-            {!metodo && 'Selecione uma opção'}
+          <Button onClick={handlePagar} isLoading={isLoading} disabled={!metodo} className="flex-1">
+            {metodo === 'PIX' && 'Gerar código Pix'}
+            {metodo === 'CARTAO_CREDITO' && 'Pagar com crédito'}
+            {metodo === 'CARTAO_DEBITO' && 'Pagar com débito'}
+            {metodo === 'DINHEIRO' && 'Confirmar pedido'}
+            {!metodo && 'Escolha uma forma de pagamento'}
           </Button>
         </div>
-      </CardContent>
+      </div>
     </Card>
   )
 }

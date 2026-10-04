@@ -45,7 +45,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (!pagamento) return notFound('Pagamento não encontrado')
     const updated = await executarAcaoPagamento(pagamento.pedidoId, id, auth.user, validation.data.acao)
     return jsonResponse({ success: true, data: { status: updated.status },
-      message: updated.status === 'APROVADO' ? 'Pagamento confirmado!' : `Status: ${updated.status}` })
+      message: updated.status === 'APROVADO' ? 'Pagamento confirmado' : `Status: ${updated.status}` })
   } catch (error) { return erroPagamento(error) }
 }
 

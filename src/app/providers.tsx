@@ -7,30 +7,23 @@ import { Toaster } from 'react-hot-toast'
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
         {children}
         <Toaster
           position="top-right"
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#333',
-              color: '#fff',
+              background: 'var(--surface)',
+              color: 'var(--fg)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-lg)',
+              borderRadius: '10px',
+              fontSize: '14px',
+              padding: '10px 14px',
             },
-            success: {
-              style: {
-                background: '#10b981',
-              },
-              iconTheme: {
-                primary: '#fff',
-                secondary: '#10b981',
-              },
-            },
-            error: {
-              style: {
-                background: '#ef4444',
-              },
-            },
+            success: { iconTheme: { primary: 'var(--success)', secondary: 'var(--surface)' } },
+            error: { iconTheme: { primary: 'var(--danger)', secondary: 'var(--surface)' } },
           }}
         />
       </ThemeProvider>

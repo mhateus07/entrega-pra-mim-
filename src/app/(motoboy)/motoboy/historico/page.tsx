@@ -1,17 +1,18 @@
 'use client'
 
-import { useSession, signOut } from 'next-auth/react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { usePaginatedList } from '@/hooks/usePaginatedList'
 import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
-import Button from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
-import Badge from '@/components/ui/Badge'
+import { ChevronRight, History, Star } from 'lucide-react'
+import Header from '@/components/ui/Header'
+import { EmptyState, FullPageLoader, PageHeader, Segmented } from '@/components/ui/Feedback'
+import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
 import { formatarMoeda } from '@/lib/pricing'
-import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO, formatarDataHora } from '@/utils/helpers'
-import { StatusPedido } from '@/types'
+import { formatarDataHora } from '@/utils/helpers'
+import type { StatusPedido } from '@prisma/client'
 
 interface Pedido {
   id: string
@@ -85,157 +86,82 @@ export default function HistoricoMotoboyPage() {
     }
   }, [status, session])
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/' })
-  }
-
-  if (status === 'loading' || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  if (status === 'loading' || isLoading) return <FullPageLoader />
 
   const pedidosFiltrados = list.data
+  const taxaConclusao = stats.totalEntregas + stats.cancelados
+    ? Math.round((stats.totalEntregas / (stats.totalEntregas + stats.cancelados)) * 100)
+    : null
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <Link href="/motoboy" className="text-gray-500 hover:text-gray-700">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Link>
-              <h1 className="text-xl font-bold text-gray-900">Histórico de Entregas</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-gray-600">{session?.user?.name}</span>
-              <Button variant="outline" onClick={handleLogout}>
-                Sair
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-page">
+      <Header userName={session?.user?.name} userRole="MOTOBOY" />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <Card variant="bordered">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-gray-900">{stats.totalEntregas}</p>
-              <p className="text-sm text-gray-500">Entregas Realizadas</p>
-            </CardContent>
-          </Card>
-          <Card variant="bordered">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-green-600">{formatarMoeda(stats.ganhoTotal)}</p>
-              <p className="text-sm text-gray-500">Ganho Total</p>
-            </CardContent>
-          </Card>
-          <Card variant="bordered">
-            <CardContent className="p-4 text-center">
-              <p className="text-3xl font-bold text-yellow-500">
-                {stats.avaliacaoMedia.toFixed(1)} <span className="text-xl">★</span>
+      <main className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:px-6">
+        <PageHeader title="Histórico" description="Entregas concluídas e canceladas." />
+
+        <section className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
+          {[
+            { l: 'Entregas', v: String(stats.totalEntregas) },
+            { l: 'Conclusão', v: taxaConclusao === null ? '—' : `${taxaConclusao}%` },
+            { l: 'Ganho total', v: formatarMoeda(stats.ganhoTotal) },
+            { l: 'Nota média', v: stats.avaliacaoMedia.toFixed(1), star: true },
+          ].map((t) => (
+            <div key={t.l} className="bg-surface p-4">
+              <p className="text-xs text-fg-3">{t.l}</p>
+              <p className="mt-1 flex items-center gap-1 text-lg font-semibold tabular text-fg">
+                {t.star && <Star className="h-4 w-4 fill-current text-chart-4" aria-hidden="true" />}
+                {t.v}
               </p>
-              <p className="text-sm text-gray-500">Avaliação Média</p>
-            </CardContent>
-          </Card>
+            </div>
+          ))}
+        </section>
+
+        <div className="pt-2">
+          <Segmented
+            size="sm"
+            value={filtroStatus}
+            onChange={setFiltroStatus}
+            options={[
+              { value: 'TODOS', label: 'Todas' },
+              { value: 'ENTREGUE', label: 'Entregues' },
+              { value: 'CANCELADO', label: 'Canceladas' },
+            ]}
+          />
         </div>
 
-        {/* Filtros */}
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setFiltroStatus('TODOS')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filtroStatus === 'TODOS'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Todos ({stats.totalEntregas + stats.cancelados})
-          </button>
-          <button
-            onClick={() => setFiltroStatus('ENTREGUE')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filtroStatus === 'ENTREGUE'
-                ? 'bg-green-600 text-white'
-                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Entregues ({stats.totalEntregas})
-          </button>
-          <button
-            onClick={() => setFiltroStatus('CANCELADO')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              filtroStatus === 'CANCELADO'
-                ? 'bg-red-600 text-white'
-                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Cancelados ({stats.cancelados})
-          </button>
-        </div>
-
-        {/* Lista de pedidos */}
-        {pedidosFiltrados.length === 0 ? (
-          <Card variant="bordered">
-            <CardContent className="p-8 text-center">
-              <p className="text-gray-500">Nenhuma entrega encontrada</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {pedidosFiltrados.map((pedido) => (
-              <Link key={pedido.id} href={`/motoboy/pedido/${pedido.id}`}>
-                <Card variant="bordered" className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              CORES_STATUS_PEDIDO[pedido.status]
-                            }`}
-                          >
-                            {LABELS_STATUS_PEDIDO[pedido.status]}
-                          </span>
-                          <Badge variant="info" size="sm">
-                            {pedido.tipoServico}
-                          </Badge>
-                          {pedido.avaliacao && (
-                            <span className="text-yellow-500 text-sm">
-                              {pedido.avaliacao.nota} ★
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-900">
-                          {pedido.enderecoOrigem.bairro} → {pedido.enderecoDestino.bairro}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {formatarDataHora(pedido.entregueEm || pedido.createdAt)}
-                        </p>
-                      </div>
-                      <div className="text-right flex items-center gap-3">
-                        <div>
-                          <p className="font-bold text-gray-900">{formatarMoeda(pedido.valorTotal)}</p>
-                          <p className="text-xs text-gray-500">{pedido.distanciaKm.toFixed(1)} km</p>
-                        </div>
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
+        <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-xs">
+          {pedidosFiltrados.length === 0 ? (
+            list.loading ? (
+              <div className="space-y-2 p-5">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-10" />)}</div>
+            ) : (
+              <EmptyState icon={History} title="Nenhuma entrega encontrada" description="Suas entregas finalizadas aparecem aqui." />
+            )
+          ) : (
+            <ul className="divide-y divide-line">
+              {pedidosFiltrados.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/motoboy/pedido/${p.id}`} className="flex items-center gap-4 px-4 py-3.5 hover:bg-surface-2/60 sm:px-5">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-fg">{p.enderecoOrigem.bairro} <span className="text-fg-3">→</span> {p.enderecoDestino.bairro}</p>
+                      <p className="truncate text-xs text-fg-3">
+                        {formatarDataHora(p.entregueEm || p.createdAt)} · {p.cliente.user.nome} · {p.distanciaKm.toFixed(1)} km
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
+                    {p.avaliacao && (
+                      <span className="hidden items-center gap-0.5 text-[13px] tabular text-fg-2 sm:flex">
+                        <Star className="h-3.5 w-3.5 fill-current text-chart-4" aria-hidden="true" />{p.avaliacao.nota}
+                      </span>
+                    )}
+                    <PedidoStatusBadge status={p.status} className="hidden sm:inline-flex" />
+                    <span className="w-20 text-right text-sm font-medium tabular text-fg">{formatarMoeda(p.valorTotal)}</span>
+                    <ChevronRight className="h-4 w-4 text-fg-3" aria-hidden="true" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />
       </main>
     </div>

@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     if (pagamento.status === 'RECUSADO') return jsonResponse({ success: false, error: 'Pagamento recusado', data: { pagamento } }, { status: 400 })
     return jsonResponse({ success: true, data: { pagamento,
       ...(pagamento.metodo === 'PIX' ? { pix: { qrCode: pagamento.pixQrCode, copiaCola: pagamento.pixCopiaCola, expiraEm: pagamento.pixExpiraEm } } : {}),
-    }, message: pagamento.status === 'APROVADO' ? 'Pagamento aprovado!' : 'Pagamento registrado' })
+    }, message: pagamento.status === 'APROVADO' ? 'Pagamento aprovado' : 'Pagamento registrado' })
   } catch (error) {
     if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao criar pagamento:', error)
