@@ -13,7 +13,6 @@ import {
   getClientIP,
   createRateLimitKey,
   getRateLimitHeaders,
-  RateLimitConfig,
   RATE_LIMIT_CONFIGS,
 } from './rate-limit'
 
@@ -308,19 +307,19 @@ export interface RateLimitSuccess {
  * @param config - Configuração de rate limit (opcional, usa 'api' por padrão)
  *
  * @example
- * const rateLimit = applyRateLimit(request, 'auth')
+ * const rateLimit = await applyRateLimit(request, 'auth')
  * if (!rateLimit.success) return rateLimit.response
  */
-export function applyRateLimit(
+export async function applyRateLimit(
   request: NextRequest,
   configType: keyof typeof RATE_LIMIT_CONFIGS = 'api'
-): RateLimitSuccess | RateLimitError {
+): Promise<RateLimitSuccess | RateLimitError> {
   const ip = getClientIP(request)
   const endpoint = request.nextUrl.pathname
   const key = createRateLimitKey(ip, endpoint)
   const config = RATE_LIMIT_CONFIGS[configType]
 
-  const result = checkRateLimit(key, config)
+  const result = await checkRateLimit(key, config)
 
   if (!result.success) {
     const headers = getRateLimitHeaders(result)

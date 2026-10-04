@@ -16,6 +16,7 @@ const authErrors: Record<string, string> = {
   Default: 'Ocorreu um erro na autenticação. Tente novamente.',
   CredentialsSignin: 'Email ou senha incorretos.',
   SessionRequired: 'Você precisa estar logado para acessar essa página.',
+  TooManyRequests: 'Muitas tentativas de login. Aguarde um minuto e tente novamente.',
 }
 
 export default function LoginPage() {
@@ -54,7 +55,7 @@ function LoginContent() {
       })
 
       if (result?.error) {
-        setError(result.error)
+        setError(authErrors[result.error] || authErrors.Default)
       } else {
         const sessionRes = await fetch('/api/auth/session')
         const session = await sessionRes.json()
@@ -69,7 +70,7 @@ function LoginContent() {
         }
         router.refresh()
       }
-    } catch (err) {
+    } catch {
       setError('Erro ao fazer login')
     } finally {
       setIsLoading(false)

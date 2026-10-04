@@ -70,7 +70,7 @@ export default function MapContainer({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
   })
 
-  const onLoad = useCallback((map: google.maps.Map) => {
+  const onLoad = useCallback(() => {
     // Calcular rota se necessário
     if (showRoute && origin && destination) {
       const directionsService = new google.maps.DirectionsService()

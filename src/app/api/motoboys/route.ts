@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Rate limit para registro (10 req/min)
-    const rateLimit = applyRateLimit(request, 'auth')
+    const rateLimit = await applyRateLimit(request, 'auth')
     if (!rateLimit.success) return rateLimit.response
 
     const body = await request.json()

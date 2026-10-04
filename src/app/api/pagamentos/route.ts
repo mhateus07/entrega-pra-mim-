@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
 // O lock do pedido impede substituir um pagamento aprovado por uma segunda requisição.
 export async function POST(request: NextRequest) {
   try {
-    const rateLimit = applyRateLimit(request, 'sensitive')
+    const rateLimit = await applyRateLimit(request, 'sensitive')
     if (!rateLimit.success) return rateLimit.response
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response

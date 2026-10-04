@@ -315,6 +315,7 @@ export default function PhotoCapture({
               {capturedImage && (
                 <div className="space-y-4">
                   <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- prévia local (data URL) */}
                     <img
                       src={capturedImage}
                       alt="Foto capturada"

@@ -1,7 +1,9 @@
 import { withAuth } from 'next-auth/middleware'
-import { NextResponse } from 'next/server'
+import { getToken } from 'next-auth/jwt'
+import { NextFetchEvent, NextRequest, NextResponse } from 'next/server'
+import { isPublicApi } from '@/lib/public-api'
 
-export default withAuth(
+const pageMiddleware = withAuth(
   function middleware(req) {
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
@@ -34,6 +36,21 @@ export default withAuth(
   }
 )
 
+// Camada extra: cada rota continua verificando permissão, mas uma rota nova
+// que esqueça a checagem não fica exposta a visitantes anônimos.
+export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+  const path = req.nextUrl.pathname
+  if (path.startsWith('/api')) {
+    if (isPublicApi(req.method, path)) return NextResponse.next()
+    const token = await getToken({ req })
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Autenticação necessária' }, { status: 401 })
+    }
+    return NextResponse.next()
+  }
+  return pageMiddleware(req as Parameters<typeof pageMiddleware>[0], event)
+}
+
 export const config = {
-  matcher: ['/dashboard/:path*', '/cliente/:path*', '/motoboy/:path*'],
+  matcher: ['/dashboard/:path*', '/cliente/:path*', '/motoboy/:path*', '/api/:path*'],
 }

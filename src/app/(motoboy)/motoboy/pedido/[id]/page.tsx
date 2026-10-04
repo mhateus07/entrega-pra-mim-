@@ -76,7 +76,7 @@ interface Pedido {
 }
 
 export default function PedidoMotoboyDetailPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const params = useParams()
   const pedidoId = params.id as string
@@ -324,6 +324,7 @@ export default function PedidoMotoboyDetailPage() {
                   <span className="font-medium">Comprovante enviado</span>
                 </div>
                 <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- rota autenticada: o otimizador do next/image não envia o cookie de sessão */}
                   <img
                     src={pedido.fotoComprovante}
                     alt="Comprovante"

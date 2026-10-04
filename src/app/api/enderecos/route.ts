@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { createEnderecoSchema } from '@/lib/validations'
 import { geocodificarEndereco } from '@/lib/google-maps'
 import { ApiResponse } from '@/types'
-import { requireClienteOwnership, badRequest, notFound, serverError, forbidden } from '@/lib/auth-helpers'
+import { requireClienteOwnership, badRequest, notFound, serverError } from '@/lib/auth-helpers'
 
 // GET /api/enderecos - Listar endereços (por cliente, verificação de ownership)
 export async function GET(request: NextRequest) {

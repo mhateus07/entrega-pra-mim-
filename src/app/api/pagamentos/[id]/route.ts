@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
-    const limit = applyRateLimit(request, 'sensitive')
+    const limit = await applyRateLimit(request, 'sensitive')
     if (!limit.success) return limit.response
     const validation = acaoSchema.safeParse(await request.json().catch(() => null))
     if (!validation.success) return badRequest('Ação inválida')
@@ -53,7 +53,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
-    const limit = applyRateLimit(request, 'sensitive')
+    const limit = await applyRateLimit(request, 'sensitive')
     if (!limit.success) return limit.response
     const { id } = await params
     const pagamento = await prisma.pagamento.findUnique({ where: { id }, select: { pedidoId: true } })

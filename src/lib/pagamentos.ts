@@ -241,7 +241,7 @@ export async function processarPagamentoCartao(
 }
 
 // Verificar status do pagamento PIX
-export async function verificarStatusPix(gatewayId: string): Promise<StatusPagamento> {
+export async function verificarStatusPix(_gatewayId: string): Promise<StatusPagamento> {
   // Simular delay
   await new Promise((resolve) => setTimeout(resolve, 300))
 
@@ -254,7 +254,7 @@ export async function verificarStatusPix(gatewayId: string): Promise<StatusPagam
 }
 
 // Cancelar/Estornar pagamento
-export async function cancelarPagamento(gatewayId: string): Promise<boolean> {
+export async function cancelarPagamento(_gatewayId: string): Promise<boolean> {
   // Simular delay
   await new Promise((resolve) => setTimeout(resolve, 500))
 
@@ -264,8 +264,8 @@ export async function cancelarPagamento(gatewayId: string): Promise<boolean> {
 
 // Reembolsar pagamento
 export async function reembolsarPagamento(
-  gatewayId: string,
-  valor?: number
+  _gatewayId: string,
+  _valor?: number
 ): Promise<boolean> {
   // Simular delay
   await new Promise((resolve) => setTimeout(resolve, 500))

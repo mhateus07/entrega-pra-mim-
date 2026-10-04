@@ -1,17 +1,30 @@
 // =============================================================================
 // Rate Limiting
 // =============================================================================
-// Limita o número de requisições por IP para prevenir abusos
-// Usa armazenamento em memória (para produção, considere Redis)
+// Limita o número de requisições por IP para prevenir abusos.
+// Com REDIS_URL configurado, o contador é compartilhado entre as instâncias do
+// PM2; sem ele (ou se o Redis cair), usa memória local por processo.
 // =============================================================================
+
+import Redis from 'ioredis'
 
 interface RateLimitEntry {
   count: number
   resetTime: number
 }
 
-// Armazenamento em memória para rate limiting
-// Em produção, use Redis ou outro armazenamento distribuído
+let redisClient: Redis | null | undefined
+
+function getRedis(): Redis | null {
+  if (redisClient === undefined) {
+    const url = process.env.REDIS_URL
+    redisClient = url ? new Redis(url, { maxRetriesPerRequest: 1, enableOfflineQueue: false }) : null
+    redisClient?.on('error', error => console.warn('Rate limit: Redis indisponível:', error.message))
+  }
+  return redisClient
+}
+
+// Fallback em memória
 const rateLimitStore = new Map<string, RateLimitEntry>()
 
 // Limpa entradas expiradas periodicamente
@@ -57,53 +70,68 @@ export const RATE_LIMIT_CONFIGS = {
  * @param config - Configuração de rate limit
  * @returns Resultado com status e informações de limite
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   identifier: string,
   config: RateLimitConfig = RATE_LIMIT_CONFIGS.api
-): RateLimitResult {
-  const now = Date.now()
-  const key = identifier
+): Promise<RateLimitResult> {
+  const redis = getRedis()
+  if (redis?.status === 'ready') {
+    try {
+      const key = `ratelimit:${identifier}`
+      const results = await redis.multi()
+        .set(key, 0, 'PX', config.windowMs, 'NX')
+        .incr(key)
+        .pttl(key)
+        .exec()
+      if (results && !results.some(([error]) => error)) {
+        const count = results[1][1] as number
+        const ttl = Math.max(0, results[2][1] as number)
+        return buildResult(count, config, Date.now() + ttl)
+      }
+    } catch (error) {
+      console.warn('Rate limit: falha no Redis, usando memória local:', error)
+    }
+  }
+  return checkMemoryRateLimit(identifier, config)
+}
 
-  let entry = rateLimitStore.get(key)
+function checkMemoryRateLimit(identifier: string, config: RateLimitConfig): RateLimitResult {
+  const now = Date.now()
+  let entry = rateLimitStore.get(identifier)
 
   // Se não existe ou expirou, criar nova entrada
   if (!entry || entry.resetTime < now) {
-    entry = {
-      count: 0,
-      resetTime: now + config.windowMs,
-    }
-    rateLimitStore.set(key, entry)
+    entry = { count: 0, resetTime: now + config.windowMs }
+    rateLimitStore.set(identifier, entry)
   }
 
-  // Incrementar contador
   entry.count++
+  return buildResult(entry.count, config, entry.resetTime)
+}
 
-  const remaining = Math.max(0, config.limit - entry.count)
-  const success = entry.count <= config.limit
-
+function buildResult(count: number, config: RateLimitConfig, resetTime: number): RateLimitResult {
   return {
-    success,
+    success: count <= config.limit,
     limit: config.limit,
-    remaining,
-    resetTime: entry.resetTime,
+    remaining: Math.max(0, config.limit - count),
+    resetTime,
   }
 }
 
 /**
- * Obtém o IP do cliente a partir do request
- * Considera headers de proxy (X-Forwarded-For)
+ * Obtém o IP do cliente a partir do request.
+ * Prioriza X-Real-IP, que o nginx/Traefik sobrescrevem com o IP da conexão.
+ * Do X-Forwarded-For usa o último valor (adicionado pelo proxy): os primeiros
+ * podem ser forjados pelo próprio cliente.
  */
 export function getClientIP(request: Request): string {
-  // Tenta obter IP real atrás de proxy
+  const realIP = request.headers.get('x-real-ip')
+  if (realIP) return realIP.trim()
+
   const forwardedFor = request.headers.get('x-forwarded-for')
   if (forwardedFor) {
-    // x-forwarded-for pode conter múltiplos IPs, pegar o primeiro
-    return forwardedFor.split(',')[0].trim()
-  }
-
-  const realIP = request.headers.get('x-real-ip')
-  if (realIP) {
-    return realIP
+    const ips = forwardedFor.split(',').map(ip => ip.trim()).filter(Boolean)
+    if (ips.length) return ips[ips.length - 1]
   }
 
   // Fallback para IP genérico (desenvolvimento)
