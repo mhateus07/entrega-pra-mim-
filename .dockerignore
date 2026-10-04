@@ -1,0 +1,17 @@
+.git
+.github
+.next
+node_modules
+storage
+public/uploads/comprovantes/*
+!public/uploads/comprovantes/.gitkeep
+deploy.tar.gz
+*.tar.gz
+.env
+.env.*
+!.env.example
+!.env.production.example
+.claude
+coverage
+tests
+docs
