@@ -1,5 +1,6 @@
 # Produção na VPS (Contabo + EasyPanel/Traefik), mesmo padrão dos outros apps em /opt.
 # Uso: cp .env.production.example .env  (preencher)  &&  docker compose up -d --build
+# Outra instância (ex.: demo): clone em outra pasta e defina APP_SLUG e APP_DOMAIN no .env.
 services:
   db:
     image: mysql:8.0
@@ -52,14 +53,14 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=easypanel"
-      - "traefik.http.routers.entregapramim.entrypoints=https"
-      - "traefik.http.routers.entregapramim.rule=Host(`${APP_DOMAIN:-entregapramim.impulsiodigital.com}`)"
-      - "traefik.http.routers.entregapramim.tls.certresolver=letsencrypt"
-      - "traefik.http.services.entregapramim.loadbalancer.server.port=3000"
+      - "traefik.http.routers.${APP_SLUG:-entregapramim}.entrypoints=https"
+      - "traefik.http.routers.${APP_SLUG:-entregapramim}.rule=Host(`${APP_DOMAIN:-entregapramim.impulsiodigital.com}`)"
+      - "traefik.http.routers.${APP_SLUG:-entregapramim}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${APP_SLUG:-entregapramim}.loadbalancer.server.port=3000"
 
 networks:
   default:
-    name: entrega_default
+    name: ${APP_SLUG:-entrega}_default
   easypanel:
     external: true
 
