@@ -90,94 +90,50 @@ export async function geocodificacaoReversa(
   }
 }
 
-// Calcular rota entre dois pontos
+// Calcular rota entre dois pontos (Routes API — substitui a Directions API legada,
+// que não pode mais ser ativada em projetos novos do Google Cloud)
 export async function calcularRota(
   origem: Coordenadas,
   destino: Coordenadas
 ): Promise<ResultadoRota | null> {
-  const url = new URL('https://maps.googleapis.com/maps/api/directions/json')
-  url.searchParams.append('origin', `${origem.latitude},${origem.longitude}`)
-  url.searchParams.append('destination', `${destino.latitude},${destino.longitude}`)
-  url.searchParams.append('key', GOOGLE_MAPS_API_KEY)
-  url.searchParams.append('language', 'pt-BR')
-  url.searchParams.append('mode', 'driving') // moto usa rotas de carro
+  if (!GOOGLE_MAPS_API_KEY) return null
 
   try {
-    const response = await fetch(url.toString())
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline',
+      },
+      body: JSON.stringify({
+        origin: { location: { latLng: { latitude: origem.latitude, longitude: origem.longitude } } },
+        destination: { location: { latLng: { latitude: destino.latitude, longitude: destino.longitude } } },
+        travelMode: 'DRIVE', // moto usa rotas de carro
+        routingPreference: 'TRAFFIC_AWARE',
+        languageCode: 'pt-BR',
+        regionCode: 'BR',
+      }),
+      signal: AbortSignal.timeout(8000),
+    })
     const data = await response.json()
+    const rota = data?.routes?.[0]
 
-    if (data.status === 'OK' && data.routes.length > 0) {
-      const rota = data.routes[0]
-      const leg = rota.legs[0]
-
+    if (response.ok && rota?.distanceMeters) {
       return {
-        distanciaKm: leg.distance.value / 1000, // metros -> km
-        duracaoMinutos: Math.ceil(leg.duration.value / 60), // segundos -> minutos
-        polyline: rota.overview_polyline.points,
+        distanciaKm: rota.distanceMeters / 1000,
+        duracaoMinutos: Math.ceil(parseInt(String(rota.duration ?? '0'), 10) / 60),
+        polyline: rota.polyline?.encodedPolyline ?? '',
         origem,
         destino,
       }
     }
 
-    console.error('Erro ao calcular rota:', data.status)
+    console.error('Erro ao calcular rota:', data?.error?.status ?? response.status, data?.error?.message ?? '')
     return null
   } catch (error) {
     console.error('Erro ao calcular rota:', error)
     return null
-  }
-}
-
-// Calcular matriz de distâncias (múltiplas origens/destinos)
-export interface ResultadoMatrizDistancia {
-  origemIndex: number
-  destinoIndex: number
-  distanciaKm: number
-  duracaoMinutos: number
-}
-
-export async function calcularMatrizDistancia(
-  origens: Coordenadas[],
-  destinos: Coordenadas[]
-): Promise<ResultadoMatrizDistancia[]> {
-  const origensStr = origens.map((o) => `${o.latitude},${o.longitude}`).join('|')
-  const destinosStr = destinos.map((d) => `${d.latitude},${d.longitude}`).join('|')
-
-  const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json')
-  url.searchParams.append('origins', origensStr)
-  url.searchParams.append('destinations', destinosStr)
-  url.searchParams.append('key', GOOGLE_MAPS_API_KEY)
-  url.searchParams.append('language', 'pt-BR')
-  url.searchParams.append('mode', 'driving')
-
-  try {
-    const response = await fetch(url.toString())
-    const data = await response.json()
-
-    if (data.status !== 'OK') {
-      console.error('Erro na matriz de distancia:', data.status)
-      return []
-    }
-
-    const resultados: ResultadoMatrizDistancia[] = []
-
-    for (let i = 0; i < data.rows.length; i++) {
-      for (let j = 0; j < data.rows[i].elements.length; j++) {
-        const element = data.rows[i].elements[j]
-        if (element.status === 'OK') {
-          resultados.push({
-            origemIndex: i,
-            destinoIndex: j,
-            distanciaKm: element.distance.value / 1000,
-            duracaoMinutos: Math.ceil(element.duration.value / 60),
-          })
-        }
-      }
-    }
-
-    return resultados
-  } catch (error) {
-    console.error('Erro ao calcular matriz de distancia:', error)
-    return []
   }
 }
 
