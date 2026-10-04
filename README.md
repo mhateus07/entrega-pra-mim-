@@ -1,6 +1,6 @@
 # Entrega Pra Mim
 
-Plataforma completa de entregas com motoboys, desenvolvida com Next.js 14, TypeScript, Tailwind CSS, MySQL e Prisma.
+Plataforma completa de entregas com motoboys, desenvolvida com Next.js 16, TypeScript, Tailwind CSS, MySQL e Prisma.
 
 ---
 
@@ -8,19 +8,21 @@ Plataforma completa de entregas com motoboys, desenvolvida com Next.js 14, TypeS
 
 | Tecnologia | Versão | Uso |
 |------------|--------|-----|
-| Next.js | 14+ (App Router) | Frontend/Backend |
+| Next.js | 16.1.6 (App Router) | Frontend/Backend |
 | TypeScript | 5+ | Tipagem estática |
-| Tailwind CSS | 3+ | Estilização |
+| Tailwind CSS | 4 | Estilização |
 | MySQL | 8.0 | Banco de dados |
 | Prisma | 5+ | ORM |
 | NextAuth.js | 4+ | Autenticação |
 | Google Maps API | - | Mapas e rotas |
-| Recharts | 2+ | Gráficos |
+| Recharts | 3 | Gráficos |
 | next-themes | - | Dark Mode |
 | react-hot-toast | - | Notificações toast |
 | Docker | - | Containerização |
 
 ---
+
+> **Pagamentos:** PIX e cartão são demonstrações disponíveis apenas em desenvolvimento/testes. Em produção, somente dinheiro está habilitado até a integração de um gateway. Veja as regras, testes e pendências em [Correções operacionais](docs/CORRECOES_OPERACIONAIS.md).
 
 ## Funcionalidades Implementadas
 

@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updateMotoboySchema, updateDisponibilidadeSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
+import { OperacaoError } from '@/lib/operacao-error'
 import { requireMotoboyOwnership, requireAdmin, notFound, serverError } from '@/lib/auth-helpers'
 
 interface RouteParams {
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       data: motoboy,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao buscar motoboy:', error)
     return serverError('Erro ao buscar motoboy')
@@ -89,7 +91,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (body.disponibilidades) {
       const validationDisp = updateDisponibilidadeSchema.safeParse(body.disponibilidades)
       if (!validationDisp.success) {
-        return NextResponse.json(
+        return jsonResponse(
           {
             success: false,
             error: 'Dados de disponibilidade inválidos',
@@ -100,8 +102,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
 
       // Atualizar disponibilidades em transação
-      await prisma.// eslint-disable-next-line @typescript-eslint/no-explicit-any
-$transaction(async (tx: any) => {
+      await prisma.$transaction(async (tx) => {
         // Deletar disponibilidades existentes
         await tx.disponibilidade.deleteMany({
           where: { motoboyId: id },
@@ -133,7 +134,7 @@ $transaction(async (tx: any) => {
         },
       })
 
-      return NextResponse.json({
+      return jsonResponse({
         success: true,
         data: updated,
         message: 'Disponibilidades atualizadas com sucesso',
@@ -143,7 +144,7 @@ $transaction(async (tx: any) => {
     // Validar dados de atualização do motoboy
     const validation = updateMotoboySchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error: 'Dados inválidos',
@@ -154,6 +155,9 @@ $transaction(async (tx: any) => {
     }
 
     const data = validation.data
+    if (data.status === 'EM_ENTREGA') {
+      return jsonResponse({ success: false, error: 'O status em entrega é definido ao aceitar um pedido' }, { status: 400 })
+    }
 
     // Se está atualizando a placa, verificar se não existe
     if (data.veiculoPlaca) {
@@ -165,7 +169,7 @@ $transaction(async (tx: any) => {
       })
 
       if (existingPlaca) {
-        return NextResponse.json(
+        return jsonResponse(
           { success: false, error: 'Placa já cadastrada' },
           { status: 400 }
         )
@@ -180,7 +184,6 @@ $transaction(async (tx: any) => {
     if (data.veiculoMarca) updateData.veiculoMarca = data.veiculoMarca
     if (data.veiculoModelo) updateData.veiculoModelo = data.veiculoModelo
     if (data.veiculoPlaca) updateData.veiculoPlaca = data.veiculoPlaca.toUpperCase()
-    if (data.status) updateData.status = data.status
     if (data.latitudeAtual !== undefined) updateData.latitudeAtual = data.latitudeAtual
     if (data.longitudeAtual !== undefined) updateData.longitudeAtual = data.longitudeAtual
 
@@ -192,8 +195,17 @@ $transaction(async (tx: any) => {
       updateData.ultimaAtividade = new Date()
     }
 
-    const result = await prisma.// eslint-disable-next-line @typescript-eslint/no-explicit-any
-$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx) => {
+      if (data.status) {
+        const changed = await tx.motoboy.updateMany({
+          where: { id, status: { not: 'EM_ENTREGA' } }, data: { status: data.status },
+        })
+        if (changed.count !== 1) throw new OperacaoError('Conclua ou cancele a entrega antes de mudar a disponibilidade')
+        const ativo = await tx.pedido.findFirst({
+          where: { motoboyId: id, status: { in: ['ACEITO', 'EM_COLETA', 'EM_ENTREGA'] } },
+        })
+        if (ativo) throw new OperacaoError('Motoboy possui entrega em andamento')
+      }
       if (Object.keys(updateUserData).length > 0) {
         await tx.user.update({
           where: { id: motoboy.userId },
@@ -224,8 +236,9 @@ $transaction(async (tx: any) => {
       message: 'Motoboy atualizado com sucesso',
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao atualizar motoboy:', error)
     return serverError('Erro ao atualizar motoboy')
   }
@@ -253,7 +266,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       where: { id: motoboy.userId },
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       message: 'Motoboy deletado com sucesso',
     })

@@ -146,6 +146,7 @@ model Motoboy {
   saldo            SaldoMotoboy?
   transacoes       TransacaoMotoboy[]
 
+  @@index([status, createdAt, id])
   @@map("motoboys")
 }
 
@@ -221,9 +222,9 @@ model Pedido {
   // Valores calculados
   distanciaKm      Float
   duracaoEstimada  Int          // em minutos
-  valorBase        Float
+  valorBase        Decimal @db.Decimal(14, 2)
   multiplicador    Float
-  valorTotal       Float
+  valorTotal       Decimal @db.Decimal(14, 2)
 
   // Agendamento (para entregas agendadas)
   dataAgendada     DateTime?
@@ -251,6 +252,9 @@ model Pedido {
   pagamento       Pagamento?
   transacoes      TransacaoMotoboy[]
 
+  @@index([status, createdAt, id])
+  @@index([clienteId, createdAt, id])
+  @@index([motoboyId, status, createdAt, id])
   @@map("pedidos")
 }
 
@@ -288,9 +292,9 @@ model Pagamento {
   clienteId         String
 
   // Valores
-  valor             Float
-  taxaPlataforma    Float            @default(0) // Taxa cobrada pela plataforma
-  valorMotoboy      Float            @default(0) // Valor que vai para o motoboy
+  valor             Decimal @db.Decimal(14, 2)
+  taxaPlataforma    Decimal            @default(0) @db.Decimal(14, 2) // Taxa cobrada pela plataforma
+  valorMotoboy      Decimal            @default(0) @db.Decimal(14, 2) // Valor que vai para o motoboy
 
   // Método e status
   metodo            MetodoPagamento
@@ -327,9 +331,9 @@ model Pagamento {
 model SaldoMotoboy {
   id              String   @id @default(cuid())
   motoboyId       String   @unique
-  saldoDisponivel Float    @default(0)
-  saldoPendente   Float    @default(0) // Aguardando liberação
-  totalRecebido   Float    @default(0)
+  saldoDisponivel Decimal    @default(0) @db.Decimal(14, 2)
+  saldoPendente   Decimal    @default(0) @db.Decimal(14, 2) // Aguardando liberação
+  totalRecebido   Decimal    @default(0) @db.Decimal(14, 2)
   updatedAt       DateTime @updatedAt
 
   motoboy Motoboy @relation(fields: [motoboyId], references: [id], onDelete: Cascade)
@@ -342,7 +346,7 @@ model TransacaoMotoboy {
   motoboyId   String
   pedidoId    String?
   tipo        String   // 'CREDITO' ou 'SAQUE'
-  valor       Float
+  valor       Decimal @db.Decimal(14, 2)
   descricao   String
   status      String   @default("PENDENTE") // PENDENTE, CONCLUIDO, CANCELADO
   createdAt   DateTime @default(now())
@@ -352,5 +356,6 @@ model TransacaoMotoboy {
 
   @@index([motoboyId])
   @@index([pedidoId])
+  @@index([motoboyId, createdAt, id])
   @@map("transacoes_motoboy")
 }

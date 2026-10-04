@@ -7,14 +7,12 @@ const requiredEnvVars = [
   'NEXTAUTH_URL',
 ] as const
 
-const optionalEnvVars = [
-  'GOOGLE_MAPS_API_KEY',
-  'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY',
-  'PAYMENT_WEBHOOK_SECRET',
-] as const
-
 type RequiredEnvVar = (typeof requiredEnvVars)[number]
-type OptionalEnvVar = (typeof optionalEnvVars)[number]
+type OptionalEnvVar =
+  | 'GOOGLE_MAPS_API_KEY'
+  | 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY'
+  | 'PAYMENT_WEBHOOK_SECRET'
+  | 'REDIS_URL'
 
 interface EnvValidationResult {
   valid: boolean

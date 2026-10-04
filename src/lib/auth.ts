@@ -15,34 +15,38 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.senha) {
-          throw new Error('Email e senha são obrigatórios')
+          return null
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          include: {
-            motoboy: true,
-            cliente: true,
-          },
-        })
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email },
+            include: {
+              motoboy: true,
+              cliente: true,
+            },
+          })
 
-        if (!user) {
-          throw new Error('Usuário não encontrado')
-        }
+          if (!user) return null
 
-        const senhaCorreta = await bcrypt.compare(credentials.senha, user.senha)
+          const senhaCorreta = await bcrypt.compare(
+            credentials.senha,
+            user.senha
+          )
 
-        if (!senhaCorreta) {
-          throw new Error('Senha incorreta')
-        }
+          if (!senhaCorreta) return null
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.nome,
-          role: user.role,
-          motoboyId: user.motoboy?.id || null,
-          clienteId: user.cliente?.id || null,
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.nome,
+            role: user.role,
+            motoboyId: user.motoboy?.id || null,
+            clienteId: user.cliente?.id || null,
+          }
+        } catch (error) {
+          console.error('Falha interna ao autenticar usuário:', error)
+          throw new Error('Configuration')
         }
       },
     }),

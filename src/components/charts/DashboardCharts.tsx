@@ -188,7 +188,7 @@ export function StatusPedidosChart({ data }: { data: { status: string; count: nu
             fill="#8884d8"
             paddingAngle={5}
             dataKey="value"
-            label={({ name, value }) => `${value}`}
+            label={({ value }) => `${value}`}
           >
             {chartData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

@@ -3,6 +3,8 @@
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
+import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -80,7 +82,8 @@ export default function PedidoAdminDetailPage() {
   const pedidoId = params.id as string
 
   const [pedido, setPedido] = useState<Pedido | null>(null)
-  const [motoboys, setMotoboys] = useState<Motoboy[]>([])
+  const list = usePaginatedList<Motoboy>(status === 'authenticated' ? '/api/motoboys?status=DISPONIVEL' : null)
+  const motoboys = list.data
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
   const [selectedMotoboy, setSelectedMotoboy] = useState('')
@@ -96,13 +99,9 @@ export default function PedidoAdminDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [pedidoRes, motoboysRes] = await Promise.all([
-          fetch(`/api/pedidos/${pedidoId}`),
-          fetch('/api/motoboys?status=DISPONIVEL')
-        ])
+        const pedidoRes = await fetch(`/api/pedidos/${pedidoId}`)
 
         const pedidoData = await pedidoRes.json()
-        const motoboysData = await motoboysRes.json()
 
         if (pedidoData.success) {
           setPedido(pedidoData.data)
@@ -110,9 +109,6 @@ export default function PedidoAdminDetailPage() {
           setError('Pedido não encontrado')
         }
 
-        if (motoboysData.success) {
-          setMotoboys(motoboysData.data)
-        }
       } catch {
         setError('Erro ao carregar dados')
       } finally {
@@ -480,6 +476,7 @@ export default function PedidoAdminDetailPage() {
                     <p className="text-gray-500 mb-4">Nenhum motoboy atribuído</p>
                     {podeAtribuir && motoboys.length > 0 && (
                       <div className="space-y-3">
+                        <Pagination pagination={list.pagination} onPageChange={page => { setSelectedMotoboy(''); list.setPage(page) }} loading={list.loading} error={list.error} />
                         <Select
                           label="Selecionar motoboy"
                           options={motoboys.map(m => ({ value: m.id, label: m.user.nome }))}

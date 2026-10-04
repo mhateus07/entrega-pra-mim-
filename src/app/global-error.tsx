@@ -1,7 +1,6 @@
 'use client'
 
 export default function GlobalError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string }
@@ -42,8 +41,8 @@ export default function GlobalError({
               >
                 Tentar novamente
               </button>
-              <a
-                href="/"
+              <button
+                onClick={() => window.location.assign('/')}
                 style={{
                   padding: '0.625rem 1.5rem',
                   backgroundColor: '#334155',
@@ -54,7 +53,7 @@ export default function GlobalError({
                 }}
               >
                 Página inicial
-              </a>
+              </button>
             </div>
           </div>
         </div>

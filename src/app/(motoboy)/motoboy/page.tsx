@@ -2,7 +2,9 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
+import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import Header from '@/components/ui/Header'
@@ -67,7 +69,9 @@ export default function MotoboyPage() {
   const [motoboy, setMotoboy] = useState<MotoboyInfo | null>(null)
   const [saldo, setSaldo] = useState<SaldoInfo | null>(null)
   const [pedidoAtual, setPedidoAtual] = useState<Pedido | null>(null)
-  const [pedidosDisponiveis, setPedidosDisponiveis] = useState<Pedido[]>([])
+  const list = usePaginatedList<Pedido>(motoboy?.status === 'DISPONIVEL' && !pedidoAtual ? '/api/pedidos?status=SOLICITADO' : null, 10000)
+  const pedidosDisponiveis = list.data
+  const previousAvailable = useRef<{ page: number; ids: string[] } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
@@ -115,7 +119,7 @@ export default function MotoboyPage() {
 
         // Buscar pedidos do motoboy
         const pedidosRes = await fetch(
-          `/api/pedidos?motoboyId=${session.user.motoboyId}`
+          `/api/pedidos?motoboyId=${session.user.motoboyId}&grupo=ativos&limit=1`
         )
         const pedidosData = await pedidosRes.json()
 
@@ -126,15 +130,6 @@ export default function MotoboyPage() {
           setPedidoAtual(pedidoEmAndamento || null)
         }
 
-        // Buscar pedidos disponíveis (se estiver disponível)
-        if (motoboyData.data?.status === 'DISPONIVEL') {
-          const dispRes = await fetch('/api/pedidos?status=SOLICITADO')
-          const dispData = await dispRes.json()
-
-          if (dispData.success) {
-            setPedidosDisponiveis(dispData.data)
-          }
-        }
       } catch (error) {
         console.error('Erro ao carregar dados:', error)
       } finally {
@@ -147,39 +142,15 @@ export default function MotoboyPage() {
     }
   }, [status, session])
 
-  // Polling para novos pedidos quando disponível
   useEffect(() => {
-    if (!motoboy || motoboy.status !== 'DISPONIVEL' || pedidoAtual) return
-
-    const pollNewOrders = async () => {
-      try {
-        const response = await fetch('/api/pedidos?status=SOLICITADO')
-        const data = await response.json()
-
-        if (data.success) {
-          // Verificar se há novos pedidos
-          const novosIds = data.data.map((p: Pedido) => p.id)
-          const antigosIds = pedidosDisponiveis.map((p) => p.id)
-          const novosPedidos = novosIds.filter((id: string) => !antigosIds.includes(id))
-
-          if (novosPedidos.length > 0 && pedidosDisponiveis.length > 0) {
-            const primeiroPedido = data.data.find((p: Pedido) => p.id === novosPedidos[0])
-            if (primeiroPedido) {
-              notifyNewOrder(primeiroPedido.valorTotal, primeiroPedido.enderecoOrigem.bairro)
-            }
-          }
-
-          setPedidosDisponiveis(data.data)
-        }
-      } catch (error) {
-        console.error('Erro ao buscar novos pedidos:', error)
-      }
+    if (list.loading) return
+    const previous = previousAvailable.current
+    if (list.pagination.page === 1 && previous?.page === 1 && previous.ids.length) {
+      const novo = pedidosDisponiveis.find(p => !previous.ids.includes(p.id))
+      if (novo) notifyNewOrder(novo.valorTotal, novo.enderecoOrigem.bairro)
     }
-
-    const interval = setInterval(pollNewOrders, 10000) // A cada 10 segundos
-
-    return () => clearInterval(interval)
-  }, [motoboy, pedidoAtual, pedidosDisponiveis, notifyNewOrder])
+    previousAvailable.current = { page: list.pagination.page, ids: pedidosDisponiveis.map(p => p.id) }
+  }, [pedidosDisponiveis, list.loading, list.pagination.page, notifyNewOrder])
 
   const handleToggleStatus = async () => {
     if (!motoboy) return
@@ -202,16 +173,8 @@ export default function MotoboyPage() {
 
         if (novoStatus === 'DISPONIVEL') {
           toast.success('Você está online! Aguardando pedidos...')
-          // Recarregar pedidos disponíveis
-          const dispRes = await fetch('/api/pedidos?status=SOLICITADO')
-          const dispData = await dispRes.json()
-
-          if (dispData.success) {
-            setPedidosDisponiveis(dispData.data)
-          }
         } else {
           toast('Você está offline', { icon: '🔴' })
-          setPedidosDisponiveis([])
         }
       } else {
         toast.error(data.error || 'Erro ao atualizar status')
@@ -241,7 +204,6 @@ export default function MotoboyPage() {
 
       if (data.success) {
         setPedidoAtual(data.data)
-        setPedidosDisponiveis([])
         setMotoboy({ ...motoboy, status: 'EM_ENTREGA' })
         toast.success('Pedido aceito! Vá até o local de coleta.')
       } else {
@@ -255,6 +217,10 @@ export default function MotoboyPage() {
 
   const handleAtualizarStatusPedido = async (novoStatus: StatusPedido) => {
     if (!pedidoAtual) return
+    if (novoStatus === 'ENTREGUE') {
+      window.location.href = `/motoboy/pedido/${pedidoAtual.id}`
+      return
+    }
 
     const statusMessages: Record<StatusPedido, string> = {
       ACEITO: 'Pedido aceito!',
@@ -277,24 +243,7 @@ export default function MotoboyPage() {
       if (data.success) {
         toast.success(statusMessages[novoStatus] || 'Status atualizado!')
 
-        if (novoStatus === 'ENTREGUE') {
-          setPedidoAtual(null)
-          setMotoboy((prev) =>
-            prev
-              ? { ...prev, status: 'DISPONIVEL', totalEntregas: prev.totalEntregas + 1 }
-              : null
-          )
-
-          // Recarregar pedidos disponíveis
-          const dispRes = await fetch('/api/pedidos?status=SOLICITADO')
-          const dispData = await dispRes.json()
-
-          if (dispData.success) {
-            setPedidosDisponiveis(dispData.data)
-          }
-        } else {
-          setPedidoAtual(data.data)
-        }
+        setPedidoAtual(data.data)
       } else {
         toast.error(data.error || 'Erro ao atualizar status')
       }
@@ -668,6 +617,7 @@ export default function MotoboyPage() {
             </CardContent>
           </Card>
         )}
+        {motoboy?.status === 'DISPONIVEL' && !pedidoAtual && <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />}
       </main>
     </div>
   )

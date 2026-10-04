@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updatePedidoStatusSchema } from '@/lib/validations'
-import { ApiResponse, StatusPedido } from '@/types'
-import { requirePedidoAccess, notFound, serverError, badRequest } from '@/lib/auth-helpers'
+import { ApiResponse } from '@/types'
+import { requireAuth, requirePedidoAccess, notFound, serverError, badRequest } from '@/lib/auth-helpers'
+
+import { alterarStatusPedido } from '@/lib/pedido-status'
+import { OperacaoError } from '@/lib/operacao-error'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -24,7 +28,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           },
         },
         motoboy: {
-          include: {
+          select: {
+            id: true, avaliacaoMedia: true,
             user: {
               select: { nome: true, telefone: true },
             },
@@ -63,312 +68,44 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       data: pedido,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao buscar pedido:', error)
     return serverError('Erro ao buscar pedido')
   }
 }
 
-// PATCH /api/pedidos/[id] - Atualizar status do pedido (verificação de acesso)
+// PATCH e DELETE compartilham autorização, transação e regras de cancelamento.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params
-
-    // Buscar pedido primeiro para verificar acesso
-    const pedido = await prisma.pedido.findUnique({
-      where: { id },
-    })
-
-    if (!pedido) {
-      return notFound('Pedido não encontrado')
-    }
-
-    // Verificar se usuário tem acesso a este pedido
-    const auth = await requirePedidoAccess(pedido)
+    const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
-
-    const body = await request.json()
-
-    const validation = updatePedidoStatusSchema.safeParse(body)
-    if (!validation.success) {
-      return badRequest('Dados inválidos')
-    }
-
-    const data = validation.data
-
-    // Validar transição de status
-    const transicoesValidas: Record<StatusPedido, StatusPedido[]> = {
-      SOLICITADO: ['ACEITO', 'CANCELADO'],
-      ACEITO: ['EM_COLETA', 'CANCELADO'],
-      EM_COLETA: ['EM_ENTREGA', 'CANCELADO'],
-      EM_ENTREGA: ['ENTREGUE', 'CANCELADO'],
-      ENTREGUE: [],
-      CANCELADO: [],
-    }
-
-    if (!transicoesValidas[pedido.status].includes(data.status)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Não é possível mudar status de ${pedido.status} para ${data.status}`,
-        },
-        { status: 400 }
-      )
-    }
-
-    // Preparar dados de atualização
-    const updateData: Record<string, unknown> = {
-      status: data.status,
-    }
-
-    // Adicionar timestamps e dados específicos conforme o status
-    switch (data.status) {
-      case 'ACEITO':
-        if (!data.motoboyId) {
-          return NextResponse.json(
-            { success: false, error: 'motoboyId é obrigatório para aceitar pedido' },
-            { status: 400 }
-          )
-        }
-
-        // Verificar se motoboy existe e está disponível
-        const motoboy = await prisma.motoboy.findUnique({
-          where: { id: data.motoboyId },
-        })
-
-        if (!motoboy) {
-          return NextResponse.json(
-            { success: false, error: 'Motoboy não encontrado' },
-            { status: 404 }
-          )
-        }
-
-        if (motoboy.status !== 'DISPONIVEL') {
-          return NextResponse.json(
-            { success: false, error: 'Motoboy não está disponível' },
-            { status: 400 }
-          )
-        }
-
-        updateData.motoboyId = data.motoboyId
-        updateData.aceitoEm = new Date()
-
-        // Atualizar status do motoboy
-        await prisma.motoboy.update({
-          where: { id: data.motoboyId },
-          data: { status: 'EM_ENTREGA' },
-        })
-        break
-
-      case 'EM_COLETA':
-        updateData.coletadoEm = new Date()
-        break
-
-      case 'ENTREGUE':
-        updateData.entregueEm = new Date()
-
-        // Dados de confirmação para documentos
-        if (data.assinaturaRecebedor) {
-          updateData.assinaturaRecebedor = data.assinaturaRecebedor
-        }
-        if (data.fotoComprovante) {
-          updateData.fotoComprovante = data.fotoComprovante
-        }
-
-        // Buscar pedido completo para obter valores
-        const pedidoCompleto = await prisma.pedido.findUnique({
-          where: { id },
-          select: { valorTotal: true, clienteId: true, motoboyId: true },
-        })
-
-        if (pedidoCompleto && pedidoCompleto.motoboyId) {
-          // Calcular valores (motoboy fica com 80%, plataforma 20%)
-          const taxaPlataforma = pedidoCompleto.valorTotal * 0.20
-          const valorMotoboy = pedidoCompleto.valorTotal - taxaPlataforma
-
-          // Criar ou atualizar pagamento
-          const pagamentoExistente = await prisma.pagamento.findUnique({
-            where: { pedidoId: id },
-          })
-
-          if (!pagamentoExistente) {
-            await prisma.pagamento.create({
-              data: {
-                pedidoId: id,
-                clienteId: pedidoCompleto.clienteId,
-                valor: pedidoCompleto.valorTotal,
-                valorMotoboy: valorMotoboy,
-                taxaPlataforma: taxaPlataforma,
-                metodo: 'PIX',
-                status: 'APROVADO',
-                aprovadoEm: new Date(),
-              },
-            })
-          } else {
-            await prisma.pagamento.update({
-              where: { pedidoId: id },
-              data: {
-                status: 'APROVADO',
-                aprovadoEm: new Date(),
-                valorMotoboy: valorMotoboy,
-                taxaPlataforma: taxaPlataforma,
-              },
-            })
-          }
-
-          // Criar transação para o motoboy
-          await prisma.transacaoMotoboy.create({
-            data: {
-              motoboyId: pedidoCompleto.motoboyId,
-              pedidoId: id,
-              tipo: 'CREDITO',
-              valor: valorMotoboy,
-              descricao: `Entrega #${id.slice(0, 8)}`,
-              status: 'CONCLUIDO',
-            },
-          })
-
-          // Atualizar ou criar saldo do motoboy
-          const saldoExistente = await prisma.saldoMotoboy.findUnique({
-            where: { motoboyId: pedidoCompleto.motoboyId },
-          })
-
-          if (saldoExistente) {
-            await prisma.saldoMotoboy.update({
-              where: { motoboyId: pedidoCompleto.motoboyId },
-              data: {
-                saldoDisponivel: { increment: valorMotoboy },
-                totalRecebido: { increment: valorMotoboy },
-              },
-            })
-          } else {
-            await prisma.saldoMotoboy.create({
-              data: {
-                motoboyId: pedidoCompleto.motoboyId,
-                saldoDisponivel: valorMotoboy,
-                saldoPendente: 0,
-                totalRecebido: valorMotoboy,
-              },
-            })
-          }
-
-          // Atualizar status do motoboy para disponível e incrementar entregas
-          await prisma.motoboy.update({
-            where: { id: pedidoCompleto.motoboyId },
-            data: {
-              status: 'DISPONIVEL',
-              totalEntregas: { increment: 1 },
-              ultimaAtividade: new Date(),
-            },
-          })
-        }
-        break
-
-      case 'CANCELADO':
-        updateData.canceladoEm = new Date()
-        if (data.motivoCancelamento) {
-          updateData.motivoCancelamento = data.motivoCancelamento
-        }
-
-        // Se tinha motoboy atribuído, liberar ele
-        if (pedido.motoboyId) {
-          await prisma.motoboy.update({
-            where: { id: pedido.motoboyId },
-            data: {
-              status: 'DISPONIVEL',
-              ultimaAtividade: new Date(),
-            },
-          })
-        }
-        break
-    }
-
-    const updated = await prisma.pedido.update({
-      where: { id },
-      data: updateData,
-      include: {
-        cliente: {
-          include: {
-            user: {
-              select: { nome: true, telefone: true },
-            },
-          },
-        },
-        motoboy: {
-          include: {
-            user: {
-              select: { nome: true, telefone: true },
-            },
-          },
-        },
-        enderecoOrigem: true,
-        enderecoDestino: true,
-      },
-    })
-
-    const response: ApiResponse<typeof updated> = {
-      success: true,
-      data: updated,
-      message: `Pedido ${data.status.toLowerCase().replace('_', ' ')} com sucesso`,
-    }
-
-    return NextResponse.json(response)
+    const validation = updatePedidoStatusSchema.safeParse(await request.json().catch(() => null))
+    if (!validation.success) return badRequest('Dados inválidos')
+    const { id } = await params
+    const updated = await alterarStatusPedido(id, auth.user, validation.data)
+    return jsonResponse({ success: true, data: updated, message: 'Pedido atualizado com sucesso' })
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao atualizar pedido:', error)
     return serverError('Erro ao atualizar pedido')
   }
 }
 
-// DELETE /api/pedidos/[id] - Cancelar pedido (verificação de acesso)
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params
-    const body = await request.json().catch(() => ({}))
-
-    const pedido = await prisma.pedido.findUnique({
-      where: { id },
-    })
-
-    if (!pedido) {
-      return notFound('Pedido não encontrado')
-    }
-
-    // Verificar se usuário tem acesso a este pedido
-    const auth = await requirePedidoAccess(pedido)
+    const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
-
-    // Só pode cancelar pedidos que não foram entregues ou já cancelados
-    if (['ENTREGUE', 'CANCELADO'].includes(pedido.status)) {
-      return badRequest('Pedido não pode ser cancelado')
-    }
-
-    // Se tinha motoboy atribuído, liberar
-    if (pedido.motoboyId) {
-      await prisma.motoboy.update({
-        where: { id: pedido.motoboyId },
-        data: {
-          status: 'DISPONIVEL',
-          ultimaAtividade: new Date(),
-        },
-      })
-    }
-
-    const updated = await prisma.pedido.update({
-      where: { id },
-      data: {
-        status: 'CANCELADO',
-        canceladoEm: new Date(),
-        motivoCancelamento: body.motivoCancelamento || 'Cancelado pelo usuário',
-      },
+    const body = await request.json().catch(() => ({}))
+    const validation = updatePedidoStatusSchema.safeParse({
+      status: 'CANCELADO', motivoCancelamento: body?.motivoCancelamento,
     })
-
-    return NextResponse.json({
-      success: true,
-      data: updated,
-      message: 'Pedido cancelado com sucesso',
-    })
+    if (!validation.success) return badRequest('Dados inválidos')
+    const { id } = await params
+    const updated = await alterarStatusPedido(id, auth.user, validation.data)
+    return jsonResponse({ success: true, data: updated, message: 'Pedido cancelado com sucesso' })
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao cancelar pedido:', error)
     return serverError('Erro ao cancelar pedido')
   }

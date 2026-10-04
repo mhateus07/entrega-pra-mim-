@@ -1,11 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { parsePagination, paginationMeta, enumFilter } from '@/lib/pagination'
+import { OperacaoError } from '@/lib/operacao-error'
+import { Prisma } from '@prisma/client'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createPedidoSchema } from '@/lib/validations'
 import { calcularRota } from '@/lib/google-maps'
 import { calcularPrecoCompleto, estimarTempo } from '@/lib/pricing'
 import { encontrarMelhorMotoboy } from '@/lib/alocacao'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireClienteOwnership, serverError, forbidden } from '@/lib/auth-helpers'
+import { requireAuth, requireRole, serverError, forbidden } from '@/lib/auth-helpers'
 
 // GET /api/pedidos - Listar pedidos (filtrado por papel do usuário)
 export async function GET(request: NextRequest) {
@@ -15,20 +19,23 @@ export async function GET(request: NextRequest) {
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
-    const status = searchParams.get('status')
-    const tipoServico = searchParams.get('tipoServico')
+    const paging = parsePagination(searchParams)
+    const status = enumFilter(searchParams.get('status'), ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA', 'ENTREGUE', 'CANCELADO'] as const)
+    const tipoServico = enumFilter(searchParams.get('tipoServico'), ['EXPRESSA', 'AGENDADA', 'DOCUMENTOS'] as const)
     const clienteId = searchParams.get('clienteId')
     const motoboyId = searchParams.get('motoboyId')
     const dataInicio = searchParams.get('dataInicio')
     const dataFim = searchParams.get('dataFim')
 
-    const where: Record<string, unknown> = {}
+    const where: Prisma.PedidoWhereInput = {}
 
     // Filtrar por papel do usuário (segurança)
     if (auth.user.role === 'CLIENTE') {
       // Cliente só vê seus próprios pedidos
+      if (!auth.user.clienteId) return forbidden('Cadastro de cliente não encontrado')
       where.clienteId = auth.user.clienteId
     } else if (auth.user.role === 'MOTOBOY') {
+      if (!auth.user.motoboyId) return forbidden('Cadastro de motoboy não encontrado')
       // Motoboy vê pedidos disponíveis (SOLICITADO) ou atribuídos a ele
       where.OR = [
         { status: 'SOLICITADO' },
@@ -37,6 +44,8 @@ export async function GET(request: NextRequest) {
     }
     // Admin vê todos os pedidos
 
+    const grupo = enumFilter(searchParams.get('grupo'), ['ativos', 'finalizados'] as const)
+    if (grupo) where.status = { in: grupo === 'ativos' ? ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA'] : ['ENTREGUE', 'CANCELADO'] }
     if (status) where.status = status
     if (tipoServico) where.tipoServico = tipoServico
 
@@ -44,18 +53,24 @@ export async function GET(request: NextRequest) {
     if (clienteId && auth.user.role === 'ADMIN') {
       where.clienteId = clienteId
     }
-    if (motoboyId && auth.user.role === 'ADMIN') {
+    if (motoboyId && (auth.user.role === 'ADMIN' || motoboyId === auth.user.motoboyId)) {
       where.motoboyId = motoboyId
     }
 
     if (dataInicio || dataFim) {
       where.createdAt = {}
-      if (dataInicio) (where.createdAt as Record<string, unknown>).gte = new Date(dataInicio)
-      if (dataFim) (where.createdAt as Record<string, unknown>).lte = new Date(dataFim)
+      if (dataInicio) {
+        if (Number.isNaN(Date.parse(dataInicio))) throw new OperacaoError('Data inicial inválida', 400)
+        where.createdAt.gte = new Date(dataInicio)
+      }
+      if (dataFim) {
+        if (Number.isNaN(Date.parse(dataFim))) throw new OperacaoError('Data final inválida', 400)
+        where.createdAt.lte = new Date(dataFim)
+      }
     }
 
     const pedidos = await prisma.pedido.findMany({
-      where,
+      where, skip: paging.skip, take: paging.take,
       include: {
         cliente: {
           include: {
@@ -65,7 +80,8 @@ export async function GET(request: NextRequest) {
           },
         },
         motoboy: {
-          include: {
+          select: {
+            id: true, avaliacaoMedia: true,
             user: {
               select: { nome: true, telefone: true },
             },
@@ -75,16 +91,19 @@ export async function GET(request: NextRequest) {
         enderecoDestino: true,
         avaliacao: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     })
 
-    const response: ApiResponse<typeof pedidos> = {
+    const total = await prisma.pedido.count({ where })
+    const response = {
+      pagination: paginationMeta(paging.page, paging.pageSize, total),
       success: true,
       data: pedidos,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao listar pedidos:', error)
     return serverError('Erro ao listar pedidos')
   }
@@ -94,14 +113,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Requer autenticação
-    const auth = await requireAuth()
+    const auth = await requireRole(['CLIENTE', 'ADMIN'])
     if (!auth.authenticated) return auth.response
 
     const body = await request.json()
 
     const validation = createPedidoSchema.safeParse(body)
     if (!validation.success) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           success: false,
           error: 'Dados inválidos',
@@ -124,7 +143,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!cliente) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Cliente não encontrado' },
         { status: 404 }
       )
@@ -137,27 +156,31 @@ export async function POST(request: NextRequest) {
     ])
 
     if (!enderecoOrigem) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Endereço de origem não encontrado' },
         { status: 404 }
       )
     }
 
     if (!enderecoDestino) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Endereço de destino não encontrado' },
         { status: 404 }
       )
     }
 
+    if (enderecoOrigem.clienteId !== data.clienteId || enderecoDestino.clienteId !== data.clienteId) {
+      return forbidden('Os endereços devem pertencer ao cliente do pedido')
+    }
+
     // Verificar se endereços têm coordenadas
     if (
-      !enderecoOrigem.latitude ||
-      !enderecoOrigem.longitude ||
-      !enderecoDestino.latitude ||
-      !enderecoDestino.longitude
+      enderecoOrigem.latitude == null ||
+      enderecoOrigem.longitude == null ||
+      enderecoDestino.latitude == null ||
+      enderecoDestino.longitude == null
     ) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Endereços não possuem coordenadas válidas' },
         { status: 400 }
       )
@@ -237,7 +260,7 @@ export async function POST(request: NextRequest) {
           data: { ...pedido, motoboyRecomendado: melhorMotoboy.motoboyId },
           message: 'Pedido criado com sucesso. Motoboy será notificado.',
         }
-        return NextResponse.json(response, { status: 201 })
+        return jsonResponse(response, { status: 201 })
       }
     }
 
@@ -247,8 +270,9 @@ export async function POST(request: NextRequest) {
       message: 'Pedido criado com sucesso',
     }
 
-    return NextResponse.json(response, { status: 201 })
+    return jsonResponse(response, { status: 201 })
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao criar pedido:', error)
     return serverError('Erro ao criar pedido')
   }

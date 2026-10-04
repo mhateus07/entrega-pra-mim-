@@ -109,7 +109,7 @@ export default function NovoPedidoForm({
         } else {
           setErroRota(data.error || 'Erro ao calcular rota')
         }
-      } catch (error) {
+      } catch {
         setErroRota('Erro ao calcular rota')
       } finally {
         setCalculandoRota(false)

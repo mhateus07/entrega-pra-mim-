@@ -1,15 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { parsePagination, paginationMeta, enumFilter } from '@/lib/pagination'
+import { dividirPagamento } from '@/lib/money'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
+import { comPedidoBloqueado, liberarCreditoEntrega } from '@/lib/pedido-transaction'
+import { podeGerenciarPagamento } from '@/lib/pedido-permissions'
+import { ELECTRONIC_PAYMENTS_AVAILABLE } from '@/lib/payment-policy'
+import { OperacaoError } from '@/lib/operacao-error'
 import {
   gerarPagamentoPix,
   processarPagamentoCartao,
-  calcularTaxaPlataforma,
-  calcularValorMotoboy,
-  MetodoPagamento,
   IS_PAYMENT_MOCK,
 } from '@/lib/pagamentos'
-import { requireAuth, applyRateLimit, serverError, badRequest, notFound, forbidden } from '@/lib/auth-helpers'
+import { requireAuth, applyRateLimit, serverError, badRequest, forbidden } from '@/lib/auth-helpers'
 
 // =============================================================================
 // Validação de dados de pagamento
@@ -53,14 +58,15 @@ export async function GET(request: NextRequest) {
     if (!auth.authenticated) return auth.response
 
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status')
+    const paging = parsePagination(searchParams)
+    const status = enumFilter(searchParams.get('status'), ['PENDENTE', 'PROCESSANDO', 'APROVADO', 'RECUSADO', 'CANCELADO', 'REEMBOLSADO'] as const)
 
-    const where: Record<string, unknown> = {}
+    const where: Prisma.PagamentoWhereInput = {}
 
     // Filtrar por usuário (exceto admin)
     if (auth.user.role === 'CLIENTE' && auth.user.clienteId) {
       where.clienteId = auth.user.clienteId
-    } else if (auth.user.role === 'MOTOBOY') {
+    } else if (auth.user.role !== 'ADMIN') {
       // Motoboy não deveria ver pagamentos diretamente
       return forbidden('Acesso não permitido')
     }
@@ -81,215 +87,82 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: paging.take, skip: paging.skip,
     })
 
-    return NextResponse.json({
+    const total = await prisma.pagamento.count({ where })
+    return jsonResponse({
       success: true,
+      pagination: paginationMeta(paging.page, paging.pageSize, total),
       data: pagamentos,
       // Aviso sobre sistema mock
       ...(IS_PAYMENT_MOCK && { _warning: 'Sistema de pagamento em modo de demonstração' }),
     })
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao listar pagamentos:', error)
     return serverError('Erro ao listar pagamentos')
   }
 }
 
-// POST /api/pagamentos - Criar pagamento (rate limited)
+// O lock do pedido impede substituir um pagamento aprovado por uma segunda requisição.
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit para pagamentos (20 req/min)
-    const rateLimit = applyRateLimit(request, 'sensitive')
+    const rateLimit = await applyRateLimit(request, 'sensitive')
     if (!rateLimit.success) return rateLimit.response
-
-    // Requer autenticação
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
-
-    const body = await request.json()
-    const validation = criarPagamentoSchema.safeParse(body)
-
-    if (!validation.success) {
-      // Não expor detalhes de validação de cartão por segurança
-      return badRequest('Dados de pagamento inválidos')
-    }
-
+    const validation = criarPagamentoSchema.safeParse(await request.json().catch(() => null))
+    if (!validation.success) return badRequest('Dados de pagamento inválidos')
     const { pedidoId, metodo, cartao } = validation.data
+    if (metodo !== 'DINHEIRO' && !ELECTRONIC_PAYMENTS_AVAILABLE) {
+      return jsonResponse({ success: false, error: 'Pagamentos eletrônicos ainda não estão disponíveis. Escolha dinheiro.' }, { status: 503 })
+    }
 
-    // Buscar pedido
-    const pedido = await prisma.pedido.findUnique({
-      where: { id: pedidoId },
-      include: {
-        cliente: { select: { id: true, userId: true } },
-        pagamento: true,
-      },
+    const pagamento = await comPedidoBloqueado(pedidoId, async tx => {
+      const pedido = await tx.pedido.findUniqueOrThrow({ where: { id: pedidoId }, include: { pagamento: true } })
+      if (!podeGerenciarPagamento(auth.user, pedido)) throw new OperacaoError('Acesso negado', 403)
+      if (pedido.status === 'CANCELADO') throw new OperacaoError('Pedido cancelado não pode receber pagamento')
+      const anterior = pedido.pagamento
+      if (anterior?.status === 'APROVADO' || anterior?.status === 'PROCESSANDO') {
+        throw new OperacaoError('Este pedido já foi pago ou está em processamento')
+      }
+      if (anterior?.status === 'REEMBOLSADO') throw new OperacaoError('Este pagamento já foi reembolsado')
+      if (anterior?.status === 'PENDENTE') {
+        if (anterior.metodo !== metodo) throw new OperacaoError('Cancele o pagamento pendente antes de trocar o método')
+        if (metodo === 'DINHEIRO' || (metodo === 'PIX' && anterior.pixExpiraEm && anterior.pixExpiraEm > new Date())) return anterior
+      }
+      const valores = dividirPagamento(pedido.valorTotal)
+      const valor = valores.valor.toNumber()
+      const dados: Prisma.PagamentoUncheckedCreateInput = {
+        pedidoId, clienteId: pedido.clienteId, ...valores, metodo, status: 'PENDENTE',
+        gatewayId: null, pixQrCode: null, pixCopiaCola: null, pixExpiraEm: null,
+        cartaoUltimos4: null, cartaoBandeira: null, aprovadoEm: null,
+        canceladoEm: null, reembolsadoEm: null, gatewayResponse: null,
+      }
+      if (metodo === 'PIX') {
+        const pix = await gerarPagamentoPix({ pedidoId, clienteId: pedido.clienteId, valor, metodo })
+        Object.assign(dados, { gatewayId: pix.gatewayId, pixQrCode: pix.qrCode,
+          pixCopiaCola: pix.copiaCola, pixExpiraEm: pix.expiraEm })
+      } else if (metodo !== 'DINHEIRO') {
+        if (!cartao) throw new OperacaoError('Dados do cartão são obrigatórios', 400)
+        const resultado = await processarPagamentoCartao({ pedidoId, clienteId: pedido.clienteId, valor, metodo, cartao })
+        if (!resultado.success) throw new OperacaoError(resultado.mensagem, 400)
+        Object.assign(dados, { status: resultado.aprovado ? 'APROVADO' : 'RECUSADO',
+          gatewayId: resultado.gatewayId, cartaoUltimos4: resultado.ultimos4,
+          cartaoBandeira: resultado.bandeira, aprovadoEm: resultado.aprovado ? new Date() : null })
+      }
+      const updated = await tx.pagamento.upsert({ where: { pedidoId }, create: dados, update: dados })
+      if (updated.status === 'APROVADO') await liberarCreditoEntrega(tx, pedidoId)
+      return updated
     })
-
-    if (!pedido) {
-      return notFound('Pedido não encontrado')
-    }
-
-    // Verificar se é o dono do pedido
-    if (pedido.cliente.userId !== auth.user.id && auth.user.role !== 'ADMIN') {
-      return forbidden('Acesso negado')
-    }
-
-    // Verificar se já existe pagamento aprovado
-    if (pedido.pagamento?.status === 'APROVADO') {
-      return badRequest('Este pedido já foi pago')
-    }
-
-    // Calcular valores
-    const valor = pedido.valorTotal
-    const taxaPlataforma = calcularTaxaPlataforma(valor)
-    const valorMotoboy = calcularValorMotoboy(valor)
-
-    // Processar pagamento
-    if (metodo === 'PIX') {
-      const resultadoPix = await gerarPagamentoPix({
-        pedidoId,
-        clienteId: pedido.clienteId,
-        valor,
-        metodo: 'PIX',
-      })
-
-      // Criar ou atualizar pagamento
-      const pagamento = await prisma.pagamento.upsert({
-        where: { pedidoId },
-        create: {
-          pedidoId,
-          clienteId: pedido.clienteId,
-          valor,
-          taxaPlataforma,
-          valorMotoboy,
-          metodo: 'PIX',
-          status: 'PENDENTE',
-          gatewayId: resultadoPix.gatewayId,
-          pixQrCode: resultadoPix.qrCode,
-          pixCopiaCola: resultadoPix.copiaCola,
-          pixExpiraEm: resultadoPix.expiraEm,
-        },
-        update: {
-          metodo: 'PIX',
-          status: 'PENDENTE',
-          gatewayId: resultadoPix.gatewayId,
-          pixQrCode: resultadoPix.qrCode,
-          pixCopiaCola: resultadoPix.copiaCola,
-          pixExpiraEm: resultadoPix.expiraEm,
-        },
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          pagamento,
-          pix: {
-            qrCode: resultadoPix.qrCode,
-            copiaCola: resultadoPix.copiaCola,
-            expiraEm: resultadoPix.expiraEm,
-          },
-        },
-        message: 'PIX gerado com sucesso',
-      })
-    }
-
-    if (metodo === 'CARTAO_CREDITO' || metodo === 'CARTAO_DEBITO') {
-      if (!cartao) {
-        return NextResponse.json(
-          { success: false, error: 'Dados do cartão são obrigatórios' },
-          { status: 400 }
-        )
-      }
-
-      const resultadoCartao = await processarPagamentoCartao({
-        pedidoId,
-        clienteId: pedido.clienteId,
-        valor,
-        metodo: metodo as MetodoPagamento,
-        cartao,
-      })
-
-      if (!resultadoCartao.success) {
-        return NextResponse.json(
-          { success: false, error: resultadoCartao.mensagem },
-          { status: 400 }
-        )
-      }
-
-      const statusPagamento = resultadoCartao.aprovado ? 'APROVADO' : 'RECUSADO'
-
-      // Criar ou atualizar pagamento
-      const pagamento = await prisma.pagamento.upsert({
-        where: { pedidoId },
-        create: {
-          pedidoId,
-          clienteId: pedido.clienteId,
-          valor,
-          taxaPlataforma,
-          valorMotoboy,
-          metodo,
-          status: statusPagamento,
-          gatewayId: resultadoCartao.gatewayId,
-          cartaoUltimos4: resultadoCartao.ultimos4,
-          cartaoBandeira: resultadoCartao.bandeira,
-          aprovadoEm: resultadoCartao.aprovado ? new Date() : null,
-        },
-        update: {
-          metodo,
-          status: statusPagamento,
-          gatewayId: resultadoCartao.gatewayId,
-          cartaoUltimos4: resultadoCartao.ultimos4,
-          cartaoBandeira: resultadoCartao.bandeira,
-          aprovadoEm: resultadoCartao.aprovado ? new Date() : null,
-        },
-      })
-
-      if (!resultadoCartao.aprovado) {
-        return NextResponse.json({
-          success: false,
-          error: resultadoCartao.mensagem,
-          data: { pagamento },
-        }, { status: 400 })
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: { pagamento },
-        message: 'Pagamento aprovado!',
-      })
-    }
-
-    if (metodo === 'DINHEIRO') {
-      // Pagamento em dinheiro - apenas registrar
-      const pagamento = await prisma.pagamento.upsert({
-        where: { pedidoId },
-        create: {
-          pedidoId,
-          clienteId: pedido.clienteId,
-          valor,
-          taxaPlataforma,
-          valorMotoboy,
-          metodo: 'DINHEIRO',
-          status: 'PENDENTE',
-          gatewayId: `CASH_${Date.now()}`,
-        },
-        update: {
-          metodo: 'DINHEIRO',
-          status: 'PENDENTE',
-        },
-      })
-
-      return NextResponse.json({
-        success: true,
-        data: { pagamento },
-        message: 'Pagamento em dinheiro registrado',
-      })
-    }
-
-    return badRequest('Método de pagamento inválido')
+    if (pagamento.status === 'RECUSADO') return jsonResponse({ success: false, error: 'Pagamento recusado', data: { pagamento } }, { status: 400 })
+    return jsonResponse({ success: true, data: { pagamento,
+      ...(pagamento.metodo === 'PIX' ? { pix: { qrCode: pagamento.pixQrCode, copiaCola: pagamento.pixCopiaCola, expiraEm: pagamento.pixExpiraEm } } : {}),
+    }, message: pagamento.status === 'APROVADO' ? 'Pagamento aprovado!' : 'Pagamento registrado' })
   } catch (error) {
+    if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao criar pagamento:', error)
     return serverError('Erro ao processar pagamento')
   }

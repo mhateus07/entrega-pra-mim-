@@ -3,6 +3,8 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
+import Pagination from '@/components/ui/Pagination'
 import { motion } from 'framer-motion'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import Input from '@/components/ui/Input'
@@ -10,6 +12,7 @@ import { formatarMoeda } from '@/lib/pricing'
 import { formatarDataHora } from '@/utils/helpers'
 
 interface Cliente {
+  totalGasto: number
   id: string
   cpfCnpj: string | null
   user: {
@@ -31,9 +34,10 @@ interface Cliente {
 export default function ClientesAdminPage() {
   const { status } = useSession()
   const router = useRouter()
-  const [clientes, setClientes] = useState<Cliente[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [busca, setBusca] = useState('')
+
+  const list = usePaginatedList<Cliente>(status === 'authenticated' ? `/api/clientes?q=${encodeURIComponent(busca)}` : null)
+  const clientes = list.data
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -41,28 +45,7 @@ export default function ClientesAdminPage() {
     }
   }, [status, router])
 
-  useEffect(() => {
-    const fetchClientes = async () => {
-      try {
-        const response = await fetch('/api/clientes')
-        const data = await response.json()
-
-        if (data.success) {
-          setClientes(data.data)
-        }
-      } catch (error) {
-        console.error('Erro ao carregar clientes:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (status === 'authenticated') {
-      fetchClientes()
-    }
-  }, [status])
-
-  if (status === 'loading' || isLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -76,20 +59,9 @@ export default function ClientesAdminPage() {
     )
   }
 
-  const clientesFiltrados = busca
-    ? clientes.filter(c =>
-        c.user.nome.toLowerCase().includes(busca.toLowerCase()) ||
-        c.user.email.toLowerCase().includes(busca.toLowerCase()) ||
-        c.user.telefone.includes(busca)
-      )
-    : clientes
+  const clientesFiltrados = clientes
 
-  const calcularTotalGasto = (cliente: Cliente) => {
-    if (!cliente.pedidos) return 0
-    return cliente.pedidos
-      .filter(p => p.status === 'ENTREGUE')
-      .reduce((acc, p) => acc + p.valorTotal, 0)
-  }
+  const calcularTotalGasto = (cliente: Cliente) => cliente.totalGasto
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -109,7 +81,7 @@ export default function ClientesAdminPage() {
           animate={{ opacity: 1, y: 0 }}
         >
           <h1 className="text-xl sm:text-2xl font-bold text-white">Clientes</h1>
-          <p className="text-slate-400 text-sm">{clientesFiltrados.length} clientes encontrados</p>
+          <p className="text-slate-400 text-sm">{list.pagination.total} clientes encontrados</p>
         </motion.div>
 
         {/* Busca */}
@@ -261,6 +233,7 @@ export default function ClientesAdminPage() {
             </motion.div>
           </>
         )}
+        <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />
       </main>
     </div>
   )

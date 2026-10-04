@@ -3,6 +3,8 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import Pagination from '@/components/ui/Pagination'
+import type { Pagination as PageInfo } from '@/lib/pagination'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
@@ -15,7 +17,7 @@ interface Transacao {
   tipo: 'CREDITO' | 'DEBITO' | 'SAQUE'
   valor: number
   descricao: string
-  status: 'PENDENTE' | 'PROCESSADO' | 'CANCELADO'
+  status: 'PENDENTE' | 'CONCLUIDO' | 'PROCESSADO' | 'CANCELADO'
   createdAt: string
   pedido: {
     id: string
@@ -47,6 +49,8 @@ export default function GanhosPage() {
   const [transacoes, setTransacoes] = useState<Transacao[]>([])
   const [totais, setTotais] = useState<Totais | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState<PageInfo>({ page: 1, pageSize: 20, total: 0, totalPages: 1 })
   const [filtro, setFiltro] = useState<'todos' | 'CREDITO' | 'DEBITO' | 'SAQUE'>('todos')
 
   useEffect(() => {
@@ -56,6 +60,7 @@ export default function GanhosPage() {
   }, [status, router])
 
   useEffect(() => {
+    let cancelled = false
     const fetchData = async () => {
       if (!session?.user?.motoboyId) return
 
@@ -63,31 +68,33 @@ export default function GanhosPage() {
         // Buscar saldo
         const saldoRes = await fetch(`/api/motoboys/${session.user.motoboyId}/saldo`)
         const saldoData = await saldoRes.json()
-        if (saldoData.success) {
+        if (!cancelled && saldoData.success) {
           setSaldo(saldoData.data)
         }
 
         // Buscar transações
         const tipoParam = filtro !== 'todos' ? `&tipo=${filtro}` : ''
         const transRes = await fetch(
-          `/api/motoboys/${session.user.motoboyId}/transacoes?limit=100${tipoParam}`
+          `/api/motoboys/${session.user.motoboyId}/transacoes?limit=20&page=${page}${tipoParam}`
         )
         const transData = await transRes.json()
-        if (transData.success) {
+        if (!cancelled && transData.success) {
           setTransacoes(transData.data.transacoes)
+          setPagination(transData.pagination)
           setTotais(transData.data.totais)
         }
       } catch (error) {
         console.error('Erro ao carregar dados:', error)
       } finally {
-        setIsLoading(false)
+        if (!cancelled) setIsLoading(false)
       }
     }
 
     if (status === 'authenticated') {
       fetchData()
     }
-  }, [status, session, filtro])
+    return () => { cancelled = true }
+  }, [status, session, filtro, page])
 
   if (status === 'loading' || isLoading) {
     return (
@@ -125,6 +132,7 @@ export default function GanhosPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'CONCLUIDO':
       case 'PROCESSADO':
         return <Badge variant="success" size="sm">Processado</Badge>
       case 'PENDENTE':
@@ -240,7 +248,7 @@ export default function GanhosPage() {
           {(['todos', 'CREDITO', 'DEBITO', 'SAQUE'] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFiltro(f)}
+              onClick={() => { setPage(1); setFiltro(f) }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filtro === f
                   ? 'bg-blue-600 text-white'
@@ -298,6 +306,7 @@ export default function GanhosPage() {
             )}
           </CardContent>
         </Card>
+        <Pagination pagination={pagination} onPageChange={setPage} />
       </main>
     </div>
   )

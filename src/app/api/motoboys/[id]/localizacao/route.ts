@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireMotoboyOwnership, requireAuth, notFound, badRequest, serverError } from '@/lib/auth-helpers'
 
@@ -30,7 +31,7 @@ export async function POST(
       },
     })
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: {
         id: motoboy.id,
@@ -77,7 +78,7 @@ export async function GET(
       return notFound('Motoboy não encontrado')
     }
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: motoboy,
     })

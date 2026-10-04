@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
+import { requirePedidoAccess } from '@/lib/auth-helpers'
 
 // GET /api/pedidos/[id]/rastreamento - Obter dados de rastreamento do pedido
 export async function GET(
@@ -13,6 +15,8 @@ export async function GET(
       where: { id },
       select: {
         id: true,
+        clienteId: true,
+        motoboyId: true,
         status: true,
         tipoServico: true,
         aceitoEm: true,
@@ -55,11 +59,15 @@ export async function GET(
     })
 
     if (!pedido) {
-      return NextResponse.json(
+      return jsonResponse(
         { success: false, error: 'Pedido não encontrado' },
         { status: 404 }
       )
     }
+
+    // Localização e telefone do motoboy: só cliente, motoboy do pedido ou admin
+    const auth = await requirePedidoAccess(pedido)
+    if (!auth.authenticated) return auth.response
 
     // Calcular ETA baseado no status
     let etaMinutos: number | null = null
@@ -69,7 +77,7 @@ export async function GET(
       etaMinutos = 15 // Tempo estimado até entrega
     }
 
-    return NextResponse.json({
+    return jsonResponse({
       success: true,
       data: {
         ...pedido,
@@ -79,7 +87,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Erro ao obter rastreamento:', error)
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Erro ao obter rastreamento' },
       { status: 500 }
     )

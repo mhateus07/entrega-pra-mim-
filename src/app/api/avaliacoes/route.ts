@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { jsonResponse } from '@/lib/json-response'
+import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createAvaliacaoSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireClienteOwnership, serverError, badRequest, notFound, forbidden } from '@/lib/auth-helpers'
+import { requireAuth, requireClienteOwnership, serverError, badRequest, notFound } from '@/lib/auth-helpers'
 
 // GET /api/avaliacoes - Listar avaliações (autenticado)
 export async function GET(request: NextRequest) {
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
       data: avaliacoes,
     }
 
-    return NextResponse.json(response)
+    return jsonResponse(response)
   } catch (error) {
     console.error('Erro ao listar avaliações:', error)
     return serverError('Erro ao listar avaliações')
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
       message: 'Avaliação registrada com sucesso',
     }
 
-    return NextResponse.json(response, { status: 201 })
+    return jsonResponse(response, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar avaliação:', error)
     return serverError('Erro ao criar avaliação')

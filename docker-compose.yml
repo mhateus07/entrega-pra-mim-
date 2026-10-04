@@ -1,0 +1,69 @@
+# Produção na VPS (Contabo + EasyPanel/Traefik), mesmo padrão dos outros apps em /opt.
+# Uso: cp .env.production.example .env  (preencher)  &&  docker compose up -d --build
+# Outra instância (ex.: demo): clone em outra pasta e defina APP_SLUG e APP_DOMAIN no .env.
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: entrega_pra_mim
+      MYSQL_USER: entrega
+      MYSQL_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?defina DB_ROOT_PASSWORD no .env}
+    volumes:
+      - mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+    restart: always
+    env_file: .env
+    environment:
+      DATABASE_URL: mysql://entrega:${DB_PASSWORD}@db:3306/entrega_pra_mim
+      REDIS_URL: redis://redis:6379
+      COMPROVANTE_DIR: /app/storage/comprovantes
+    volumes:
+      - comprovantes:/app/storage/comprovantes
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/auth/providers').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - default
+      - easypanel
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=easypanel"
+      - "traefik.http.routers.${APP_SLUG:-entregapramim}.entrypoints=https"
+      - "traefik.http.routers.${APP_SLUG:-entregapramim}.rule=Host(`${APP_DOMAIN:-entregapramim.impulsiodigital.com}`)"
+      - "traefik.http.routers.${APP_SLUG:-entregapramim}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${APP_SLUG:-entregapramim}.loadbalancer.server.port=3000"
+
+networks:
+  default:
+    name: ${APP_SLUG:-entrega}_default
+  easypanel:
+    external: true
+
+volumes:
+  mysql:
+  comprovantes:

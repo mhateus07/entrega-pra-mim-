@@ -2,7 +2,9 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
+import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
 import Button from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -41,8 +43,8 @@ interface Pedido {
 export default function ClientePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [pedidos, setPedidos] = useState<Pedido[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const ativos = usePaginatedList<Pedido>(status === 'authenticated' ? '/api/pedidos?grupo=ativos' : null, 10000)
+  const historico = usePaginatedList<Pedido>(status === 'authenticated' ? '/api/pedidos?grupo=finalizados' : null)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -50,32 +52,7 @@ export default function ClientePage() {
     }
   }, [status, router])
 
-  useEffect(() => {
-    const fetchPedidos = async () => {
-      if (!session?.user?.clienteId) return
-
-      try {
-        const response = await fetch(
-          `/api/pedidos?clienteId=${session.user.clienteId}`
-        )
-        const data = await response.json()
-
-        if (data.success) {
-          setPedidos(data.data)
-        }
-      } catch (error) {
-        console.error('Erro ao carregar pedidos:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (status === 'authenticated') {
-      fetchPedidos()
-    }
-  }, [status, session])
-
-  if (status === 'loading' || isLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -83,12 +60,8 @@ export default function ClientePage() {
     )
   }
 
-  const pedidosAtivos = pedidos.filter(
-    (p) => !['ENTREGUE', 'CANCELADO'].includes(p.status)
-  )
-  const pedidosConcluidos = pedidos.filter((p) =>
-    ['ENTREGUE', 'CANCELADO'].includes(p.status)
-  )
+  const pedidosAtivos = ativos.data
+  const pedidosConcluidos = historico.data
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -185,6 +158,8 @@ export default function ClientePage() {
           </div>
         )}
 
+        <Pagination pagination={ativos.pagination} onPageChange={ativos.setPage} loading={ativos.loading} error={ativos.error} />
+
         {/* Completed Orders */}
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -240,6 +215,7 @@ export default function ClientePage() {
             </div>
           )}
         </div>
+        <Pagination pagination={historico.pagination} onPageChange={historico.setPage} loading={historico.loading} error={historico.error} />
       </main>
     </div>
   )

@@ -14,8 +14,6 @@ import { FaturamentoChart, PedidosPorDiaChart, StatusPedidosChart } from '@/comp
 import { formatarMoeda } from '@/lib/pricing'
 import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO } from '@/utils/helpers'
 import { StatusPedido } from '@/types'
-import { format, subDays } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 
 interface DashboardStats {
   totalPedidos: number
@@ -73,89 +71,12 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Buscar pedidos
-        const pedidosRes = await fetch('/api/pedidos')
-        const pedidosData = await pedidosRes.json()
-
-        if (pedidosData.success) {
-          const pedidos = pedidosData.data
-          const hoje = new Date().toISOString().split('T')[0]
-
-          const pedidosHoje = pedidos.filter(
-            (p: PedidoRecente) => p.createdAt.split('T')[0] === hoje
-          )
-          const entregasHoje = pedidosHoje.filter(
-            (p: PedidoRecente) => p.status === 'ENTREGUE'
-          )
-          const faturamentoHoje = entregasHoje.reduce(
-            (acc: number, p: PedidoRecente) => acc + p.valorTotal,
-            0
-          )
-          const pedidosPendentes = pedidos.filter(
-            (p: PedidoRecente) => p.status === 'SOLICITADO'
-          ).length
-
-          setStats({
-            totalPedidos: pedidos.length,
-            pedidosHoje: pedidosHoje.length,
-            entregasHoje: entregasHoje.length,
-            faturamentoHoje,
-            pedidosPendentes,
-            motoboysAtivos: 0,
-          })
-
-          setPedidosRecentes(pedidos.slice(0, 5))
-
-          // Calcular dados dos gráficos
-          const last7Days = Array.from({ length: 7 }, (_, i) => {
-            const date = subDays(new Date(), 6 - i)
-            return format(date, 'yyyy-MM-dd')
-          })
-
-          const faturamentoDiario = last7Days.map(dateStr => {
-            const dayPedidos = pedidos.filter(
-              (p: PedidoRecente) => p.createdAt.split('T')[0] === dateStr && p.status === 'ENTREGUE'
-            )
-            return {
-              data: format(new Date(dateStr), 'dd/MM', { locale: ptBR }),
-              valor: dayPedidos.reduce((acc: number, p: PedidoRecente) => acc + p.valorTotal, 0),
-              pedidos: dayPedidos.length,
-            }
-          })
-
-          const pedidosPorDia = last7Days.map(dateStr => {
-            const count = pedidos.filter(
-              (p: PedidoRecente) => p.createdAt.split('T')[0] === dateStr
-            ).length
-            return {
-              dia: format(new Date(dateStr), 'EEE', { locale: ptBR }),
-              total: count,
-            }
-          })
-
-          const statusCounts = pedidos.reduce((acc: Record<string, number>, p: PedidoRecente) => {
-            const label = LABELS_STATUS_PEDIDO[p.status] || p.status
-            acc[label] = (acc[label] || 0) + 1
-            return acc
-          }, {})
-
-          const statusPedidos = Object.entries(statusCounts).map(([status, count]) => ({
-            status,
-            count: count as number,
-          }))
-
-          setChartData({ faturamentoDiario, pedidosPorDia, statusPedidos })
-        }
-
-        // Buscar motoboys ativos
-        const motoboysRes = await fetch('/api/motoboys?status=DISPONIVEL')
-        const motoboysData = await motoboysRes.json()
-
-        if (motoboysData.success) {
-          setStats((prev) => ({
-            ...prev,
-            motoboysAtivos: motoboysData.data.length,
-          }))
+        const response = await fetch('/api/dashboard')
+        const result = await response.json()
+        if (result.success) {
+          setStats(result.data.stats)
+          setPedidosRecentes(result.data.pedidosRecentes)
+          setChartData(result.data.chartData)
         }
       } catch (error) {
         console.error('Erro ao carregar dashboard:', error)

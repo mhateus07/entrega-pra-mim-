@@ -204,6 +204,7 @@ export default function PixPayment({
         {/* QR Code */}
         <div className="flex justify-center">
           <div className="p-4 bg-white rounded-lg shadow-inner">
+            {/* eslint-disable-next-line @next/next/no-img-element -- QR Code em data URL */}
             <img
               src={qrCode}
               alt="QR Code PIX"

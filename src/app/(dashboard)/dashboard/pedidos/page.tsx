@@ -3,6 +3,8 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { usePaginatedList } from '@/hooks/usePaginatedList'
+import Pagination from '@/components/ui/Pagination'
 import { motion } from 'framer-motion'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import { formatarMoeda } from '@/lib/pricing'
@@ -40,9 +42,10 @@ interface Pedido {
 export default function PedidosAdminPage() {
   const { status } = useSession()
   const router = useRouter()
-  const [pedidos, setPedidos] = useState<Pedido[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [filtroStatus, setFiltroStatus] = useState<StatusPedido | 'TODOS'>('TODOS')
+
+  const list = usePaginatedList<Pedido>(status === 'authenticated' ? `/api/pedidos${filtroStatus === 'TODOS' ? '' : `?status=${filtroStatus}`}` : null)
+  const pedidos = list.data
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -50,28 +53,7 @@ export default function PedidosAdminPage() {
     }
   }, [status, router])
 
-  useEffect(() => {
-    const fetchPedidos = async () => {
-      try {
-        const response = await fetch('/api/pedidos')
-        const data = await response.json()
-
-        if (data.success) {
-          setPedidos(data.data)
-        }
-      } catch (error) {
-        console.error('Erro ao carregar pedidos:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (status === 'authenticated') {
-      fetchPedidos()
-    }
-  }, [status])
-
-  if (status === 'loading' || isLoading) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -85,9 +67,7 @@ export default function PedidosAdminPage() {
     )
   }
 
-  const pedidosFiltrados = filtroStatus === 'TODOS'
-    ? pedidos
-    : pedidos.filter(p => p.status === filtroStatus)
+  const pedidosFiltrados = pedidos
 
   const statusOptions: (StatusPedido | 'TODOS')[] = ['TODOS', 'SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA', 'ENTREGUE', 'CANCELADO']
 
@@ -109,7 +89,7 @@ export default function PedidosAdminPage() {
           animate={{ opacity: 1, y: 0 }}
         >
           <h1 className="text-xl sm:text-2xl font-bold text-white">Pedidos</h1>
-          <p className="text-slate-400 text-sm">{pedidosFiltrados.length} pedidos encontrados</p>
+          <p className="text-slate-400 text-sm">{list.pagination.total} pedidos encontrados</p>
         </motion.div>
 
         {/* Filtros */}
@@ -130,11 +110,7 @@ export default function PedidosAdminPage() {
               }`}
             >
               {statusOption === 'TODOS' ? 'Todos' : LABELS_STATUS_PEDIDO[statusOption]}
-              {statusOption !== 'TODOS' && (
-                <span className="ml-1 sm:ml-2 text-xs opacity-70">
-                  ({pedidos.filter(p => p.status === statusOption).length})
-                </span>
-              )}
+
             </button>
           ))}
         </motion.div>
@@ -283,6 +259,7 @@ export default function PedidosAdminPage() {
             </motion.div>
           </>
         )}
+        <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />
       </main>
     </div>
   )
