@@ -4,8 +4,8 @@ import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
 import path from 'path'
+import { COMPROVANTE_DIR, detectarFormatoImagem, urlComprovante } from '@/lib/comprovante-storage'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -56,20 +56,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Processar upload
     const formData = await request.formData()
-    const file = formData.get('foto') as File | null
+    const file = formData.get('foto')
 
-    if (!file) {
+    if (!(file instanceof File)) {
       return jsonResponse(
         { success: false, error: 'Nenhuma foto enviada' },
-        { status: 400 }
-      )
-    }
-
-    // Validar tipo de arquivo
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-    if (!allowedTypes.includes(file.type)) {
-      return jsonResponse(
-        { success: false, error: 'Tipo de arquivo não permitido. Use JPG, PNG ou WebP.' },
         { status: 400 }
       )
     }
@@ -83,24 +74,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // Criar diretório se não existir
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'comprovantes')
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true })
+    // Validar tipo pelo conteúdo; nome e MIME enviados pelo cliente não são confiáveis
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const extension = detectarFormatoImagem(buffer)
+    if (!extension) {
+      return jsonResponse(
+        { success: false, error: 'Tipo de arquivo não permitido. Use JPG, PNG ou WebP.' },
+        { status: 400 }
+      )
     }
 
-    // Gerar nome único para o arquivo
-    const extension = file.name.split('.').pop() || 'jpg'
+    // Salvar fora de public/: o acesso passa pela rota autenticada
+    await mkdir(COMPROVANTE_DIR, { recursive: true })
     const fileName = `${id}-${Date.now()}.${extension}`
-    const filePath = path.join(uploadDir, fileName)
+    await writeFile(path.join(COMPROVANTE_DIR, fileName), buffer)
 
-    // Salvar arquivo
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    await writeFile(filePath, buffer)
-
-    // URL pública do arquivo
-    const fotoUrl = `/uploads/comprovantes/${fileName}`
+    const fotoUrl = urlComprovante(id, fileName)
 
     // Atualizar pedido com URL da foto
     const pedidoAtualizado = await prisma.pedido.update({

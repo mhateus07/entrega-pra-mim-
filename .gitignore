@@ -47,3 +47,18 @@ next-env.d.ts
 
 /src/generated/prisma
 docs/CREDENCIAIS_DEMO.md
+
+# artefatos de deploy (podem conter .env reais)
+deploy.tar.gz
+*.tar.gz
+deploy/.env*
+
+# uploads de usuários
+/storage/
+/public/uploads/*
+!/public/uploads/comprovantes/
+/public/uploads/comprovantes/*
+!/public/uploads/comprovantes/.gitkeep
+
+# configurações locais do Claude Code
+.claude/settings.local.json

@@ -361,7 +361,7 @@ mkdir -p $BACKUP_DIR
 mysqldump -u entrega_user -pSuaSenha entrega_pra_mim > $BACKUP_DIR/db_$DATE.sql
 
 # Backup dos uploads
-tar -czf $BACKUP_DIR/uploads_$DATE.tar.gz /home/entrega/entrega_pra_mim/public/uploads
+tar -czf $BACKUP_DIR/comprovantes_$DATE.tar.gz /home/entrega/entrega_pra_mim/storage/comprovantes
 
 # Manter apenas últimos 7 dias
 find $BACKUP_DIR -mtime +7 -delete
