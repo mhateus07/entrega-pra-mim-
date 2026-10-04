@@ -6,14 +6,17 @@ import { useEffect, useState, useRef } from 'react'
 import { usePaginatedList } from '@/hooks/usePaginatedList'
 import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
-import Button from '@/components/ui/Button'
+import { AlertTriangle, ArrowRight, Inbox, Navigation, Phone, Power, Radio, RefreshCw, Star } from 'lucide-react'
+import Button, { buttonClass } from '@/components/ui/Button'
 import Header from '@/components/ui/Header'
-import { Card, CardContent } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
+import { Alert, EmptyState, FullPageLoader } from '@/components/ui/Feedback'
+import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
+import { cn } from '@/utils/cn'
 import TrackingMap from '@/components/maps/TrackingMap'
 import { formatarMoeda } from '@/lib/pricing'
-import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO, LABELS_STATUS_MOTOBOY, CORES_STATUS_MOTOBOY } from '@/utils/helpers'
-import { StatusPedido, StatusMotoboy } from '@/types'
+import { LABELS_TIPO_SERVICO, codigoPedido } from '@/utils/helpers'
+import type { StatusPedido, StatusMotoboy, TipoServico } from '@prisma/client'
 import { useLocationSharing } from '@/hooks/useTracking'
 import { useNotifications } from '@/hooks/useNotifications'
 import toast from 'react-hot-toast'
@@ -172,9 +175,9 @@ export default function MotoboyPage() {
         setMotoboy({ ...motoboy, status: novoStatus })
 
         if (novoStatus === 'DISPONIVEL') {
-          toast.success('Você está online! Aguardando pedidos...')
+          toast.success('Você está online. Novos pedidos aparecerão aqui.')
         } else {
-          toast('Você está offline', { icon: '🔴' })
+          toast('Você está offline')
         }
       } else {
         toast.error(data.error || 'Erro ao atualizar status')
@@ -205,7 +208,7 @@ export default function MotoboyPage() {
       if (data.success) {
         setPedidoAtual(data.data)
         setMotoboy({ ...motoboy, status: 'EM_ENTREGA' })
-        toast.success('Pedido aceito! Vá até o local de coleta.')
+        toast.success('Pedido aceito. Siga para o local de coleta.')
       } else {
         toast.error(data.error || 'Erro ao aceitar pedido')
       }
@@ -223,10 +226,10 @@ export default function MotoboyPage() {
     }
 
     const statusMessages: Record<StatusPedido, string> = {
-      ACEITO: 'Pedido aceito!',
-      EM_COLETA: 'Coleta iniciada! Vá até o local.',
-      EM_ENTREGA: 'Entrega iniciada! A caminho do destino.',
-      ENTREGUE: 'Entrega confirmada! Parabéns!',
+      ACEITO: 'Pedido aceito',
+      EM_COLETA: 'Coleta iniciada',
+      EM_ENTREGA: 'Item coletado. Siga para o destino.',
+      ENTREGUE: 'Entrega confirmada',
       SOLICITADO: '',
       CANCELADO: '',
     }
@@ -241,7 +244,7 @@ export default function MotoboyPage() {
       const data = await response.json()
 
       if (data.success) {
-        toast.success(statusMessages[novoStatus] || 'Status atualizado!')
+        toast.success(statusMessages[novoStatus] || 'Status atualizado')
 
         setPedidoAtual(data.data)
       } else {
@@ -253,13 +256,7 @@ export default function MotoboyPage() {
     }
   }
 
-  if (status === 'loading' || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  if (status === 'loading' || isLoading) return <FullPageLoader />
 
   const getNextStatus = (currentStatus: StatusPedido): StatusPedido | null => {
     const flow: Record<StatusPedido, StatusPedido | null> = {
@@ -276,348 +273,194 @@ export default function MotoboyPage() {
   const getNextStatusLabel = (currentStatus: StatusPedido): string | null => {
     const labels: Record<StatusPedido, string | null> = {
       SOLICITADO: 'Aceitar',
-      ACEITO: 'Iniciar Coleta',
-      EM_COLETA: 'Iniciar Entrega',
-      EM_ENTREGA: 'Confirmar Entrega',
+      ACEITO: 'Cheguei na coleta',
+      EM_COLETA: 'Item coletado, iniciar entrega',
+      EM_ENTREGA: 'Confirmar entrega',
       ENTREGUE: null,
       CANCELADO: null,
     }
     return labels[currentStatus]
   }
 
+  const online = motoboy?.status === 'DISPONIVEL' || motoboy?.status === 'EM_ENTREGA'
+
+  const enderecoBloco = (tipo: 'coleta' | 'entrega', e: Pedido['enderecoOrigem']) => (
+    <div className="flex gap-3">
+      {tipo === 'coleta'
+        ? <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-fg" aria-hidden="true" />
+        : <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-brand" aria-hidden="true" />}
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-fg-3">{tipo === 'coleta' ? 'Coleta' : 'Entrega'}</p>
+        <p className="text-sm font-medium text-fg">
+          {e.logradouro ? `${e.logradouro}${e.numero ? `, ${e.numero}` : ''}` : e.bairro}
+        </p>
+        <p className="text-[13px] text-fg-3">{e.bairro}, {e.cidade}</p>
+      </div>
+      {e.latitude && (
+        <a
+          href={`https://www.google.com/maps/dir/?api=1&destination=${e.latitude},${e.longitude}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClass('outline', 'sm', 'shrink-0')}
+        >
+          <Navigation className="h-3.5 w-3.5" /> Rota
+        </a>
+      )}
+    </div>
+  )
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-page">
       <Header userName={session?.user?.name} userRole="MOTOBOY" />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Location Sharing Status */}
-        {isSharing && (
-          <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+      <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+        {/* Status */}
+        <section className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-2.5 w-2.5">
+              {online && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />}
+              <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full', online ? 'bg-success' : 'bg-fg-3')} />
             </span>
-            <span className="text-green-700 dark:text-green-300 text-sm font-medium">
-              Compartilhando localização em tempo real
-            </span>
-          </div>
-        )}
-
-        {locationError && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
-            {locationError}
-          </div>
-        )}
-
-        {/* Status and Earnings Cards */}
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Status Card */}
-          <Card variant="bordered">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Seu Status
-                  </h2>
-                  <div className="space-y-2">
-                    <span
-                      className={`inline-block px-3 py-1 text-sm font-medium rounded-full ${
-                        motoboy ? CORES_STATUS_MOTOBOY[motoboy.status] : ''
-                      }`}
-                    >
-                      {motoboy ? LABELS_STATUS_MOTOBOY[motoboy.status] : 'Carregando...'}
-                    </span>
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
-                      <span>{motoboy?.totalEntregas || 0} entregas</span>
-                      <span className="flex items-center gap-1">
-                        <span className="text-yellow-500">★</span>
-                        {motoboy?.avaliacaoMedia.toFixed(1) || '5.0'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                {motoboy?.status !== 'EM_ENTREGA' && (
-                  <Button
-                    variant={motoboy?.status === 'DISPONIVEL' ? 'danger' : 'primary'}
-                    onClick={handleToggleStatus}
-                    isLoading={isUpdatingStatus}
-                    size="sm"
-                  >
-                    {motoboy?.status === 'DISPONIVEL' ? 'Ficar Offline' : 'Ficar Online'}
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Earnings Card */}
-          <Card variant="bordered">
-            <CardContent className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Seus Ganhos
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Disponível</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {formatarMoeda(saldo?.saldoDisponivel || 0)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Pendente</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {formatarMoeda(saldo?.saldoPendente || 0)}
-                  </p>
-                </div>
-                <div className="col-span-2 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Total Recebido</p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {formatarMoeda(saldo?.totalRecebido || 0)}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4">
-                <Link href="/motoboy/ganhos">
-                  <Button variant="outline" size="sm" className="w-full">
-                    Ver Detalhes
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Current Order */}
-        {pedidoAtual && (
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Entrega Atual
-            </h2>
-
-            {/* Mapa de rastreamento */}
-            {pedidoAtual.enderecoOrigem?.latitude && pedidoAtual.enderecoDestino?.latitude && (
-              <Card variant="bordered" className="mb-4">
-                <CardContent className="p-0">
-                  <TrackingMap
-                    origem={{
-                      lat: pedidoAtual.enderecoOrigem.latitude,
-                      lng: pedidoAtual.enderecoOrigem.longitude,
-                      label: 'Coleta'
-                    }}
-                    destino={{
-                      lat: pedidoAtual.enderecoDestino.latitude,
-                      lng: pedidoAtual.enderecoDestino.longitude,
-                      label: 'Entrega'
-                    }}
-                    motoboyLocation={null}
-                    className="h-64 md:h-80"
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            <Card variant="bordered">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          CORES_STATUS_PEDIDO[pedidoAtual.status]
-                        }`}
-                      >
-                        {LABELS_STATUS_PEDIDO[pedidoAtual.status]}
-                      </span>
-                      <Badge variant="info" size="sm">
-                        {pedidoAtual.tipoServico}
-                      </Badge>
-                    </div>
-                  </div>
-                  <p className="text-lg font-bold text-gray-900 dark:text-white">
-                    {formatarMoeda(pedidoAtual.valorTotal)}
-                  </p>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4 mb-4">
-                  <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                    <p className="text-xs text-green-600 dark:text-green-400 uppercase mb-1 font-medium">
-                      Coleta
-                    </p>
-                    {pedidoAtual.enderecoOrigem.logradouro ? (
-                      <>
-                        <p className="text-sm text-gray-900 dark:text-white font-medium">
-                          {pedidoAtual.enderecoOrigem.logradouro}
-                          {pedidoAtual.enderecoOrigem.numero && `, ${pedidoAtual.enderecoOrigem.numero}`}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {pedidoAtual.enderecoOrigem.bairro}, {pedidoAtual.enderecoOrigem.cidade}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-gray-900 dark:text-white font-medium">
-                        {pedidoAtual.enderecoOrigem.bairro}, {pedidoAtual.enderecoOrigem.cidade}
-                      </p>
-                    )}
-                    {pedidoAtual.enderecoOrigem.latitude && (
-                      <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${pedidoAtual.enderecoOrigem.latitude},${pedidoAtual.enderecoOrigem.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 mt-2 text-xs text-green-600 dark:text-green-400 hover:underline"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Abrir no Maps
-                      </a>
-                    )}
-                  </div>
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                    <p className="text-xs text-red-600 dark:text-red-400 uppercase mb-1 font-medium">
-                      Entrega
-                    </p>
-                    {pedidoAtual.enderecoDestino.logradouro ? (
-                      <>
-                        <p className="text-sm text-gray-900 dark:text-white font-medium">
-                          {pedidoAtual.enderecoDestino.logradouro}
-                          {pedidoAtual.enderecoDestino.numero && `, ${pedidoAtual.enderecoDestino.numero}`}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {pedidoAtual.enderecoDestino.bairro}, {pedidoAtual.enderecoDestino.cidade}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-gray-900 dark:text-white font-medium">
-                        {pedidoAtual.enderecoDestino.bairro}, {pedidoAtual.enderecoDestino.cidade}
-                      </p>
-                    )}
-                    {pedidoAtual.enderecoDestino.latitude && (
-                      <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${pedidoAtual.enderecoDestino.latitude},${pedidoAtual.enderecoDestino.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 mt-2 text-xs text-red-600 dark:text-red-400 hover:underline"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Abrir no Maps
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 uppercase mb-1">Cliente</p>
-                  <p className="text-sm text-gray-900 dark:text-white">
-                    {pedidoAtual.cliente.user.nome}
-                  </p>
-                  <a
-                    href={`tel:${pedidoAtual.cliente.user.telefone}`}
-                    className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    {pedidoAtual.cliente.user.telefone}
-                  </a>
-                </div>
-
-                {getNextStatus(pedidoAtual.status) && (
-                  <div className="mt-6 flex justify-end">
-                    <Button
-                      onClick={() =>
-                        handleAtualizarStatusPedido(getNextStatus(pedidoAtual.status)!)
-                      }
-                    >
-                      {getNextStatusLabel(pedidoAtual.status)}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Available Orders */}
-        {!pedidoAtual && motoboy?.status === 'DISPONIVEL' && (
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Pedidos Disponíveis
-            </h2>
-            {pedidosDisponiveis.length === 0 ? (
-              <Card variant="bordered">
-                <CardContent className="p-8 text-center">
-                  <p className="text-gray-500">
-                    Nenhum pedido disponivel no momento
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {pedidosDisponiveis.map((pedido) => (
-                  <Card key={pedido.id} variant="bordered">
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <Badge variant="info" size="sm">
-                            {pedido.tipoServico}
-                          </Badge>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {pedido.distanciaKm.toFixed(1)} km -{' '}
-                            {pedido.duracaoEstimada} min
-                          </p>
-                        </div>
-                        <p className="text-lg font-bold text-gray-900">
-                          {formatarMoeda(pedido.valorTotal)}
-                        </p>
-                      </div>
-
-                      <div className="grid md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase mb-1">
-                            Coleta
-                          </p>
-                          <p className="text-sm text-gray-900">
-                            {pedido.enderecoOrigem.bairro}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase mb-1">
-                            Entrega
-                          </p>
-                          <p className="text-sm text-gray-900">
-                            {pedido.enderecoDestino.bairro}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end">
-                        <Button onClick={() => handleAceitarPedido(pedido.id)}>
-                          Aceitar Entrega
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Offline Message */}
-        {!pedidoAtual && motoboy?.status === 'OFFLINE' && (
-          <Card variant="bordered">
-            <CardContent className="p-8 text-center">
-              <p className="text-gray-500 mb-4">
-                Voce esta offline. Fique online para receber pedidos.
+            <div>
+              <p className="text-sm font-semibold text-fg">{motoboy ? (motoboy.status === 'EM_ENTREGA' ? 'Em entrega' : online ? 'Online' : 'Offline') : '—'}</p>
+              <p className="text-xs text-fg-3">
+                {motoboy?.status === 'EM_ENTREGA' ? 'Conclua a entrega atual para receber novos pedidos' : online ? 'Recebendo pedidos' : 'Você não está recebendo pedidos'}
               </p>
-              <Button onClick={handleToggleStatus} isLoading={isUpdatingStatus}>
-                Ficar Online
-              </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+          {motoboy?.status !== 'EM_ENTREGA' && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={online}
+              aria-label="Ficar online"
+              onClick={handleToggleStatus}
+              disabled={isUpdatingStatus || !motoboy}
+              className={cn('relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50', online ? 'bg-success' : 'bg-surface-3')}
+            >
+              <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform', online ? 'translate-x-6' : 'translate-x-1')} />
+            </button>
+          )}
+        </section>
+
+        {isSharing && (
+          <Alert variant="success" icon={Radio}>Sua localização está sendo compartilhada com o cliente durante a entrega.</Alert>
         )}
-        {motoboy?.status === 'DISPONIVEL' && !pedidoAtual && <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />}
+        {locationError && <Alert variant="danger" icon={AlertTriangle}>{locationError}</Alert>}
+
+        {/* Ganhos */}
+        <section className="grid grid-cols-3 divide-x divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-xs">
+          <div className="p-4">
+            <p className="text-xs text-fg-3">Disponível</p>
+            <p className="mt-1 text-lg font-semibold tabular text-fg">{formatarMoeda(saldo?.saldoDisponivel || 0)}</p>
+          </div>
+          <div className="p-4">
+            <p className="text-xs text-fg-3">A liberar</p>
+            <p className="mt-1 text-lg font-semibold tabular text-fg-2">{formatarMoeda(saldo?.saldoPendente || 0)}</p>
+          </div>
+          <Link href="/motoboy/ganhos" className="group flex flex-col justify-between p-4 hover:bg-surface-2/60">
+            <p className="text-xs text-fg-3">Entregas · nota</p>
+            <p className="mt-1 flex items-center gap-2 text-lg font-semibold tabular text-fg">
+              {motoboy?.totalEntregas ?? 0}
+              <span className="flex items-center gap-0.5 text-sm font-medium text-fg-2"><Star className="h-3.5 w-3.5 fill-current text-chart-4" />{motoboy?.avaliacaoMedia.toFixed(1) ?? '—'}</span>
+            </p>
+          </Link>
+        </section>
+
+        {/* Entrega atual */}
+        {pedidoAtual && (
+          <section className="overflow-hidden rounded-xl border border-line bg-surface shadow-card">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <div className="flex items-center gap-2">
+                <PedidoStatusBadge status={pedidoAtual.status} />
+                <span className="text-xs text-fg-3">{LABELS_TIPO_SERVICO[pedidoAtual.tipoServico as TipoServico] ?? pedidoAtual.tipoServico}</span>
+              </div>
+              <Link href={`/motoboy/pedido/${pedidoAtual.id}`} className="font-mono text-xs text-fg-3 hover:text-fg">{codigoPedido(pedidoAtual.id)}</Link>
+            </div>
+
+            {pedidoAtual.enderecoOrigem?.latitude && pedidoAtual.enderecoDestino?.latitude && (
+              <TrackingMap
+                origem={{ lat: pedidoAtual.enderecoOrigem.latitude, lng: pedidoAtual.enderecoOrigem.longitude, label: 'Coleta' }}
+                destino={{ lat: pedidoAtual.enderecoDestino.latitude, lng: pedidoAtual.enderecoDestino.longitude, label: 'Entrega' }}
+                motoboyLocation={null}
+                className="h-56 border-b border-line md:h-72"
+              />
+            )}
+
+            <div className="space-y-4 p-4">
+              {enderecoBloco('coleta', pedidoAtual.enderecoOrigem)}
+              {enderecoBloco('entrega', pedidoAtual.enderecoDestino)}
+
+              <div className="flex items-center justify-between gap-3 border-t border-line pt-4">
+                <div className="min-w-0">
+                  <p className="text-xs text-fg-3">Cliente</p>
+                  <p className="truncate text-sm font-medium text-fg">{pedidoAtual.cliente.user.nome}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a href={`tel:${pedidoAtual.cliente.user.telefone}`} className={buttonClass('outline', 'sm')}><Phone className="h-3.5 w-3.5" /> Ligar</a>
+                  <span className="text-lg font-semibold tabular text-fg">{formatarMoeda(pedidoAtual.valorTotal)}</span>
+                </div>
+              </div>
+
+              {getNextStatus(pedidoAtual.status) && (
+                <Button size="lg" className="w-full" onClick={() => handleAtualizarStatusPedido(getNextStatus(pedidoAtual.status)!)}>
+                  {getNextStatusLabel(pedidoAtual.status)} <ArrowRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Pedidos disponíveis */}
+        {!pedidoAtual && motoboy?.status === 'DISPONIVEL' && (
+          <section>
+            <div className="mb-3 mt-6 flex items-center justify-between">
+              <h2 className="text-sm font-medium text-fg-2">Pedidos disponíveis</h2>
+              <span className="flex items-center gap-1.5 text-xs text-fg-3"><RefreshCw className="h-3 w-3" /> atualiza a cada 10 s</span>
+            </div>
+            {pedidosDisponiveis.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface">
+                <EmptyState icon={Inbox} title="Nenhum pedido no momento" description="Fique nesta tela: novos pedidos aparecem automaticamente." />
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {pedidosDisponiveis.map((pedido) => (
+                  <li key={pedido.id} className="rounded-xl border border-line bg-surface p-4 shadow-xs">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xl font-semibold tracking-tight tabular text-fg">{formatarMoeda(pedido.valorTotal)}</p>
+                        <p className="mt-0.5 text-[13px] tabular text-fg-3">
+                          {pedido.distanciaKm.toFixed(1)} km · ~{pedido.duracaoEstimada} min · {LABELS_TIPO_SERVICO[pedido.tipoServico as TipoServico] ?? pedido.tipoServico}
+                        </p>
+                      </div>
+                      {pedido.tipoServico === 'EXPRESSA' && <Badge variant="brand">Prioridade</Badge>}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 text-sm text-fg-2">
+                      <span className="truncate">{pedido.enderecoOrigem.bairro}</span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-fg-3" />
+                      <span className="truncate">{pedido.enderecoDestino.bairro}</span>
+                    </div>
+                    <Button className="mt-4 w-full" onClick={() => handleAceitarPedido(pedido.id)}>Aceitar entrega</Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {list.pagination.totalPages > 1 && (
+              <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />
+            )}
+          </section>
+        )}
+
+        {!pedidoAtual && motoboy?.status === 'OFFLINE' && (
+          <div className="rounded-xl border border-line bg-surface">
+            <EmptyState
+              icon={Power}
+              title="Você está offline"
+              description="Fique online para começar a receber pedidos próximos."
+              action={<Button onClick={handleToggleStatus} isLoading={isUpdatingStatus}>Ficar online</Button>}
+            />
+          </div>
+        )}
       </main>
     </div>
   )

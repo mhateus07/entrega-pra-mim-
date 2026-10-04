@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Check, CheckCircle2, Clock, Copy, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Card, CardTitle } from '@/components/ui/Card'
 import toast from 'react-hot-toast'
 import { formatarValor } from '@/lib/pagamentos'
 
@@ -68,7 +69,7 @@ export default function PixPayment({
         setStatus(data.data.status)
 
         if (data.data.status === 'APROVADO') {
-          toast.success('Pagamento confirmado!')
+          toast.success('Pagamento confirmado')
           onAprovado()
         }
       }
@@ -91,7 +92,7 @@ export default function PixPayment({
     try {
       await navigator.clipboard.writeText(copiaCola)
       setCopied(true)
-      toast.success('Código copiado!')
+      toast.success('Código copiado')
       setTimeout(() => setCopied(false), 3000)
     } catch {
       toast.error('Erro ao copiar')
@@ -125,151 +126,91 @@ export default function PixPayment({
 
   if (status === 'APROVADO') {
     return (
-      <Card variant="bordered" className="border-green-500">
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg
-              className="w-8 h-8 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </div>
-          <h3 className="text-xl font-bold text-green-600 mb-2">
-            Pagamento Aprovado!
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            Seu pagamento foi confirmado com sucesso.
-          </p>
-        </CardContent>
+      <Card className="text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-success-soft text-success">
+          <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <h3 className="text-lg font-semibold text-fg">Pagamento aprovado</h3>
+        <p className="mt-1 text-sm text-fg-2">Seu pagamento foi confirmado.</p>
       </Card>
     )
   }
 
   if (status === 'EXPIRADO' || tempoRestante === 0) {
     return (
-      <Card variant="bordered" className="border-red-500">
-        <CardContent className="p-8 text-center">
-          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg
-              className="w-8 h-8 text-red-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-xl font-bold text-red-600 mb-2">PIX Expirado</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            O tempo para pagamento expirou. Por favor, gere um novo PIX.
-          </p>
-          <Button onClick={onCancelado}>Tentar Novamente</Button>
-        </CardContent>
+      <Card className="text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-danger">
+          <Clock className="h-6 w-6" aria-hidden="true" />
+        </div>
+        <h3 className="text-lg font-semibold text-fg">Código Pix expirado</h3>
+        <p className="mb-5 mt-1 text-sm text-fg-2">O prazo para pagamento terminou. Gere um novo código para continuar.</p>
+        <Button onClick={onCancelado}>Gerar novo código</Button>
       </Card>
     )
   }
 
   return (
-    <Card variant="bordered">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <span>Pague com PIX</span>
-          <span className="text-sm font-normal text-gray-500">
-            Expira em {formatarTempo(tempoRestante)}
-          </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Valor */}
-        <div className="text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Valor</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
-            {formatarValor(valorTotal)}
+    <Card>
+      <div className="flex items-baseline justify-between border-b border-line pb-4">
+        <div>
+          <CardTitle>Pague com Pix</CardTitle>
+          <p className="mt-0.5 text-[13px] text-fg-3">
+            Expira em <span className="font-medium tabular text-fg-2">{formatarTempo(tempoRestante)}</span>
           </p>
         </div>
+        <p className="text-2xl font-semibold tracking-tight tabular text-fg">{formatarValor(valorTotal)}</p>
+      </div>
 
-        {/* QR Code */}
-        <div className="flex justify-center">
-          <div className="p-4 bg-white rounded-lg shadow-inner">
-            {/* eslint-disable-next-line @next/next/no-img-element -- QR Code em data URL */}
-            <img
-              src={qrCode}
-              alt="QR Code PIX"
-              className="w-48 h-48"
-            />
-          </div>
+      <div className="mt-5 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
+        <div className="mx-auto rounded-lg border border-line bg-white p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- QR Code em data URL */}
+          <img src={qrCode} alt="QR Code Pix" className="h-44 w-44" />
         </div>
+        <ol className="space-y-2.5 text-sm text-fg-2">
+          {['Abra o app do seu banco', 'Escolha pagar com Pix', 'Escaneie o QR Code ou cole o código', 'Confirme o pagamento'].map((t, i) => (
+            <li key={t} className="flex gap-3">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[11px] font-semibold text-fg-2">{i + 1}</span>
+              {t}
+            </li>
+          ))}
+        </ol>
+      </div>
 
-        {/* Instruções */}
-        <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-          <p className="font-medium text-gray-900 dark:text-white">Como pagar:</p>
-          <ol className="list-decimal list-inside space-y-1">
-            <li>Abra o app do seu banco</li>
-            <li>Escolha pagar com PIX</li>
-            <li>Escaneie o QR Code ou cole o código</li>
-            <li>Confirme o pagamento</li>
-          </ol>
-        </div>
-
-        {/* Copia e Cola */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Ou copie o código PIX:
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={copiaCola}
-              readOnly
-              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border rounded-lg text-sm truncate"
-            />
-            <Button onClick={handleCopiar} variant={copied ? 'primary' : 'outline'}>
-              {copied ? 'Copiado!' : 'Copiar'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Status */}
-        <div className="flex items-center justify-center gap-2 text-sm">
-          {isChecking ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-              <span className="text-gray-600 dark:text-gray-400">Verificando pagamento...</span>
-            </>
-          ) : (
-            <>
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
-              </span>
-              <span className="text-gray-600 dark:text-gray-400">Aguardando pagamento</span>
-            </>
-          )}
-        </div>
-
-        {/* Botões */}
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={handleCancelar} className="flex-1">
-            Cancelar
-          </Button>
-          <Button onClick={verificarStatus} isLoading={isChecking} className="flex-1">
-            Já Paguei
+      <div className="mt-6">
+        <p className="mb-1.5 text-[13px] font-medium text-fg-2">Pix copia e cola</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={copiaCola}
+            readOnly
+            aria-label="Código Pix copia e cola"
+            className="h-10 min-w-0 flex-1 truncate rounded-lg border border-line-strong bg-surface-2 px-3 font-mono text-xs text-fg-2"
+          />
+          <Button onClick={handleCopiar} variant="outline" className="h-10">
+            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {copied ? 'Copiado' : 'Copiar'}
           </Button>
         </div>
-      </CardContent>
+      </div>
+
+      <div className="mt-6 flex items-center gap-2 text-[13px] text-fg-2" aria-live="polite">
+        {isChecking ? (
+          <><Loader2 className="h-4 w-4 animate-spin text-fg-3" /> Verificando pagamento…</>
+        ) : (
+          <>
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-warning" />
+            </span>
+            Aguardando pagamento
+          </>
+        )}
+      </div>
+
+      <div className="mt-5 flex gap-2 border-t border-line pt-5">
+        <Button variant="outline" onClick={handleCancelar} className="flex-1">Cancelar</Button>
+        <Button onClick={verificarStatus} isLoading={isChecking} className="flex-1">Já paguei</Button>
+      </div>
     </Card>
   )
 }

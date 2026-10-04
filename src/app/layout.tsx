@@ -1,19 +1,25 @@
 import type { Metadata, Viewport } from 'next'
-import { Montserrat } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 
-const montserrat = Montserrat({
+const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-montserrat',
-  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
   display: 'swap',
 })
 
 export const metadata: Metadata = {
-  title: 'Entrega Pra Mim - Plataforma de Entregas',
-  description: 'Plataforma de tecnologia logística e delivery urbano. Velocidade, agilidade, precisão e confiabilidade.',
+  title: {
+    default: 'Entrega Pra Mim — Entregas urbanas sob demanda',
+    template: '%s · Entrega Pra Mim',
+  },
+  description: 'Coleta e entrega urbana com motoboys verificados, preço calculado por distância e acompanhamento em tempo real.',
   manifest: '/manifest.json',
+  icons: {
+    icon: [{ url: '/icons/icon.svg', type: 'image/svg+xml' }, { url: '/icons/icon-192x192.png', type: 'image/png' }],
+    apple: [{ url: '/icons/icon-192x192.png' }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -25,20 +31,18 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Entrega Pra Mim',
-    title: 'Entrega Pra Mim - Plataforma de Entregas',
-    description: 'Plataforma de tecnologia logística e delivery urbano. Velocidade, agilidade, precisão e confiabilidade.',
+    title: 'Entrega Pra Mim — Entregas urbanas sob demanda',
+    description: 'Coleta e entrega urbana com motoboys verificados, preço calculado por distância e acompanhamento em tempo real.',
   },
 }
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#0A4D68' },
-    { media: '(prefers-color-scheme: dark)', color: '#1e293b' },
+    { media: '(prefers-color-scheme: light)', color: '#f7f7f5' },
+    { media: '(prefers-color-scheme: dark)', color: '#0e0e0d' },
   ],
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 }
 
 export default function RootLayout({
@@ -48,17 +52,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/icons/app-icon.png" type="image/png" sizes="any" />
-        <link rel="icon" href="/icons/app-icon.png" type="image/png" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192x192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="mobile-web-app-capable" content="yes" />
-      </head>
-      <body className={`${montserrat.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import { motion, AnimatePresence } from 'framer-motion'
-import Button from './Button'
+import { ArrowLeft, LogOut, Menu, X } from 'lucide-react'
+import Logo from '@/components/brand/Logo'
 import ThemeToggle from './ThemeToggle'
+import { cn } from '@/utils/cn'
 
 interface HeaderProps {
   userName?: string | null
@@ -15,191 +16,118 @@ interface HeaderProps {
   backHref?: string
 }
 
+function linksFor(role?: HeaderProps['userRole']) {
+  switch (role) {
+    case 'ADMIN':
+      return [
+        { href: '/dashboard', label: 'Visão geral' },
+        { href: '/dashboard/pedidos', label: 'Pedidos' },
+        { href: '/dashboard/motoboys', label: 'Entregadores' },
+        { href: '/dashboard/clientes', label: 'Clientes' },
+      ]
+    case 'MOTOBOY':
+      return [
+        { href: '/motoboy', label: 'Início' },
+        { href: '/motoboy/ganhos', label: 'Ganhos' },
+        { href: '/motoboy/historico', label: 'Histórico' },
+      ]
+    case 'CLIENTE':
+      return [
+        { href: '/cliente', label: 'Minhas entregas' },
+        { href: '/cliente/nova-entrega', label: 'Nova entrega' },
+      ]
+    default:
+      return []
+  }
+}
+
 export default function Header({ userName, userRole, showBackButton, backHref }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/' })
-  }
-
-  const getNavLinks = () => {
-    switch (userRole) {
-      case 'ADMIN':
-        return [
-          { href: '/dashboard', label: 'Dashboard' },
-          { href: '/dashboard/pedidos', label: 'Pedidos' },
-          { href: '/dashboard/motoboys', label: 'Motoboys' },
-          { href: '/dashboard/clientes', label: 'Clientes' },
-        ]
-      case 'MOTOBOY':
-        return [
-          { href: '/motoboy', label: 'Início' },
-          { href: '/motoboy/ganhos', label: 'Ganhos' },
-          { href: '/motoboy/historico', label: 'Histórico' },
-        ]
-      case 'CLIENTE':
-        return [
-          { href: '/cliente', label: 'Minhas Entregas' },
-          { href: '/cliente/nova-entrega', label: 'Nova Entrega' },
-        ]
-      default:
-        return []
-    }
-  }
-
-  const navLinks = getNavLinks()
+  const pathname = usePathname()
+  const navLinks = linksFor(userRole)
+  const home = userRole === 'ADMIN' ? '/dashboard' : userRole === 'MOTOBOY' ? '/motoboy' : '/cliente'
+  const isActive = (href: string) => (href === home ? pathname === href : pathname.startsWith(href))
 
   return (
-    <motion.header
-      className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-white/20 dark:border-slate-800/50 sticky top-0 z-50"
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            {showBackButton && backHref && (
-              <motion.div
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Link href={backHref} className="mr-2 p-2 -ml-2 hover:bg-cyan-500/10 dark:hover:bg-cyan-400/10 rounded-xl transition-colors">
-                  <svg className="w-5 h-5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </Link>
-              </motion.div>
-            )}
-            <Link href={userRole === 'ADMIN' ? '/dashboard' : userRole === 'MOTOBOY' ? '/motoboy' : '/cliente'} className="flex items-center gap-3">
-              <motion.div
-                className="w-10 h-10 relative flex-shrink-0 rounded-xl overflow-hidden"
-                whileHover={{ rotate: 5, scale: 1.1 }}
-                transition={{ type: 'spring', stiffness: 300 }}
-              >
-                <Image src="/icons/app-icon.png" alt="Entrega Pra Mim" fill className="object-cover" />
-              </motion.div>
-              <span className="text-lg sm:text-xl font-bold text-gradient hidden sm:block">
-                ENTREGA PRA MIM
-              </span>
+    <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          {showBackButton && backHref && (
+            <Link href={backHref} className="-ml-2 inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2" aria-label="Voltar">
+              <ArrowLeft className="h-[18px] w-[18px]" />
             </Link>
-          </div>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link, index) => (
-              <motion.div
+          )}
+          <Link href={home} className="flex items-center">
+            <Logo markClassName="h-7 w-7" className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline" />
+          </Link>
+          {navLinks.length > 0 && <span className="mx-3 hidden h-5 w-px bg-line md:block" aria-hidden="true" />}
+          <nav className="hidden items-center gap-0.5 md:flex" aria-label="Navegação principal">
+            {navLinks.map((link) => (
+              <Link
                 key={link.href}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                href={link.href}
+                aria-current={isActive(link.href) ? 'page' : undefined}
+                className={cn(
+                  'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  isActive(link.href) ? 'bg-surface-2 text-fg' : 'text-fg-3 hover:text-fg'
+                )}
               >
-                <Link
-                  href={link.href}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-500/10 font-medium text-sm transition-all duration-200"
-                >
-                  {link.label}
-                </Link>
-              </motion.div>
+                {link.label}
+              </Link>
             ))}
           </nav>
-
-          {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-3">
-            <ThemeToggle />
-            {userName && (
-              <motion.span
-                className="text-sm text-slate-500 dark:text-slate-400 max-w-[120px] truncate px-3 py-1.5 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 backdrop-blur-sm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                {userName}
-              </motion.span>
-            )}
-            <Button variant="outline" size="sm" onClick={handleLogout}>
-              Sair
-            </Button>
-          </div>
-
-          {/* Mobile Menu Button */}
-          <div className="flex items-center gap-2 md:hidden">
-            <ThemeToggle />
-            <motion.button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="p-2 rounded-xl hover:bg-cyan-500/10 dark:hover:bg-cyan-400/10 transition-colors"
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.div
-                animate={{ rotate: menuOpen ? 180 : 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                {menuOpen ? (
-                  <svg className="w-6 h-6 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg className="w-6 h-6 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                )}
-              </motion.div>
-            </motion.button>
-          </div>
         </div>
 
-        {/* Mobile Menu */}
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              className="md:hidden py-4 border-t border-white/20 dark:border-slate-800/50"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              {userName && (
-                <motion.div
-                  className="px-3 py-3 mb-3 bg-white/50 dark:bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/20 dark:border-slate-700/50"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Logado como</p>
-                  <p className="font-semibold text-slate-800 dark:text-white truncate">{userName}</p>
-                </motion.div>
-              )}
-              <nav className="space-y-1">
-                {navLinks.map((link, index) => (
-                  <motion.div
-                    key={link.href}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 + index * 0.05 }}
-                  >
-                    <Link
-                      href={link.href}
-                      onClick={() => setMenuOpen(false)}
-                      className="block px-4 py-3 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-cyan-500/10 dark:hover:bg-cyan-400/10 hover:text-cyan-600 dark:hover:text-cyan-400 font-medium transition-all duration-200"
-                    >
-                      {link.label}
-                    </Link>
-                  </motion.div>
-                ))}
-                <motion.button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 rounded-xl text-red-500 dark:text-red-400 hover:bg-red-500/10 font-medium transition-all duration-200"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + navLinks.length * 0.05 }}
-                >
-                  Sair da conta
-                </motion.button>
-              </nav>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="hidden items-center gap-1 md:flex">
+          <ThemeToggle />
+          {userName && <span className="ml-2 max-w-[160px] truncate text-sm text-fg-2">{userName}</span>}
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/' })}
+            className="ml-1 inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm text-fg-3 hover:bg-surface-2 hover:text-fg"
+          >
+            <LogOut className="h-4 w-4" /> Sair
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 md:hidden">
+          <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2"
+            aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
-    </motion.header>
+
+      {menuOpen && (
+        <div className="border-t border-line bg-surface px-4 pb-4 pt-2 md:hidden">
+          {userName && <p className="px-3 py-2 text-[13px] text-fg-3">Conectado como <span className="font-medium text-fg">{userName}</span></p>}
+          <nav className="flex flex-col gap-0.5">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className={cn('rounded-lg px-3 py-2.5 text-sm font-medium', isActive(link.href) ? 'bg-surface-2 text-fg' : 'text-fg-2')}
+              >
+                {link.label}
+              </Link>
+            ))}
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: '/' })}
+              className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-danger"
+            >
+              <LogOut className="h-4 w-4" /> Sair da conta
+            </button>
+          </nav>
+        </div>
+      )}
+    </header>
   )
 }

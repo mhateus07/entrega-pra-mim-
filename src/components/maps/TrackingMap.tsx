@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Loader2, MapPinOff } from 'lucide-react'
 import { Loader } from '@googlemaps/js-api-loader'
 
 interface Location {
@@ -32,12 +33,14 @@ export default function TrackingMap({
   const initialOrigin = useRef(origem)
   const [directionsRenderer, setDirectionsRenderer] = useState<google.maps.DirectionsRenderer | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [falhou, setFalhou] = useState(!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
 
   // Inicializar mapa
   useEffect(() => {
     let cancelled = false
     let rendererToClean: google.maps.DirectionsRenderer | null = null
     const initMap = async () => {
+      if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) return
       const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
         version: 'weekly',
@@ -72,8 +75,9 @@ export default function TrackingMap({
           map: mapInstance,
           suppressMarkers: true,
           polylineOptions: {
-            strokeColor: '#3b82f6',
+            strokeColor: '#2a78d6',
             strokeWeight: 4,
+            strokeOpacity: 0.9,
           },
         })
 
@@ -83,6 +87,7 @@ export default function TrackingMap({
         setIsLoaded(true)
       } catch (error) {
         console.error('Erro ao carregar mapa:', error)
+        if (!cancelled) setFalhou(true)
       }
     }
 
@@ -118,7 +123,7 @@ export default function TrackingMap({
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 10,
-            fillColor: '#10b981',
+            fillColor: '#121211',
             fillOpacity: 1,
             strokeColor: '#fff',
             strokeWeight: 2,
@@ -140,7 +145,7 @@ export default function TrackingMap({
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 10,
-            fillColor: '#ef4444',
+            fillColor: '#E2570F',
             fillOpacity: 1,
             strokeColor: '#fff',
             strokeWeight: 2,
@@ -162,14 +167,14 @@ export default function TrackingMap({
           icon: {
             url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-                <circle cx="20" cy="20" r="18" fill="#3b82f6" stroke="#fff" stroke-width="3"/>
-                <text x="20" y="26" text-anchor="middle" fill="#fff" font-size="18">🏍️</text>
+                <circle cx="20" cy="20" r="17" fill="#2a78d6" fill-opacity="0.18"/>
+                <circle cx="20" cy="20" r="9" fill="#2a78d6" stroke="#fff" stroke-width="3"/>
               </svg>
             `),
             scaledSize: new google.maps.Size(40, 40),
             anchor: new google.maps.Point(20, 20),
           },
-          title: 'Motoboy',
+          title: 'Entregador',
           zIndex: 1000,
         })
         markers.motoboy = marker
@@ -228,32 +233,28 @@ export default function TrackingMap({
   }, [map, isLoaded, origem, destino, motoboyLocation])
 
   return (
-    <div className={`relative ${className}`}>
-      <div ref={mapRef} className="w-full h-full rounded-lg" />
+    <div className={`relative overflow-hidden bg-surface-2 ${className}`}>
+      <div ref={mapRef} className="h-full w-full" />
 
-      {!isLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      {falhou ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
+          <MapPinOff className="h-5 w-5 text-fg-3" aria-hidden="true" />
+          <p className="text-sm font-medium text-fg-2">Mapa indisponível no momento</p>
+          <p className="max-w-xs text-xs text-fg-3">O acompanhamento continua pelas etapas do pedido.</p>
+        </div>
+      ) : !isLoaded ? (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-fg-3" aria-hidden="true" />
+        </div>
+      ) : null}
+
+      {!falhou && (
+        <div className="absolute bottom-3 left-3 flex gap-3 rounded-lg border border-line bg-surface/95 px-3 py-2 text-xs text-fg-2 shadow-card backdrop-blur">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#121211] ring-2 ring-white" />Coleta</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#E2570F] ring-2 ring-white" />Entrega</span>
+          {motoboyLocation && <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#2a78d6] ring-2 ring-white" />Entregador</span>}
         </div>
       )}
-
-      {/* Legenda */}
-      <div className="absolute bottom-4 left-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-3 text-sm">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-gray-700 dark:text-gray-300">Coleta</span>
-        </div>
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-3 h-3 rounded-full bg-red-500"></div>
-          <span className="text-gray-700 dark:text-gray-300">Entrega</span>
-        </div>
-        {motoboyLocation && (
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <span className="text-gray-700 dark:text-gray-300">Motoboy</span>
-          </div>
-        )}
-      </div>
     </div>
   )
 }

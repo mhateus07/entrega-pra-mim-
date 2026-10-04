@@ -1,121 +1,57 @@
-'use client'
-
 import { HTMLAttributes, forwardRef } from 'react'
-import { motion, HTMLMotionProps } from 'framer-motion'
 import { cn } from '@/utils/cn'
 
-interface CardProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
-  variant?: 'default' | 'bordered' | 'elevated' | 'glass' | 'gradient'
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  variant?: 'default' | 'bordered' | 'elevated' | 'glass' | 'gradient' | 'muted'
+  /** Mantido por compatibilidade; cards não animam mais no hover. */
   hover?: boolean
-  children?: React.ReactNode
+  padding?: boolean
+}
+
+const variants = {
+  default: 'bg-surface border border-line shadow-xs',
+  bordered: 'bg-surface border border-line-strong',
+  elevated: 'bg-surface border border-line shadow-card',
+  glass: 'bg-surface border border-line shadow-xs',
+  gradient: 'bg-surface border border-line shadow-xs',
+  muted: 'bg-surface-2 border border-line',
 }
 
 const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ className, variant = 'default', hover = true, children, ...props }, ref) => {
-    const variants = {
-      default: 'bg-white/80 dark:bg-slate-800/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50',
-      bordered: 'bg-white/70 dark:bg-slate-800/70 backdrop-blur-xl border-2 border-cyan-500/20 dark:border-cyan-400/20',
-      elevated: 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl shadow-xl shadow-cyan-500/5 border border-white/30 dark:border-slate-700/50',
-      glass: 'bg-white/10 dark:bg-slate-900/30 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.1)]',
-      gradient: 'bg-gradient-to-br from-white/80 to-white/40 dark:from-slate-800/80 dark:to-slate-900/40 backdrop-blur-xl border border-white/30 dark:border-slate-700/30',
-    }
-
+  ({ className, variant = 'default', hover: _hover, padding = true, children, ...props }, ref) => {
+    void _hover
     return (
-      <motion.div
-        ref={ref}
-        className={cn(
-          'rounded-2xl p-6 transition-all duration-300',
-          variants[variant],
-          hover && 'hover:shadow-[0_0_40px_rgba(6,182,212,0.15)] hover:border-cyan-500/30',
-          className
-        )}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        whileHover={hover ? {
-          y: -4,
-          transition: { duration: 0.2 }
-        } : undefined}
-        {...props}
-      >
+      <div ref={ref} className={cn('rounded-xl', padding && 'p-5', variants[variant], className)} {...props}>
         {children}
-      </motion.div>
+      </div>
     )
   }
 )
-
 Card.displayName = 'Card'
 
-type CardHeaderProps = HTMLAttributes<HTMLDivElement>
-
-const CardHeader = forwardRef<HTMLDivElement, CardHeaderProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn('mb-4', className)}
-        {...props}
-      >
-        {children}
-      </div>
-    )
-  }
-)
-
+const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn('mb-4 flex flex-col gap-1', className)} {...props} />
+))
 CardHeader.displayName = 'CardHeader'
 
-type CardTitleProps = HTMLAttributes<HTMLHeadingElement>
-
-const CardTitle = forwardRef<HTMLHeadingElement, CardTitleProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <h3
-        ref={ref}
-        className={cn('text-lg font-bold text-slate-800 dark:text-white', className)}
-        {...props}
-      >
-        {children}
-      </h3>
-    )
-  }
-)
-
+const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (
+  <h3 ref={ref} className={cn('text-[15px] font-semibold tracking-tight text-fg', className)} {...props} />
+))
 CardTitle.displayName = 'CardTitle'
 
-type CardContentProps = HTMLAttributes<HTMLDivElement>
+const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(({ className, ...props }, ref) => (
+  <p ref={ref} className={cn('text-[13px] text-fg-3', className)} {...props} />
+))
+CardDescription.displayName = 'CardDescription'
 
-const CardContent = forwardRef<HTMLDivElement, CardContentProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn('', className)}
-        {...props}
-      >
-        {children}
-      </div>
-    )
-  }
-)
-
+const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn(className)} {...props} />
+))
 CardContent.displayName = 'CardContent'
 
-type CardFooterProps = HTMLAttributes<HTMLDivElement>
-
-const CardFooter = forwardRef<HTMLDivElement, CardFooterProps>(
-  ({ className, children, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        className={cn('mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50', className)}
-        {...props}
-      >
-        {children}
-      </div>
-    )
-  }
-)
-
+const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn('mt-5 flex items-center gap-3 border-t border-line pt-4', className)} {...props} />
+))
 CardFooter.displayName = 'CardFooter'
 
-export { Card, CardHeader, CardTitle, CardContent, CardFooter }
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }

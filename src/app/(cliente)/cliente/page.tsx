@@ -1,43 +1,44 @@
 'use client'
 
+import { useEffect } from 'react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { ChevronRight, PackageOpen, Plus } from 'lucide-react'
 import { usePaginatedList } from '@/hooks/usePaginatedList'
 import Pagination from '@/components/ui/Pagination'
-import Link from 'next/link'
-import Button from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
-import Badge from '@/components/ui/Badge'
 import Header from '@/components/ui/Header'
+import { buttonClass } from '@/components/ui/Button'
+import { EmptyState, FullPageLoader, PageHeader } from '@/components/ui/Feedback'
+import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
 import { formatarMoeda } from '@/lib/pricing'
-import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO } from '@/utils/helpers'
-import { StatusPedido } from '@/types'
+import { LABELS_TIPO_SERVICO, codigoPedido, formatarData, formatarDataHora } from '@/utils/helpers'
+import type { StatusPedido, TipoServico } from '@prisma/client'
 
 interface Pedido {
   id: string
   status: StatusPedido
-  tipoServico: string
+  tipoServico: TipoServico
   valorTotal: number
   distanciaKm: number
   duracaoEstimada: number
   createdAt: string
-  enderecoOrigem: {
-    logradouro: string
-    numero: string
-    bairro: string
-  }
-  enderecoDestino: {
-    logradouro: string
-    numero: string
-    bairro: string
-  }
-  motoboy?: {
-    user: {
-      nome: string
-      telefone: string
-    }
-  }
+  enderecoOrigem: { logradouro: string; numero: string; bairro: string }
+  enderecoDestino: { logradouro: string; numero: string; bairro: string }
+  motoboy?: { user: { nome: string; telefone: string } }
+}
+
+const ETAPAS: StatusPedido[] = ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA', 'ENTREGUE']
+
+function Progresso({ status }: { status: StatusPedido }) {
+  const idx = ETAPAS.indexOf(status)
+  return (
+    <div className="flex gap-1" aria-hidden="true">
+      {ETAPAS.slice(0, 4).map((e, i) => (
+        <span key={e} className={`h-1 flex-1 rounded-full ${i <= idx ? 'bg-brand' : 'bg-surface-3'}`} />
+      ))}
+    </div>
+  )
 }
 
 export default function ClientePage() {
@@ -47,175 +48,107 @@ export default function ClientePage() {
   const historico = usePaginatedList<Pedido>(status === 'authenticated' ? '/api/pedidos?grupo=finalizados' : null)
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login')
-    }
+    if (status === 'unauthenticated') router.push('/login')
   }, [status, router])
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  if (status === 'loading') return <FullPageLoader />
 
-  const pedidosAtivos = ativos.data
-  const pedidosConcluidos = historico.data
+  const primeiroNome = session?.user?.name?.split(' ')[0]
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-screen bg-page">
       <Header userName={session?.user?.name} userRole="CLIENTE" />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Minhas Entregas</h1>
-          <Link href="/cliente/nova-entrega" className="w-full sm:w-auto">
-            <Button className="w-full sm:w-auto">+ Nova Entrega</Button>
-          </Link>
-        </div>
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <PageHeader
+          title={primeiroNome ? `Olá, ${primeiroNome}` : 'Minhas entregas'}
+          description="Acompanhe suas entregas em andamento e consulte o histórico."
+          actions={
+            <Link href="/cliente/nova-entrega" className={buttonClass('brand', 'md', 'w-full sm:w-auto')}>
+              <Plus className="h-4 w-4" /> Nova entrega
+            </Link>
+          }
+        />
 
-        {/* Active Orders */}
-        {pedidosAtivos.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3">
-              Entregas em Andamento
-            </h2>
-            <div className="grid gap-4">
-              {pedidosAtivos.map((pedido) => (
-                <Link key={pedido.id} href={`/cliente/pedido/${pedido.id}`}>
-                  <Card variant="bordered" className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardContent className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span
-                              className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                CORES_STATUS_PEDIDO[pedido.status]
-                              }`}
-                            >
-                              {LABELS_STATUS_PEDIDO[pedido.status]}
-                            </span>
-                            <Badge variant="info" size="sm">
-                              {pedido.tipoServico}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-500">
-                            {new Date(pedido.createdAt).toLocaleString('pt-BR')}
-                          </p>
-                        </div>
-                        <p className="text-lg font-bold text-gray-900">
-                          {formatarMoeda(pedido.valorTotal)}
-                        </p>
+        {ativos.data.length > 0 && (
+          <section className="mb-10">
+            <h2 className="mb-3 text-sm font-medium text-fg-2">Em andamento <span className="text-fg-3">· {ativos.pagination.total}</span></h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              {ativos.data.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/cliente/pedido/${p.id}`}
+                  className="group rounded-xl border border-line bg-surface p-5 shadow-xs transition-colors hover:border-line-strong"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <PedidoStatusBadge status={p.status} />
+                        <span className="text-xs text-fg-3">{LABELS_TIPO_SERVICO[p.tipoServico]}</span>
                       </div>
-
-                      <div className="grid md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase mb-1">
-                            Origem
-                          </p>
-                          <p className="text-sm text-gray-900">
-                            {pedido.enderecoOrigem.logradouro},{' '}
-                            {pedido.enderecoOrigem.numero}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {pedido.enderecoOrigem.bairro}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 uppercase mb-1">
-                            Destino
-                          </p>
-                          <p className="text-sm text-gray-900">
-                            {pedido.enderecoDestino.logradouro},{' '}
-                            {pedido.enderecoDestino.numero}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {pedido.enderecoDestino.bairro}
-                          </p>
-                        </div>
-                      </div>
-
-                      {pedido.motoboy && (
-                        <div className="pt-4 border-t border-gray-100">
-                          <p className="text-xs text-gray-500 uppercase mb-1">
-                            Motoboy
-                          </p>
-                          <p className="text-sm text-gray-900">
-                            {pedido.motoboy.user.nome}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {pedido.motoboy.user.telefone}
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                      <p className="mt-2 font-mono text-xs text-fg-3">{codigoPedido(p.id)} · {formatarDataHora(p.createdAt)}</p>
+                    </div>
+                    <p className="text-lg font-semibold tabular text-fg">{formatarMoeda(p.valorTotal)}</p>
+                  </div>
+                  <div className="mt-4"><Progresso status={p.status} /></div>
+                  <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                    <div className="min-w-0">
+                      <p className="text-xs text-fg-3">Coleta</p>
+                      <p className="truncate text-fg">{p.enderecoOrigem.logradouro}, {p.enderecoOrigem.numero}</p>
+                      <p className="truncate text-[13px] text-fg-3">{p.enderecoOrigem.bairro}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-fg-3">Entrega</p>
+                      <p className="truncate text-fg">{p.enderecoDestino.logradouro}, {p.enderecoDestino.numero}</p>
+                      <p className="truncate text-[13px] text-fg-3">{p.enderecoDestino.bairro}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[13px]">
+                    <span className="text-fg-3">{p.motoboy ? <>Entregador: <span className="text-fg-2">{p.motoboy.user.nome}</span></> : 'Procurando entregador…'}</span>
+                    <span className="inline-flex items-center gap-0.5 font-medium text-fg-2 group-hover:text-fg">Acompanhar <ChevronRight className="h-4 w-4" /></span>
+                  </div>
                 </Link>
               ))}
             </div>
-          </div>
+            {ativos.pagination.totalPages > 1 && (
+              <Pagination pagination={ativos.pagination} onPageChange={ativos.setPage} loading={ativos.loading} error={ativos.error} />
+            )}
+          </section>
         )}
 
-        <Pagination pagination={ativos.pagination} onPageChange={ativos.setPage} loading={ativos.loading} error={ativos.error} />
-
-        {/* Completed Orders */}
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Historico de Entregas
-          </h2>
-          {pedidosConcluidos.length === 0 ? (
-            <Card variant="bordered">
-              <CardContent className="p-8 text-center">
-                <p className="text-gray-500">
-                  Nenhuma entrega concluída ainda
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {pedidosConcluidos.map((pedido) => (
-                <Link key={pedido.id} href={`/cliente/pedido/${pedido.id}`}>
-                  <Card variant="bordered" className="hover:shadow-md transition-shadow cursor-pointer">
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              CORES_STATUS_PEDIDO[pedido.status]
-                            }`}
-                          >
-                            {LABELS_STATUS_PEDIDO[pedido.status]}
-                          </span>
-                          <div>
-                            <p className="text-sm text-gray-900">
-                              {pedido.enderecoDestino.bairro}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(pedido.createdAt).toLocaleDateString(
-                                'pt-BR'
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <p className="font-medium text-gray-900">
-                            {formatarMoeda(pedido.valorTotal)}
-                          </p>
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-fg-2">Histórico</h2>
+          <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-xs">
+            {historico.data.length === 0 ? (
+              historico.loading ? (
+                <div className="space-y-2 p-5">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-10" />)}</div>
+              ) : (
+                <EmptyState
+                  icon={PackageOpen}
+                  title="Nenhuma entrega finalizada"
+                  description="Suas entregas concluídas ou canceladas aparecem aqui."
+                />
+              )
+            ) : (
+              <ul className="divide-y divide-line">
+                {historico.data.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`/cliente/pedido/${p.id}`} className="flex items-center gap-4 px-5 py-3.5 hover:bg-surface-2/60">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-fg">{p.enderecoOrigem.bairro} <span className="text-fg-3">→</span> {p.enderecoDestino.bairro}</p>
+                        <p className="text-xs text-fg-3">{formatarData(p.createdAt)} · {LABELS_TIPO_SERVICO[p.tipoServico]}</p>
                       </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-        <Pagination pagination={historico.pagination} onPageChange={historico.setPage} loading={historico.loading} error={historico.error} />
+                      <PedidoStatusBadge status={p.status} className="hidden sm:inline-flex" />
+                      <span className="w-24 text-right text-sm font-medium tabular text-fg">{formatarMoeda(p.valorTotal)}</span>
+                      <ChevronRight className="h-4 w-4 text-fg-3" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <Pagination pagination={historico.pagination} onPageChange={historico.setPage} loading={historico.loading} error={historico.error} />
+        </section>
       </main>
     </div>
   )

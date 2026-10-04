@@ -1,23 +1,36 @@
 'use client'
 
-import { useSession, signOut } from 'next-auth/react'
-import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useSession } from 'next-auth/react'
+import { useRouter, useParams } from 'next/navigation'
+import { ArrowLeft, Phone, Mail, Star, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { usePaginatedList } from '@/hooks/usePaginatedList'
 import Pagination from '@/components/ui/Pagination'
-import Link from 'next/link'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card'
+import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
-import Button from '@/components/ui/Button'
+import Button, { buttonClass } from '@/components/ui/Button'
 import Select from '@/components/ui/Select'
+import { PageLoader, Alert, DataRow, EmptyState } from '@/components/ui/Feedback'
+import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
+import { RotaEnderecos, LinhaDoTempo, Estrelas } from '@/components/pedido/PedidoParts'
 import { formatarMoeda, formatarDistancia, formatarTempo } from '@/lib/pricing'
-import { LABELS_STATUS_PEDIDO, CORES_STATUS_PEDIDO, formatarDataHora } from '@/utils/helpers'
-import { StatusPedido } from '@/types'
+import { LABELS_TIPO_SERVICO, codigoPedido, formatarDataHora } from '@/utils/helpers'
+import type { StatusPedido, TipoServico } from '@prisma/client'
+
+interface Endereco {
+  logradouro: string
+  numero: string
+  complemento: string | null
+  bairro: string
+  cidade: string
+  estado: string
+}
 
 interface Pedido {
   id: string
   status: StatusPedido
-  tipoServico: string
+  tipoServico: TipoServico
   valorTotal: number
   distanciaKm: number
   duracaoEstimada: number
@@ -29,54 +42,21 @@ interface Pedido {
   entregueEm: string | null
   canceladoEm: string | null
   motivoCancelamento: string | null
-  cliente: {
-    id: string
-    user: {
-      nome: string
-      email: string
-      telefone: string
-    }
-  }
-  motoboy: {
-    id: string
-    avaliacaoMedia: number
-    user: {
-      nome: string
-      telefone: string
-    }
-  } | null
-  enderecoOrigem: {
-    logradouro: string
-    numero: string
-    complemento: string | null
-    bairro: string
-    cidade: string
-    estado: string
-  }
-  enderecoDestino: {
-    logradouro: string
-    numero: string
-    complemento: string | null
-    bairro: string
-    cidade: string
-    estado: string
-  }
-  avaliacao: {
-    nota: number
-    comentario: string | null
-  } | null
+  cliente: { id: string; user: { nome: string; email: string; telefone: string } }
+  motoboy: { id: string; avaliacaoMedia: number; user: { nome: string; telefone: string } } | null
+  enderecoOrigem: Endereco
+  enderecoDestino: Endereco
+  avaliacao: { nota: number; comentario: string | null } | null
 }
 
 interface Motoboy {
   id: string
   status: string
-  user: {
-    nome: string
-  }
+  user: { nome: string }
 }
 
 export default function PedidoAdminDetailPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const params = useParams()
   const pedidoId = params.id as string
@@ -87,91 +67,69 @@ export default function PedidoAdminDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
   const [selectedMotoboy, setSelectedMotoboy] = useState('')
+  const [confirmarCancelamento, setConfirmarCancelamento] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login')
-    }
+    if (status === 'unauthenticated') router.push('/login')
   }, [status, router])
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const pedidoRes = await fetch(`/api/pedidos/${pedidoId}`)
-
         const pedidoData = await pedidoRes.json()
-
-        if (pedidoData.success) {
-          setPedido(pedidoData.data)
-        } else {
-          setError('Pedido não encontrado')
-        }
-
+        if (pedidoData.success) setPedido(pedidoData.data)
+        else setError('Pedido não encontrado')
       } catch {
         setError('Erro ao carregar dados')
       } finally {
         setIsLoading(false)
       }
     }
-
-    if (status === 'authenticated' && pedidoId) {
-      fetchData()
-    }
+    if (status === 'authenticated' && pedidoId) fetchData()
   }, [status, pedidoId])
 
   const handleAtribuirMotoboy = async () => {
     if (!selectedMotoboy) return
-
     setIsUpdating(true)
     setError('')
     setSuccess('')
-
     try {
       const response = await fetch(`/api/pedidos/${pedidoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          motoboyId: selectedMotoboy,
-          status: 'ACEITO',
-        }),
+        body: JSON.stringify({ motoboyId: selectedMotoboy, status: 'ACEITO' }),
       })
-
       const data = await response.json()
-
       if (data.success) {
         setPedido(data.data)
-        setSuccess('Motoboy atribuído com sucesso!')
+        setSuccess('Entregador atribuído ao pedido.')
         setSelectedMotoboy('')
       } else {
-        setError(data.error || 'Erro ao atribuir motoboy')
+        setError(data.error || 'Erro ao atribuir entregador')
       }
     } catch {
-      setError('Erro ao atribuir motoboy')
+      setError('Erro ao atribuir entregador')
     } finally {
       setIsUpdating(false)
     }
   }
 
   const handleCancelar = async () => {
-    if (!confirm('Tem certeza que deseja cancelar este pedido?')) return
-
     setIsUpdating(true)
     setError('')
-
     try {
       const response = await fetch(`/api/pedidos/${pedidoId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ motivoCancelamento: 'Cancelado pelo administrador' }),
       })
-
       const data = await response.json()
-
       if (data.success) {
-        setPedido({ ...pedido!, status: 'CANCELADO', canceladoEm: new Date().toISOString() })
-        setSuccess('Pedido cancelado')
+        setPedido({ ...pedido!, status: 'CANCELADO', canceladoEm: new Date().toISOString(), motivoCancelamento: 'Cancelado pelo administrador' })
+        setSuccess('Pedido cancelado.')
       } else {
         setError(data.error || 'Erro ao cancelar')
       }
@@ -179,31 +137,19 @@ export default function PedidoAdminDetailPage() {
       setError('Erro ao cancelar pedido')
     } finally {
       setIsUpdating(false)
+      setConfirmarCancelamento(false)
     }
   }
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/' })
-  }
-
-  if (status === 'loading' || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
+  if (status === 'loading' || isLoading) return <PageLoader label="Carregando pedido…" />
 
   if (error && !pedido) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Link href="/dashboard/pedidos">
-            <Button>Voltar</Button>
-          </Link>
-        </div>
-      </div>
+      <EmptyState
+        icon={AlertTriangle}
+        title={error}
+        action={<Link href="/dashboard/pedidos" className={buttonClass('outline')}>Voltar para pedidos</Link>}
+      />
     )
   }
 
@@ -213,316 +159,138 @@ export default function PedidoAdminDetailPage() {
   const podeAtribuir = pedido.status === 'SOLICITADO' && !pedido.motoboy
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+    <div className="mx-auto max-w-5xl">
+      <Link href="/dashboard/pedidos" className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">
+        <ArrowLeft className="h-4 w-4" /> Pedidos
+      </Link>
+
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-mono text-[22px] font-semibold tracking-tight text-fg">{codigoPedido(pedido.id)}</h1>
+            <PedidoStatusBadge status={pedido.status} />
+            <Badge variant="outline" size="md">{LABELS_TIPO_SERVICO[pedido.tipoServico]}</Badge>
+          </div>
+          <p className="mt-1 text-sm text-fg-3">Criado em {formatarDataHora(pedido.createdAt)}</p>
+        </div>
+        <p className="text-[26px] font-semibold tracking-tight tabular text-fg">{formatarMoeda(pedido.valorTotal)}</p>
+      </div>
+
+      {error && <Alert variant="danger" icon={AlertTriangle} className="mb-4">{error}</Alert>}
+      {success && <Alert variant="success" icon={CheckCircle2} className="mb-4">{success}</Alert>}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          {pedido.status === 'CANCELADO' && pedido.motivoCancelamento && (
+            <Alert variant="danger" title="Pedido cancelado">{pedido.motivoCancelamento}</Alert>
+          )}
+
+          <Card>
+            <CardHeader><CardTitle>Trajeto</CardTitle></CardHeader>
+            <RotaEnderecos origem={pedido.enderecoOrigem} destino={pedido.enderecoDestino} />
+            <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line">
+              <div className="bg-surface-2/60 px-3 py-2.5">
+                <p className="text-xs text-fg-3">Distância</p>
+                <p className="text-sm font-medium tabular text-fg">{formatarDistancia(pedido.distanciaKm)}</p>
               </div>
-              <span className="text-xl font-bold text-gray-900">Entrega Pra Mim</span>
+              <div className="bg-surface-2/60 px-3 py-2.5">
+                <p className="text-xs text-fg-3">Tempo estimado</p>
+                <p className="text-sm font-medium tabular text-fg">{formatarTempo(pedido.duracaoEstimada)}</p>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <Badge variant="info">{session?.user?.role}</Badge>
-              <span className="text-gray-600">{session?.user?.name}</span>
-              <Button variant="outline" onClick={handleLogout}>Sair</Button>
+            {(pedido.descricaoItem || pedido.observacoes) && (
+              <div className="mt-4 divide-y divide-line border-t border-line">
+                {pedido.descricaoItem && <DataRow label="Item">{pedido.descricaoItem}</DataRow>}
+                {pedido.observacoes && <DataRow label="Observações">{pedido.observacoes}</DataRow>}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Andamento</CardTitle></CardHeader>
+            <LinhaDoTempo pedido={pedido} />
+          </Card>
+
+          {pedido.avaliacao && (
+            <Card>
+              <CardHeader><CardTitle>Avaliação do cliente</CardTitle></CardHeader>
+              <Estrelas nota={pedido.avaliacao.nota} />
+              {pedido.avaliacao.comentario && <p className="mt-2 text-sm text-fg-2">“{pedido.avaliacao.comentario}”</p>}
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader><CardTitle>Cliente</CardTitle></CardHeader>
+            <p className="text-sm font-medium text-fg">{pedido.cliente.user.nome}</p>
+            <div className="mt-2 space-y-1.5 text-[13px] text-fg-2">
+              <a href={`mailto:${pedido.cliente.user.email}`} className="flex items-center gap-2 hover:text-fg"><Mail className="h-3.5 w-3.5 text-fg-3" />{pedido.cliente.user.email}</a>
+              {pedido.cliente.user.telefone && (
+                <a href={`tel:${pedido.cliente.user.telefone}`} className="flex items-center gap-2 hover:text-fg"><Phone className="h-3.5 w-3.5 text-fg-3" />{pedido.cliente.user.telefone}</a>
+              )}
             </div>
-          </div>
-        </div>
-      </header>
+          </Card>
 
-      <nav className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-8">
-            <Link href="/dashboard" className="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
-              Visão Geral
-            </Link>
-            <Link href="/dashboard/pedidos" className="py-4 px-1 border-b-2 border-blue-600 text-blue-600 font-medium">
-              Pedidos
-            </Link>
-            <Link href="/dashboard/motoboys" className="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
-              Motoboys
-            </Link>
-            <Link href="/dashboard/clientes" className="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
-              Clientes
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard/pedidos" className="text-gray-500 hover:text-gray-700">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Pedido #{pedido.id.slice(0, 8)}</h1>
-            <p className="text-gray-500">{formatarDataHora(pedido.createdAt)}</p>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-6">
-            {success}
-          </div>
-        )}
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Status */}
-            <Card variant="bordered">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${CORES_STATUS_PEDIDO[pedido.status]}`}>
-                      {LABELS_STATUS_PEDIDO[pedido.status]}
-                    </span>
-                    <Badge variant="info" size="sm" className="ml-2">
-                      {pedido.tipoServico}
-                    </Badge>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900">{formatarMoeda(pedido.valorTotal)}</p>
+          <Card>
+            <CardHeader><CardTitle>Entregador</CardTitle></CardHeader>
+            {pedido.motoboy ? (
+              <div>
+                <p className="text-sm font-medium text-fg">{pedido.motoboy.user.nome}</p>
+                <div className="mt-2 space-y-1.5 text-[13px] text-fg-2">
+                  <a href={`tel:${pedido.motoboy.user.telefone}`} className="flex items-center gap-2 hover:text-fg"><Phone className="h-3.5 w-3.5 text-fg-3" />{pedido.motoboy.user.telefone}</a>
+                  <p className="flex items-center gap-2"><Star className="h-3.5 w-3.5 fill-current text-chart-4" />{pedido.motoboy.avaliacaoMedia.toFixed(1)} de média</p>
                 </div>
-
-                {pedido.status === 'CANCELADO' && pedido.motivoCancelamento && (
-                  <div className="mt-4 bg-red-50 p-4 rounded-lg">
-                    <p className="text-red-700 font-medium">Motivo: {pedido.motivoCancelamento}</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-fg-3">Nenhum entregador atribuído.</p>
+                {podeAtribuir && motoboys.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <Select
+                      label="Entregadores disponíveis"
+                      options={motoboys.map((m) => ({ value: m.id, label: m.user.nome }))}
+                      value={selectedMotoboy}
+                      onChange={(e) => setSelectedMotoboy(e.target.value)}
+                      placeholder="Selecione"
+                    />
+                    {list.pagination.totalPages > 1 && (
+                      <Pagination pagination={list.pagination} onPageChange={(page) => { setSelectedMotoboy(''); list.setPage(page) }} loading={list.loading} error={list.error} />
+                    )}
+                    <Button className="w-full" onClick={handleAtribuirMotoboy} isLoading={isUpdating} disabled={!selectedMotoboy}>
+                      Atribuir entregador
+                    </Button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Endereços */}
-            <Card variant="bordered">
-              <CardHeader>
-                <CardTitle>Rota</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase font-medium">Coleta</p>
-                    <p className="text-gray-900">{pedido.enderecoOrigem.logradouro}, {pedido.enderecoOrigem.numero}</p>
-                    {pedido.enderecoOrigem.complemento && <p className="text-gray-600 text-sm">{pedido.enderecoOrigem.complemento}</p>}
-                    <p className="text-gray-600 text-sm">{pedido.enderecoOrigem.bairro}, {pedido.enderecoOrigem.cidade} - {pedido.enderecoOrigem.estado}</p>
-                  </div>
-                </div>
-                <div className="border-l-2 border-dashed border-gray-300 ml-5 h-4"></div>
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <div className="w-4 h-4 bg-red-500 rounded-full"></div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase font-medium">Entrega</p>
-                    <p className="text-gray-900">{pedido.enderecoDestino.logradouro}, {pedido.enderecoDestino.numero}</p>
-                    {pedido.enderecoDestino.complemento && <p className="text-gray-600 text-sm">{pedido.enderecoDestino.complemento}</p>}
-                    <p className="text-gray-600 text-sm">{pedido.enderecoDestino.bairro}, {pedido.enderecoDestino.cidade} - {pedido.enderecoDestino.estado}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Detalhes */}
-            <Card variant="bordered">
-              <CardHeader>
-                <CardTitle>Detalhes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Distância</p>
-                    <p className="font-medium text-gray-900">{formatarDistancia(pedido.distanciaKm)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Tempo Estimado</p>
-                    <p className="font-medium text-gray-900">{formatarTempo(pedido.duracaoEstimada)}</p>
-                  </div>
-                  {pedido.descricaoItem && (
-                    <div className="col-span-2">
-                      <p className="text-gray-500">Item</p>
-                      <p className="font-medium text-gray-900">{pedido.descricaoItem}</p>
-                    </div>
-                  )}
-                  {pedido.observacoes && (
-                    <div className="col-span-2">
-                      <p className="text-gray-500">Observações</p>
-                      <p className="font-medium text-gray-900">{pedido.observacoes}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Timeline */}
-            <Card variant="bordered">
-              <CardHeader>
-                <CardTitle>Histórico</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">Pedido criado</p>
-                      <p className="text-xs text-gray-500">{formatarDataHora(pedido.createdAt)}</p>
-                    </div>
-                  </div>
-                  {pedido.aceitoEm && (
-                    <div className="flex items-center gap-4">
-                      <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Aceito pelo motoboy</p>
-                        <p className="text-xs text-gray-500">{formatarDataHora(pedido.aceitoEm)}</p>
-                      </div>
-                    </div>
-                  )}
-                  {pedido.coletadoEm && (
-                    <div className="flex items-center gap-4">
-                      <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Coletado</p>
-                        <p className="text-xs text-gray-500">{formatarDataHora(pedido.coletadoEm)}</p>
-                      </div>
-                    </div>
-                  )}
-                  {pedido.entregueEm && (
-                    <div className="flex items-center gap-4">
-                      <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Entregue</p>
-                        <p className="text-xs text-gray-500">{formatarDataHora(pedido.entregueEm)}</p>
-                      </div>
-                    </div>
-                  )}
-                  {pedido.canceladoEm && (
-                    <div className="flex items-center gap-4">
-                      <div className="w-3 h-3 bg-red-600 rounded-full"></div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Cancelado</p>
-                        <p className="text-xs text-gray-500">{formatarDataHora(pedido.canceladoEm)}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Avaliação */}
-            {pedido.avaliacao && (
-              <Card variant="bordered">
-                <CardHeader>
-                  <CardTitle>Avaliação do Cliente</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2 mb-2">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <span key={star} className={`text-2xl ${star <= pedido.avaliacao!.nota ? 'text-yellow-500' : 'text-gray-300'}`}>
-                        ★
-                      </span>
-                    ))}
-                  </div>
-                  {pedido.avaliacao.comentario && (
-                    <p className="text-gray-600">{pedido.avaliacao.comentario}</p>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Cliente */}
-            <Card variant="bordered">
-              <CardHeader>
-                <CardTitle>Cliente</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="font-medium text-gray-900">{pedido.cliente.user.nome}</p>
-                <p className="text-sm text-gray-600">{pedido.cliente.user.email}</p>
-                <p className="text-sm text-gray-600">{pedido.cliente.user.telefone}</p>
-              </CardContent>
-            </Card>
-
-            {/* Motoboy */}
-            <Card variant="bordered">
-              <CardHeader>
-                <CardTitle>Motoboy</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {pedido.motoboy ? (
-                  <div>
-                    <p className="font-medium text-gray-900">{pedido.motoboy.user.nome}</p>
-                    <p className="text-sm text-gray-600">{pedido.motoboy.user.telefone}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <span className="text-yellow-500">★</span>
-                      <span className="text-sm font-medium">{pedido.motoboy.avaliacaoMedia.toFixed(1)}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-gray-500 mb-4">Nenhum motoboy atribuído</p>
-                    {podeAtribuir && motoboys.length > 0 && (
-                      <div className="space-y-3">
-                        <Pagination pagination={list.pagination} onPageChange={page => { setSelectedMotoboy(''); list.setPage(page) }} loading={list.loading} error={list.error} />
-                        <Select
-                          label="Selecionar motoboy"
-                          options={motoboys.map(m => ({ value: m.id, label: m.user.nome }))}
-                          value={selectedMotoboy}
-                          onChange={(e) => setSelectedMotoboy(e.target.value)}
-                          placeholder="Escolha um motoboy"
-                        />
-                        <Button
-                          className="w-full"
-                          onClick={handleAtribuirMotoboy}
-                          isLoading={isUpdating}
-                          disabled={!selectedMotoboy}
-                        >
-                          Atribuir Motoboy
-                        </Button>
-                      </div>
-                    )}
-                    {podeAtribuir && motoboys.length === 0 && (
-                      <p className="text-sm text-orange-600">Nenhum motoboy disponível</p>
-                    )}
-                  </div>
+                {podeAtribuir && motoboys.length === 0 && !list.loading && (
+                  <Alert variant="warning" className="mt-3">Nenhum entregador disponível agora.</Alert>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Ações */}
-            {podeCancelar && (
-              <Card variant="bordered">
-                <CardHeader>
-                  <CardTitle>Ações</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    variant="danger"
-                    className="w-full"
-                    onClick={handleCancelar}
-                    isLoading={isUpdating}
-                  >
-                    Cancelar Pedido
-                  </Button>
-                </CardContent>
-              </Card>
+              </div>
             )}
-          </div>
+          </Card>
+
+          {podeCancelar && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Cancelamento</CardTitle>
+              </CardHeader>
+              {confirmarCancelamento ? (
+                <div className="space-y-3">
+                  <p className="text-[13px] text-fg-2">Esta ação não pode ser desfeita. Deseja cancelar este pedido?</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={() => setConfirmarCancelamento(false)} disabled={isUpdating}>Voltar</Button>
+                    <Button variant="danger" className="flex-1" onClick={handleCancelar} isLoading={isUpdating}>Cancelar pedido</Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full text-danger" onClick={() => setConfirmarCancelamento(true)}>
+                  Cancelar pedido
+                </Button>
+              )}
+            </Card>
+          )}
         </div>
-      </main>
+      </div>
     </div>
   )
 }

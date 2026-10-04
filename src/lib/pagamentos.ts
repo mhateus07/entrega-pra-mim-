@@ -292,19 +292,19 @@ export const LABELS_STATUS_PAGAMENTO: Record<StatusPagamento, string> = {
 }
 
 export const CORES_STATUS_PAGAMENTO: Record<StatusPagamento, string> = {
-  PENDENTE: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  PROCESSANDO: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  APROVADO: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  RECUSADO: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  CANCELADO: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
-  REEMBOLSADO: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  PENDENTE: 'bg-warning-soft text-warning',
+  PROCESSANDO: 'bg-info-soft text-info',
+  APROVADO: 'bg-success-soft text-success',
+  RECUSADO: 'bg-danger-soft text-danger',
+  CANCELADO: 'bg-surface-2 text-fg-3',
+  REEMBOLSADO: 'bg-surface-2 text-fg-2',
 }
 
 export const ICONES_BANDEIRA: Record<string, string> = {
-  VISA: '💳',
-  MASTERCARD: '💳',
-  AMEX: '💳',
-  ELO: '💳',
-  HIPERCARD: '💳',
-  OUTRO: '💳',
+  VISA: 'Cartão',
+  MASTERCARD: 'Cartão',
+  AMEX: 'Cartão',
+  ELO: 'Cartão',
+  HIPERCARD: 'Cartão',
+  OUTRO: 'Cartão',
 }

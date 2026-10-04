@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useEffect } from 'react'
+import { AlertTriangle } from 'lucide-react'
+import { buttonClass } from '@/components/ui/Button'
 
 export default function Error({
   error,
@@ -15,32 +17,16 @@ export default function Error({
   }, [error])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
-      <div className="text-center max-w-md">
-        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
-          <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
+    <div className="flex min-h-screen items-center justify-center bg-page px-4">
+      <div className="max-w-sm text-center">
+        <div className="mx-auto mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-danger-soft text-danger">
+          <AlertTriangle className="h-5 w-5" aria-hidden="true" />
         </div>
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-200 mb-2">
-          Algo deu errado
-        </h2>
-        <p className="text-slate-500 dark:text-slate-400 mb-6">
-          Ocorreu um erro inesperado. Tente novamente ou volte para a página inicial.
-        </p>
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={reset}
-            className="px-6 py-2.5 bg-cyan-600 text-white rounded-xl font-medium hover:bg-cyan-700 transition-colors"
-          >
-            Tentar novamente
-          </button>
-          <Link
-            href="/"
-            className="px-6 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
-          >
-            Página inicial
-          </Link>
+        <h1 className="text-lg font-semibold text-fg">Algo deu errado</h1>
+        <p className="mt-1.5 text-sm text-fg-2">Ocorreu um erro inesperado. Tente novamente ou volte para a página inicial.</p>
+        <div className="mt-6 flex justify-center gap-2">
+          <button type="button" onClick={reset} className={buttonClass('primary')}>Tentar novamente</button>
+          <Link href="/" className={buttonClass('outline')}>Página inicial</Link>
         </div>
       </div>
     </div>
