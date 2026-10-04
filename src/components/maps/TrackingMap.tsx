@@ -31,20 +31,18 @@ export default function TrackingMap({
     motoboy: google.maps.Marker | null
   }>({ origem: null, destino: null, motoboy: null })
   const initialOrigin = useRef(origem)
-  const [directionsRenderer, setDirectionsRenderer] = useState<google.maps.DirectionsRenderer | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [falhou, setFalhou] = useState(!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
 
   // Inicializar mapa
   useEffect(() => {
     let cancelled = false
-    let rendererToClean: google.maps.DirectionsRenderer | null = null
     const initMap = async () => {
       if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) return
       const loader = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
         version: 'weekly',
-        libraries: ['places'],
+        libraries: ['geometry'],
       })
 
       try {
@@ -71,19 +69,7 @@ export default function TrackingMap({
           fullscreenControl: false,
         })
 
-        const renderer = new google.maps.DirectionsRenderer({
-          map: mapInstance,
-          suppressMarkers: true,
-          polylineOptions: {
-            strokeColor: '#2a78d6',
-            strokeWeight: 4,
-            strokeOpacity: 0.9,
-          },
-        })
-
-        rendererToClean = renderer
         setMap(mapInstance)
-        setDirectionsRenderer(renderer)
         setIsLoaded(true)
       } catch (error) {
         console.error('Erro ao carregar mapa:', error)
@@ -95,7 +81,6 @@ export default function TrackingMap({
     const markers = markersRef.current
     return () => {
       cancelled = true
-      rendererToClean?.setMap(null)
       for (const key of ['origem', 'destino', 'motoboy'] as const) {
         markers[key]?.setMap(null)
         markers[key] = null
@@ -185,27 +170,51 @@ export default function TrackingMap({
     }
   }, [map, isLoaded, origem, destino, motoboyLocation])
 
-  // Desenhar rota
+  // Desenhar rota: o traçado vem do servidor (Routes API); sem ele, liga os pontos em linha reta
+  const routeLine = useRef<google.maps.Polyline | null>(null)
+  const origemKey = origem ? `${origem.lat},${origem.lng}` : ''
+  const destinoKey = destino ? `${destino.lat},${destino.lng}` : ''
   useEffect(() => {
-    if (!map || !directionsRenderer || !origem || !destino) return
-
+    if (!map || !isLoaded || !origem || !destino) return
     let active = true
-    const directionsService = new google.maps.DirectionsService()
 
-    directionsService.route(
-      {
-        origin: { lat: origem.lat, lng: origem.lng },
-        destination: { lat: destino.lat, lng: destino.lng },
-        travelMode: google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (active && status === 'OK' && result) {
-          directionsRenderer.setDirections(result)
-        }
-      }
-    )
+    const desenhar = (path: google.maps.LatLngLiteral[] | google.maps.LatLng[], reta: boolean) => {
+      routeLine.current?.setMap(null)
+      routeLine.current = new google.maps.Polyline({
+        map,
+        path,
+        strokeColor: '#2a78d6',
+        strokeOpacity: reta ? 0 : 0.9,
+        strokeWeight: 4,
+        icons: reta ? [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.8, scale: 3 }, offset: '0', repeat: '14px' }] : undefined,
+      })
+    }
+
+    fetch('/api/rotas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        origemLatitude: origem.lat,
+        origemLongitude: origem.lng,
+        destinoLatitude: destino.lat,
+        destinoLongitude: destino.lng,
+        tipoServico: 'AGENDADA',
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!active) return
+        const encoded: string | undefined = data?.data?.polyline
+        if (encoded && google.maps.geometry?.encoding) desenhar(google.maps.geometry.encoding.decodePath(encoded), false)
+        else desenhar([origem, destino], true)
+      })
+      .catch(() => { if (active) desenhar([origem, destino], true) })
+
     return () => { active = false }
-  }, [map, directionsRenderer, origem, destino])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- redesenha só quando os pontos mudam de fato
+  }, [map, isLoaded, origemKey, destinoKey])
+
+  useEffect(() => () => { routeLine.current?.setMap(null) }, [])
 
   // Ajustar bounds para mostrar todos os pontos
   useEffect(() => {
