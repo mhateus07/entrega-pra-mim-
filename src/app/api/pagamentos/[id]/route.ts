@@ -6,6 +6,7 @@ import { requireAuth, forbidden, notFound, serverError, badRequest, applyRateLim
 import { podeGerenciarPagamento } from '@/lib/pedido-permissions'
 import { executarAcaoPagamento } from '@/lib/payment-operations'
 import { OperacaoError } from '@/lib/operacao-error'
+import { registrarAuditoria } from '@/lib/audit'
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -44,6 +45,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const pagamento = await prisma.pagamento.findUnique({ where: { id }, select: { pedidoId: true } })
     if (!pagamento) return notFound('Pagamento não encontrado')
     const updated = await executarAcaoPagamento(pagamento.pedidoId, id, auth.user, validation.data.acao)
+    // "verificar" é a consulta periódica do PIX; só entra na trilha quando muda algo
+    if (validation.data.acao === 'confirmar_dinheiro' || updated.status === 'APROVADO') {
+      await registrarAuditoria({
+        acao: 'pagamento.acao', entidade: 'Pagamento', entidadeId: id, userId: auth.user.id, request,
+        dados: { acao: validation.data.acao, status: updated.status, pedidoId: pagamento.pedidoId },
+      })
+    }
     return jsonResponse({ success: true, data: { status: updated.status },
       message: updated.status === 'APROVADO' ? 'Pagamento confirmado' : `Status: ${updated.status}` })
   } catch (error) { return erroPagamento(error) }
@@ -59,6 +67,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const pagamento = await prisma.pagamento.findUnique({ where: { id }, select: { pedidoId: true } })
     if (!pagamento) return notFound('Pagamento não encontrado')
     const updated = await executarAcaoPagamento(pagamento.pedidoId, id, auth.user, 'cancelar')
+    await registrarAuditoria({
+      acao: 'pagamento.cancelado', entidade: 'Pagamento', entidadeId: id, userId: auth.user.id, request,
+      dados: { status: updated.status, pedidoId: pagamento.pedidoId },
+    })
     return jsonResponse({ success: true, data: updated, message: 'Pagamento cancelado' })
   } catch (error) { return erroPagamento(error) }
 }

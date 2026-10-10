@@ -122,8 +122,11 @@ export function useLocationSharing(motoboyId: string | null, enabled = false) {
     if (!enabled || !requested || !motoboyId || !navigator.geolocation) return
     let active = true
     const controller = new AbortController()
+    // O servidor aceita até 30 envios/min; 1 a cada 5s é suficiente para o rastreamento
+    let ultimoEnvio = 0
     const sendLocation = async (position: GeolocationPosition) => {
-      if (!active) return
+      if (!active || Date.now() - ultimoEnvio < 5000) return
+      ultimoEnvio = Date.now()
       try {
         const response = await fetch(`/api/motoboys/${motoboyId}/localizacao`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,

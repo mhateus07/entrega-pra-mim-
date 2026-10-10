@@ -16,7 +16,7 @@ import { cn } from '@/utils/cn'
 import TrackingMap from '@/components/maps/TrackingMap'
 import { formatarMoeda } from '@/lib/pricing'
 import { LABELS_TIPO_SERVICO, codigoPedido } from '@/utils/helpers'
-import type { StatusPedido, StatusMotoboy, TipoServico } from '@prisma/client'
+import type { AprovacaoMotoboy, StatusPedido, StatusMotoboy, TipoServico } from '@prisma/client'
 import { useLocationSharing } from '@/hooks/useTracking'
 import { useNotifications } from '@/hooks/useNotifications'
 import toast from 'react-hot-toast'
@@ -56,6 +56,8 @@ interface Pedido {
 interface MotoboyInfo {
   id: string
   status: StatusMotoboy
+  aprovacao: AprovacaoMotoboy
+  motivoAprovacao: string | null
   avaliacaoMedia: number
   totalEntregas: number
 }
@@ -283,6 +285,7 @@ export default function MotoboyPage() {
   }
 
   const online = motoboy?.status === 'DISPONIVEL' || motoboy?.status === 'EM_ENTREGA'
+  const aprovado = motoboy?.aprovacao === 'APROVADO'
 
   const enderecoBloco = (tipo: 'coleta' | 'entrega', e: Pedido['enderecoOrigem']) => (
     <div className="flex gap-3">
@@ -314,6 +317,18 @@ export default function MotoboyPage() {
       <Header userName={session?.user?.name} userRole="MOTOBOY" />
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+        {motoboy && !aprovado && (
+          motoboy.aprovacao === 'PENDENTE_APROVACAO' ? (
+            <Alert variant="info" icon={AlertTriangle} title="Cadastro em análise">
+              Assim que um administrador aprovar seu cadastro, você poderá ficar online e receber pedidos.
+            </Alert>
+          ) : (
+            <Alert variant="danger" icon={AlertTriangle} title={motoboy.aprovacao === 'SUSPENSO' ? 'Cadastro suspenso' : 'Cadastro não aprovado'}>
+              {motoboy.motivoAprovacao || 'Entre em contato com a operação para mais informações.'}
+            </Alert>
+          )
+        )}
+
         {/* Status */}
         <section className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 shadow-xs">
           <div className="flex items-center gap-3">
@@ -335,7 +350,7 @@ export default function MotoboyPage() {
               aria-checked={online}
               aria-label="Ficar online"
               onClick={handleToggleStatus}
-              disabled={isUpdatingStatus || !motoboy}
+              disabled={isUpdatingStatus || !motoboy || !aprovado}
               className={cn('relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50', online ? 'bg-success' : 'bg-surface-3')}
             >
               <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform', online ? 'translate-x-6' : 'translate-x-1')} />

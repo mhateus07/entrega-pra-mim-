@@ -3,6 +3,7 @@ import { readFile } from 'fs/promises'
 import path from 'path'
 import prisma from '@/lib/prisma'
 import { requirePedidoAccess, notFound, serverError } from '@/lib/auth-helpers'
+import { registrarAuditoria } from '@/lib/audit'
 import {
   COMPROVANTE_DIR,
   COMPROVANTE_LEGACY_DIR,
@@ -36,6 +37,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const dir = arquivo.legacy ? COMPROVANTE_LEGACY_DIR : COMPROVANTE_DIR
     const buffer = await readFile(path.join(dir, arquivo.fileName)).catch(() => null)
     if (!buffer) return notFound('Comprovante não encontrado')
+
+    await registrarAuditoria({
+      acao: 'comprovante.acessado', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+    })
 
     const ext = arquivo.fileName.split('.').pop() as ComprovanteExt
     return new NextResponse(new Uint8Array(buffer), {

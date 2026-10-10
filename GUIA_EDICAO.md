@@ -81,7 +81,7 @@
 
 Após editar o schema, rode:
 ```bash
-npx prisma db push
+npx prisma migrate dev --name descreva-a-mudanca   # cria a migration em prisma/migrations e aplica localmente
 ```
 
 ---
@@ -134,7 +134,7 @@ src/
 npm run dev
 
 # Atualizar banco de dados após mudar schema
-npx prisma db push
+npx prisma migrate dev --name descreva-a-mudanca
 
 # Visualizar banco de dados
 npx prisma studio

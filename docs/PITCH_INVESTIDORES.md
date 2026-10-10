@@ -147,7 +147,7 @@ Score = (40% × Proximidade) + (35% × Avaliação) + (25% × Tempo Disponível)
 
 | Camada | Tecnologia | Justificativa |
 |--------|------------|---------------|
-| **Frontend** | Next.js 14 + React 18 | Framework moderno, SSR, performance |
+| **Frontend** | Next.js 16 + React 19 | Framework moderno, SSR, performance |
 | **Estilização** | Tailwind CSS | Desenvolvimento rápido, responsivo |
 | **Backend** | Next.js API Routes | Full-stack unificado, serverless-ready |
 | **Banco de Dados** | MySQL + Prisma ORM | Robusto, escalável, type-safe |

@@ -61,6 +61,12 @@ export const RATE_LIMIT_CONFIGS = {
   sensitive: { limit: 20, windowMs: 60 * 1000 },
   // Polling (rastreamento, status): 60 requisições por minuto
   polling: { limit: 60, windowMs: 60 * 1000 },
+  // Envio de mensagens no chat: 20 por minuto
+  chat: { limit: 20, windowMs: 60 * 1000 },
+  // Upload de arquivos (comprovante): 10 por minuto
+  upload: { limit: 10, windowMs: 60 * 1000 },
+  // Envio de localização do motoboy: o app envia no máximo 1 a cada 5s
+  localizacao: { limit: 30, windowMs: 60 * 1000 },
 } as const
 
 /**
@@ -153,5 +159,26 @@ export function getRateLimitHeaders(result: RateLimitResult): Record<string, str
     'X-RateLimit-Limit': result.limit.toString(),
     'X-RateLimit-Remaining': result.remaining.toString(),
     'X-RateLimit-Reset': result.resetTime.toString(),
+  }
+}
+
+/**
+ * Estado do Redis para o healthcheck: sem REDIS_URL o app funciona com o
+ * fallback em memória, então "nao_configurado" não deixa a instância indisponível.
+ */
+export async function verificarRedis(): Promise<'ok' | 'falhou' | 'nao_configurado'> {
+  const redis = getRedis()
+  if (!redis) return 'nao_configurado'
+  if (redis.status !== 'ready') {
+    // Primeira chamada do processo: dá 1s para a conexão inicial completar
+    await new Promise<void>(resolve => {
+      const timer = setTimeout(resolve, 1000)
+      redis.once('ready', () => { clearTimeout(timer); resolve() })
+    })
+  }
+  try {
+    return (await redis.ping()) === 'PONG' ? 'ok' : 'falhou'
+  } catch {
+    return 'falhou'
   }
 }

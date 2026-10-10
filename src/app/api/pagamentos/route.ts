@@ -14,7 +14,9 @@ import {
   processarPagamentoCartao,
   IS_PAYMENT_MOCK,
 } from '@/lib/pagamentos'
-import { requireAuth, applyRateLimit, serverError, badRequest, forbidden } from '@/lib/auth-helpers'
+import { requireAuth, applyRateLimit, serverError, badRequest, forbidden, type AuthenticatedUser } from '@/lib/auth-helpers'
+import { comIdempotencia } from '@/lib/idempotency'
+import { registrarAuditoria } from '@/lib/audit'
 
 // =============================================================================
 // Validação de dados de pagamento
@@ -107,13 +109,27 @@ export async function GET(request: NextRequest) {
 }
 
 // O lock do pedido impede substituir um pagamento aprovado por uma segunda requisição.
+// Aceita Idempotency-Key: repetir o envio com a mesma chave devolve a resposta original.
 export async function POST(request: NextRequest) {
   try {
     const rateLimit = await applyRateLimit(request, 'sensitive')
     if (!rateLimit.success) return rateLimit.response
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
-    const validation = criarPagamentoSchema.safeParse(await request.json().catch(() => null))
+    const body = await request.json().catch(() => null)
+    // A chave usa só o que identifica a operação: dados do cartão não entram no hash guardado
+    const identidade = { pedidoId: body?.pedidoId, metodo: body?.metodo, cartaoFinal: typeof body?.cartao?.numero === 'string' ? body.cartao.numero.slice(-4) : null }
+    return await comIdempotencia(request, auth.user.id, 'pagamentos:criar', identidade,
+      () => criarPagamento(request, auth.user, body))
+  } catch (error) {
+    console.error('Erro ao criar pagamento:', error)
+    return serverError('Erro ao processar pagamento')
+  }
+}
+
+async function criarPagamento(request: NextRequest, user: AuthenticatedUser, body: unknown) {
+  try {
+    const validation = criarPagamentoSchema.safeParse(body)
     if (!validation.success) return badRequest('Dados de pagamento inválidos')
     const { pedidoId, metodo, cartao } = validation.data
     if (metodo !== 'DINHEIRO' && !ELECTRONIC_PAYMENTS_AVAILABLE) {
@@ -122,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     const pagamento = await comPedidoBloqueado(pedidoId, async tx => {
       const pedido = await tx.pedido.findUniqueOrThrow({ where: { id: pedidoId }, include: { pagamento: true } })
-      if (!podeGerenciarPagamento(auth.user, pedido)) throw new OperacaoError('Acesso negado', 403)
+      if (!podeGerenciarPagamento(user, pedido)) throw new OperacaoError('Acesso negado', 403)
       if (pedido.status === 'CANCELADO') throw new OperacaoError('Pedido cancelado não pode receber pagamento')
       const anterior = pedido.pagamento
       if (anterior?.status === 'APROVADO' || anterior?.status === 'PROCESSANDO') {
@@ -156,6 +172,10 @@ export async function POST(request: NextRequest) {
       const updated = await tx.pagamento.upsert({ where: { pedidoId }, create: dados, update: dados })
       if (updated.status === 'APROVADO') await liberarCreditoEntrega(tx, pedidoId)
       return updated
+    })
+    await registrarAuditoria({
+      acao: 'pagamento.criado', entidade: 'Pagamento', entidadeId: pagamento.id, userId: user.id, request,
+      dados: { pedidoId, metodo, status: pagamento.status },
     })
     if (pagamento.status === 'RECUSADO') return jsonResponse({ success: false, error: 'Pagamento recusado', data: { pagamento } }, { status: 400 })
     return jsonResponse({ success: true, data: { pagamento,

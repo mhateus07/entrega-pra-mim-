@@ -7,6 +7,7 @@ import { requireAuth, requirePedidoAccess, notFound, serverError, badRequest } f
 
 import { alterarStatusPedido } from '@/lib/pedido-status'
 import { OperacaoError } from '@/lib/operacao-error'
+import { registrarAuditoria } from '@/lib/audit'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -84,6 +85,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!validation.success) return badRequest('Dados inválidos')
     const { id } = await params
     const updated = await alterarStatusPedido(id, auth.user, validation.data)
+    await registrarAuditoria({
+      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+      dados: { para: updated.status, ...(updated.motoboyId ? { motoboyId: updated.motoboyId } : {}) },
+    })
     return jsonResponse({ success: true, data: updated, message: 'Pedido atualizado com sucesso' })
   } catch (error) {
     if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
@@ -103,6 +108,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!validation.success) return badRequest('Dados inválidos')
     const { id } = await params
     const updated = await alterarStatusPedido(id, auth.user, validation.data)
+    await registrarAuditoria({
+      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+      dados: { para: 'CANCELADO', motivo: updated.motivoCancelamento },
+    })
     return jsonResponse({ success: true, data: updated, message: 'Pedido cancelado com sucesso' })
   } catch (error) {
     if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })

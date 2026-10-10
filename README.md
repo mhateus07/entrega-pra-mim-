@@ -22,6 +22,8 @@ Plataforma completa de entregas com motoboys, desenvolvida com Next.js 16, TypeS
 
 ---
 
+> **Cadastro de motoboy:** o cadastro em `/registro` é público, mas nasce como `PENDENTE_APROVACAO`. O motoboy consegue entrar, porém só fica online, vê pedidos disponíveis e envia localização depois que um admin aprova em **Dashboard → Entregadores → Aguardando aprovação**.
+
 > **Pagamentos:** PIX e cartão são demonstrações disponíveis apenas em desenvolvimento/testes. Em produção, somente dinheiro está habilitado até a integração de um gateway. Veja as regras, testes e pendências em [Correções operacionais](docs/CORRECOES_OPERACIONAIS.md).
 
 ## Funcionalidades Implementadas
@@ -117,10 +119,11 @@ Plataforma completa de entregas com motoboys, desenvolvida com Next.js 16, TypeS
 ### Fase 4: Sistema de Pagamentos
 
 #### Métodos de Pagamento
-- **PIX**: QR Code gerado automaticamente, verificação automática de status
-- **Cartão de Crédito**: Validação completa (Luhn, CVV, validade)
-- **Cartão de Débito**: Mesmo fluxo do crédito
-- **Dinheiro**: Confirmação manual pelo motoboy na entrega
+> PIX e cartão são **simulados** (`src/lib/pagamentos.ts`) e ficam bloqueados em produção. Não há gateway, webhook nem estorno real.
+
+- **PIX** (simulado): QR Code fictício, aprovação aleatória na verificação
+- **Cartão de Crédito/Débito** (simulado): validação de formato; aprovação aleatória
+- **Dinheiro**: único método habilitado em produção; confirmação manual pelo motoboy na entrega
 
 #### Fluxo de Checkout
 1. Cliente cria pedido
@@ -142,10 +145,8 @@ Ganho do Motoboy: 85%
 - Filtros por tipo (crédito, débito, saque)
 - Crédito automático ao confirmar pagamento
 
-#### Integrações (Preparado)
-- Mercado Pago
-- Stripe
-- PagSeguro
+#### Integração com gateway
+Ainda não implementada. Ver `docs/PLANO_EVOLUCAO.md` (P1).
 
 ---
 
@@ -244,7 +245,7 @@ entrega_pra_mim/
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/api/pedidos` | Listar pedidos (com filtros) |
-| POST | `/api/pedidos` | Criar pedido |
+| POST | `/api/pedidos` | Criar pedido (aceita `Idempotency-Key`) |
 | GET | `/api/pedidos/[id]` | Buscar pedido |
 | PATCH | `/api/pedidos/[id]` | Atualizar pedido |
 | DELETE | `/api/pedidos/[id]` | Cancelar pedido |
@@ -256,11 +257,12 @@ entrega_pra_mim/
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/api/motoboys` | Listar motoboys |
-| POST | `/api/motoboys` | Criar motoboy |
+| POST | `/api/motoboys` | Cadastro público (nasce `PENDENTE_APROVACAO`) |
 | GET | `/api/motoboys/[id]` | Buscar motoboy |
 | PATCH | `/api/motoboys/[id]` | Atualizar motoboy |
 | DELETE | `/api/motoboys/[id]` | Remover motoboy |
-| GET/POST | `/api/motoboys/[id]/localizacao` | Localização GPS |
+| PATCH | `/api/motoboys/[id]/aprovacao` | Aprovar, reprovar ou suspender (admin) |
+| GET/POST | `/api/motoboys/[id]/localizacao` | Localização GPS (GET: próprio motoboy, admin ou cliente com entrega em andamento) |
 
 ### Clientes
 | Método | Rota | Descrição |
@@ -279,11 +281,29 @@ entrega_pra_mim/
 | PATCH | `/api/enderecos/[id]` | Atualizar endereço |
 | DELETE | `/api/enderecos/[id]` | Remover endereço |
 
+### Pagamentos
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/api/pagamentos` | Listar pagamentos |
+| POST | `/api/pagamentos` | Criar pagamento (aceita `Idempotency-Key`) |
+| GET/POST/DELETE | `/api/pagamentos/[id]` | Consultar, verificar/confirmar dinheiro, cancelar |
+
 ### Outros
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | POST | `/api/avaliacoes` | Criar avaliação |
 | POST | `/api/rotas` | Calcular rota |
+| GET | `/api/health/live` | Processo no ar (público, usado no HEALTHCHECK do Docker) |
+| GET | `/api/health/ready` | Banco, Redis e storage (público; 503 se algo falhar) |
+
+### Idempotência
+`POST /api/pedidos` e `POST /api/pagamentos` aceitam o header `Idempotency-Key` (8–255 caracteres `[A-Za-z0-9_:.-]`). A primeira resposta 2xx/4xx fica guardada por 24h por usuário; repetir a mesma chave com o mesmo corpo devolve a resposta original com `Idempotent-Replayed: true`, com outro corpo retorna 422 e, enquanto a original processa, 409. O frontend envia uma chave nova a cada tentativa.
+
+### Rate limit
+Por IP em login/cadastro; por usuário em chat (20/min), upload (10/min), envio de localização (30/min), pagamentos (20/min) e polling (60/min). Com `REDIS_URL` o contador é compartilhado entre instâncias; sem Redis, fica em memória por processo.
+
+### Auditoria
+A tabela `audit_logs` registra login (sucesso e falha), cadastro/aprovação/exclusão de motoboy, criação e mudança de status de pedido, criação/confirmação/cancelamento de pagamento e envio/acesso a comprovante. É só inserção, e uma falha ao gravar não interrompe a operação.
 
 ---
 
@@ -574,14 +594,16 @@ docker run -d \
 ### 4. Configurar Banco de Dados
 
 ```bash
-npx prisma db push
+npx prisma migrate deploy   # aplica as migrations versionadas em prisma/migrations
 npx prisma generate
 ```
+
+> Não use `prisma db push`: ele altera o banco sem histórico e diverge do que roda no CI e em produção. Para mudar o schema em desenvolvimento, use `npx prisma migrate dev --name descricao`.
 
 ### 5. Criar Usuário Admin (Opcional)
 
 ```bash
-npx tsx scripts/create-admin.ts
+ADMIN_EMAIL=voce@exemplo.com ADMIN_PASSWORD='senha-com-12-ou-mais' npx tsx scripts/create-admin.ts
 ```
 
 Ou manualmente via Prisma Studio:
@@ -601,11 +623,7 @@ Acesse: **http://localhost:3000**
 
 ## Credenciais de Teste
 
-| Tipo | Email | Senha |
-|------|-------|-------|
-| Admin | admin@entregapramim.com | admin123 |
-
-Para criar novos usuários, acesse `/registro`
+Não há credenciais fixas. Crie o admin com `scripts/create-admin.ts` (passo 5) e os demais usuários em `/registro`. Motoboys cadastrados precisam ser aprovados pelo admin.
 
 ---
 
@@ -621,7 +639,8 @@ npm start
 
 # Prisma
 npx prisma studio      # Interface visual do banco
-npx prisma db push     # Sincronizar schema
+npx prisma migrate deploy # Aplicar migrations pendentes
+npx prisma migrate dev --name x # Criar migration (desenvolvimento)
 npx prisma generate    # Gerar cliente
 npx prisma migrate reset # Resetar banco
 
@@ -641,10 +660,9 @@ docker start entrega-mysql   # Iniciar
 2. Crie ou selecione um projeto
 3. Vá em **APIs e Serviços** > **Biblioteca**
 4. Ative as APIs:
-   - Maps JavaScript API
-   - Directions API
-   - Distance Matrix API
-   - Geocoding API
+   - Maps JavaScript API (chave do navegador)
+   - Routes API (chave do servidor; Directions/Distance Matrix são legado)
+   - Geocoding API (chave do servidor)
 5. Vá em **Credenciais** > **Criar Credenciais** > **Chave de API**
 6. Restrinja a chave por domínio (produção)
 7. Copie para `.env`
@@ -670,7 +688,8 @@ kill -9 <PID>    # Encerrar processo
 
 ### Prisma não encontra banco
 ```bash
-npx prisma db push --force-reset  # Recriar tabelas
+npx prisma migrate status   # Ver migrations pendentes
+npx prisma migrate reset    # Recriar o banco LOCAL (apaga dados)
 ```
 
 ### Erro de permissão de câmera/localização
@@ -681,9 +700,11 @@ npx prisma db push --force-reset  # Recriar tabelas
 
 ## Próximas Fases (Roadmap)
 
-- [ ] **Fase 4**: Integração de Pagamentos (PIX/Cartão)
-- [ ] **Fase 5**: Agendamento + Cupons de Desconto
-- [ ] **Fase 6**: Testes Automatizados + Segurança + Monitoramento
+Ver [docs/PLANO_EVOLUCAO.md](docs/PLANO_EVOLUCAO.md). Resumo:
+
+- [x] **P0 (parcial)**: localização restrita, aprovação de motoboy, idempotência, auditoria, rate limit por usuário, healthchecks, `assertEnv` no boot
+- [ ] **P1**: gateway de pagamento real com webhook, ledger, despacho com ofertas, ETA dinâmico
+- [ ] **P2**: multi-tenant (organizações) e produto B2B
 
 ---
 

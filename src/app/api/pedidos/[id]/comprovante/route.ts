@@ -6,6 +6,10 @@ import { authOptions } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { COMPROVANTE_DIR, detectarFormatoImagem, urlComprovante } from '@/lib/comprovante-storage'
+import { applyRateLimit } from '@/lib/auth-helpers'
+import { registrarAuditoria } from '@/lib/audit'
+
+const MAX_FOTO = 5 * 1024 * 1024
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -19,6 +23,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
+      )
+    }
+
+    const rateLimit = await applyRateLimit(request, 'upload', session.user.id)
+    if (!rateLimit.success) return rateLimit.response
+
+    // Recusa corpo grande antes de carregar o multipart em memória
+    const tamanho = Number(request.headers.get('content-length') ?? 0)
+    if (tamanho > MAX_FOTO + 64 * 1024) {
+      return jsonResponse(
+        { success: false, error: 'Arquivo muito grande. Máximo 5MB.' },
+        { status: 413 }
       )
     }
 
@@ -66,8 +82,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Validar tamanho (max 5MB)
-    const maxSize = 5 * 1024 * 1024
-    if (file.size > maxSize) {
+    if (file.size > MAX_FOTO) {
       return jsonResponse(
         { success: false, error: 'Arquivo muito grande. Máximo 5MB.' },
         { status: 400 }
@@ -95,6 +110,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
       data: { fotoComprovante: fotoUrl },
+    })
+
+    await registrarAuditoria({
+      acao: 'comprovante.enviado', entidade: 'Pedido', entidadeId: id, userId: session.user.id, request,
+      dados: { arquivo: fileName, bytes: buffer.length },
     })
 
     return jsonResponse({
