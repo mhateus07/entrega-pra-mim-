@@ -9,7 +9,9 @@ import { calcularRota } from '@/lib/google-maps'
 import { calcularPrecoCompleto, estimarTempo } from '@/lib/pricing'
 import { encontrarMelhorMotoboy } from '@/lib/alocacao'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireRole, serverError, forbidden } from '@/lib/auth-helpers'
+import { requireAuth, requireRole, serverError, forbidden, type AuthenticatedUser } from '@/lib/auth-helpers'
+import { comIdempotencia } from '@/lib/idempotency'
+import { registrarAuditoria } from '@/lib/audit'
 
 // GET /api/pedidos - Listar pedidos (filtrado por papel do usuário)
 export async function GET(request: NextRequest) {
@@ -36,11 +38,14 @@ export async function GET(request: NextRequest) {
       where.clienteId = auth.user.clienteId
     } else if (auth.user.role === 'MOTOBOY') {
       if (!auth.user.motoboyId) return forbidden('Cadastro de motoboy não encontrado')
-      // Motoboy vê pedidos disponíveis (SOLICITADO) ou atribuídos a ele
-      where.OR = [
-        { status: 'SOLICITADO' },
-        { motoboyId: auth.user.motoboyId },
-      ]
+      const perfil = await prisma.motoboy.findUnique({
+        where: { id: auth.user.motoboyId }, select: { aprovacao: true },
+      })
+      // Motoboy aprovado vê pedidos disponíveis (SOLICITADO) ou atribuídos a ele;
+      // cadastro pendente não vê endereços de pedidos de terceiros
+      where.OR = perfil?.aprovacao === 'APROVADO'
+        ? [{ status: 'SOLICITADO' }, { motoboyId: auth.user.motoboyId }]
+        : [{ motoboyId: auth.user.motoboyId }]
     }
     // Admin vê todos os pedidos
 
@@ -110,14 +115,24 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/pedidos - Criar pedido (cliente autenticado)
+// Aceita Idempotency-Key: repetir o envio com a mesma chave não duplica o pedido.
 export async function POST(request: NextRequest) {
   try {
     // Requer autenticação
     const auth = await requireRole(['CLIENTE', 'ADMIN'])
     if (!auth.authenticated) return auth.response
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    return await comIdempotencia(request, auth.user.id, 'pedidos:criar', body,
+      () => criarPedido(request, auth.user, body))
+  } catch (error) {
+    console.error('Erro ao criar pedido:', error)
+    return serverError('Erro ao criar pedido')
+  }
+}
 
+async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: unknown) {
+  try {
     const validation = createPedidoSchema.safeParse(body)
     if (!validation.success) {
       return jsonResponse(
@@ -133,7 +148,7 @@ export async function POST(request: NextRequest) {
     const data = validation.data
 
     // Cliente só pode criar pedido para si mesmo
-    if (auth.user.role === 'CLIENTE' && auth.user.clienteId !== data.clienteId) {
+    if (user.role === 'CLIENTE' && user.clienteId !== data.clienteId) {
       return forbidden('Você só pode criar pedidos para sua própria conta')
     }
 
@@ -240,10 +255,15 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    await registrarAuditoria({
+      acao: 'pedido.criado', entidade: 'Pedido', entidadeId: pedido.id, userId: user.id, request,
+      dados: { tipoServico: pedido.tipoServico, valorTotal: pedido.valorTotal.toString() },
+    })
+
     // Para entregas expressas, tentar alocar motoboy automaticamente
     if (data.tipoServico === 'EXPRESSA') {
       const motoboys = await prisma.motoboy.findMany({
-        where: { status: 'DISPONIVEL' },
+        where: { status: 'DISPONIVEL', aprovacao: 'APROVADO' },
         include: { disponibilidades: true },
       })
 

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { z } from 'zod'
+import { applyRateLimit } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -23,6 +24,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { status: 401 }
       )
     }
+
+    const rateLimit = await applyRateLimit(request, 'polling', session.user.id)
+    if (!rateLimit.success) return rateLimit.response
 
     const { id } = await params
 
@@ -93,6 +97,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: 401 }
       )
     }
+
+    const rateLimit = await applyRateLimit(request, 'chat', session.user.id)
+    if (!rateLimit.success) return rateLimit.response
 
     const { id } = await params
     const body = await request.json()

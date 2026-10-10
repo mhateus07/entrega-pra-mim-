@@ -43,7 +43,7 @@ suite('MySQL: transações, autorização e concorrência', () => {
       const user = await db.user.create({ data: {
         nome: 'Teste motoboy', email: `${randomUUID()}@test.local`, senha: 'fixture', role: 'MOTOBOY',
         motoboy: { create: { cnh: randomUUID(), veiculoTipo: 'Moto', veiculoMarca: 'Teste',
-          veiculoModelo: 'Teste', veiculoPlaca: randomUUID(), status: 'DISPONIVEL' } },
+          veiculoModelo: 'Teste', veiculoPlaca: randomUUID(), status: 'DISPONIVEL', aprovacao: 'APROVADO' } },
       }, include: { motoboy: true } })
       users.push(user.id)
       drivers.push({ id: user.id, email: user.email, role: 'MOTOBOY' as const, clienteId: null, motoboyId: user.motoboy!.id })

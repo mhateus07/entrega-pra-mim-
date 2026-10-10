@@ -20,7 +20,7 @@ try {
   const cliente = await db.cliente.upsert({ where: { userId: clientUser.id }, update: {}, create: { userId: clientUser.id } })
   const motoboy = await db.motoboy.upsert({ where: { userId: driverUser.id }, update: {}, create: {
     userId: driverUser.id, cnh: '00000000000', veiculoTipo: 'Moto', veiculoMarca: 'Honda', veiculoModelo: 'CG 160',
-    veiculoPlaca: 'DEM1A23', status: 'DISPONIVEL', totalEntregas: 20, avaliacaoMedia: 5,
+    veiculoPlaca: 'DEM1A23', status: 'DISPONIVEL', aprovacao: 'APROVADO', totalEntregas: 20, avaliacaoMedia: 5,
   } })
   const addresses = []
   for (const [i, logradouro, bairro, lat, lng] of [[1, 'Rua Halfeld', 'Centro', -21.761, -43.349], [2, 'Avenida Rio Branco', 'São Mateus', -21.775, -43.351]]) {

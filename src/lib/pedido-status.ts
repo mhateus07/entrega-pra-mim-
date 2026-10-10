@@ -27,7 +27,7 @@ export async function alterarStatusPedido(id: string, user: AuthenticatedUser, d
       if (!motoboyId) throw new OperacaoError('motoboyId é obrigatório para aceitar pedido', 400)
       // A reserva condicional serializa também dois pedidos disputando um motoboy.
       const reserva = await tx.motoboy.updateMany({
-        where: { id: motoboyId, status: 'DISPONIVEL' }, data: { status: 'EM_ENTREGA' },
+        where: { id: motoboyId, status: 'DISPONIVEL', aprovacao: 'APROVADO' }, data: { status: 'EM_ENTREGA' },
       })
       if (reserva.count !== 1) throw new OperacaoError('Motoboy não está disponível')
       const ativo = await tx.pedido.findFirst({

@@ -302,9 +302,12 @@ export interface RateLimitSuccess {
 /**
  * Verifica rate limit para uma requisição
  * Use no início das rotas de API para limitar requisições por IP
+ * Com `userId`, o limite é aplicado também por usuário: trocar de IP não
+ * libera novas requisições e vários usuários atrás do mesmo NAT não se bloqueiam.
  *
  * @param request - NextRequest
  * @param config - Configuração de rate limit (opcional, usa 'api' por padrão)
+ * @param userId - Usuário autenticado (opcional)
  *
  * @example
  * const rateLimit = await applyRateLimit(request, 'auth')
@@ -312,14 +315,14 @@ export interface RateLimitSuccess {
  */
 export async function applyRateLimit(
   request: NextRequest,
-  configType: keyof typeof RATE_LIMIT_CONFIGS = 'api'
+  configType: keyof typeof RATE_LIMIT_CONFIGS = 'api',
+  userId?: string
 ): Promise<RateLimitSuccess | RateLimitError> {
-  const ip = getClientIP(request)
   const endpoint = request.nextUrl.pathname
-  const key = createRateLimitKey(ip, endpoint)
   const config = RATE_LIMIT_CONFIGS[configType]
+  const identificador = userId ? `user:${userId}` : getClientIP(request)
 
-  const result = await checkRateLimit(key, config)
+  const result = await checkRateLimit(createRateLimitKey(identificador, endpoint), config)
 
   if (!result.success) {
     const headers = getRateLimitHeaders(result)

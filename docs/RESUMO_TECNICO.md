@@ -10,7 +10,7 @@ Plataforma de entregas com motoboys desenvolvida em **3 fases**, utilizando tecn
 
 | Camada | Tecnologia | Justificativa |
 |--------|------------|---------------|
-| Frontend | Next.js 14 (App Router) | SSR, SEO, API Routes integradas |
+| Frontend | Next.js 16 (App Router) | SSR, SEO, API Routes integradas |
 | Linguagem | TypeScript | Tipagem estática, melhor DX |
 | Estilização | Tailwind CSS | Utility-first, produtividade |
 | Banco de Dados | MySQL 8.0 | Relacional, robusto, escalável |
@@ -26,7 +26,7 @@ Plataforma de entregas com motoboys desenvolvida em **3 fases**, utilizando tecn
 ## Arquitetura
 
 ### Padrão de Projeto
-- **App Router** do Next.js 14
+- **App Router** do Next.js 16
 - **Route Groups** para organização (`(auth)`, `(cliente)`, etc.)
 - **API Routes** para backend
 - **Server Components** onde possível

@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, ArrowLeft, Check, CheckCircle2, MapPin, Plus } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -15,6 +15,7 @@ import { Alert, DataRow, FullPageLoader, Spinner } from '@/components/ui/Feedbac
 import { formatarMoeda, formatarDistancia, formatarTempo, DESCRICOES_SERVICO, MULTIPLICADORES, PRECO_POR_KM } from '@/lib/pricing'
 import { LABELS_TIPO_SERVICO } from '@/utils/helpers'
 import { cn } from '@/utils/cn'
+import { novaChaveIdempotencia } from '@/utils/idempotency-key'
 import { TipoServico } from '@/types'
 import PaymentForm from '@/components/payment/PaymentForm'
 import PixPayment from '@/components/payment/PixPayment'
@@ -229,6 +230,10 @@ export default function NovaEntregaPage() {
     }
   }
 
+  // Mesma chave enquanto a tentativa não recebe resposta (ex.: queda de rede);
+  // depois de qualquer resposta, o próximo envio usa uma chave nova
+  const chavePedido = useRef<string | null>(null)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -238,9 +243,10 @@ export default function NovaEntregaPage() {
     setError('')
 
     try {
+      chavePedido.current ??= novaChaveIdempotencia()
       const response = await fetch('/api/pedidos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': chavePedido.current },
         body: JSON.stringify({
           clienteId: session.user.clienteId,
           enderecoOrigemId,
@@ -251,6 +257,7 @@ export default function NovaEntregaPage() {
           dataAgendada: dataAgendada || undefined,
         }),
       })
+      chavePedido.current = null
 
       const data = await response.json()
 

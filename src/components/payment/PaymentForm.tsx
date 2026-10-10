@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ELECTRONIC_PAYMENTS_AVAILABLE } from '@/lib/payment-policy'
 import { Banknote, CreditCard, Info, QrCode } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -8,6 +8,7 @@ import Input from '@/components/ui/Input'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Alert } from '@/components/ui/Feedback'
 import { cn } from '@/utils/cn'
+import { novaChaveIdempotencia } from '@/utils/idempotency-key'
 import toast from 'react-hot-toast'
 import {
   formatarValor,
@@ -70,6 +71,9 @@ export default function PaymentForm({
     setCartao({ ...cartao, validade: valor })
   }
 
+  // Evita cobrança duplicada se a mesma tentativa for reenviada sem resposta
+  const chavePagamento = useRef<string | null>(null)
+
   const handlePagar = async () => {
     if (!metodo) {
       toast.error('Selecione uma forma de pagamento')
@@ -98,11 +102,13 @@ export default function PaymentForm({
         }
       }
 
+      chavePagamento.current ??= novaChaveIdempotencia()
       const response = await fetch('/api/pagamentos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': chavePagamento.current },
         body: JSON.stringify(payload),
       })
+      chavePagamento.current = null
 
       const data = await response.json()
 

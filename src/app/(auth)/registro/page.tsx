@@ -113,7 +113,7 @@ function RegistroForm() {
       setSuccess(true)
       setTimeout(() => {
         router.push('/login')
-      }, 2000)
+      }, tipo === 'motoboy' ? 5000 : 2000)
     } catch {
       setError('Erro ao criar conta')
     } finally {
@@ -128,6 +128,11 @@ function RegistroForm() {
           <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Conta criada</h1>
+        {tipo === 'motoboy' && (
+          <p className="mt-1.5 text-sm text-fg-2">
+            Seu cadastro passa por aprovação da operação. Você já pode entrar, mas só recebe pedidos depois de aprovado.
+          </p>
+        )}
         <p className="mt-1.5 text-sm text-fg-3">Redirecionando para o login…</p>
       </AuthLayout>
     )

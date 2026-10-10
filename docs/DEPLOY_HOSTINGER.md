@@ -134,7 +134,7 @@ openssl rand -base64 32
 npx prisma generate
 
 # Aplicar schema ao banco
-npx prisma db push
+npx prisma migrate deploy
 
 # (Opcional) Criar admin
 npx ts-node scripts/create-admin.ts
@@ -275,7 +275,7 @@ cd entrega_pra_mim
 git pull origin main
 npm ci
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run build
 pm2 restart entrega-pra-mim
 ```
