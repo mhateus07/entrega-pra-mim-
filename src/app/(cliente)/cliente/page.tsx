@@ -7,9 +7,8 @@ import { useRouter } from 'next/navigation'
 import { ChevronRight, PackageOpen, Plus } from 'lucide-react'
 import { usePaginatedList } from '@/hooks/usePaginatedList'
 import Pagination from '@/components/ui/Pagination'
-import Header from '@/components/ui/Header'
 import { buttonClass } from '@/components/ui/Button'
-import { EmptyState, FullPageLoader, PageHeader } from '@/components/ui/Feedback'
+import { EmptyState, PageLoader, PageHeader } from '@/components/ui/Feedback'
 import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
 import { formatarMoeda } from '@/lib/pricing'
 import { LABELS_TIPO_SERVICO, codigoPedido, formatarData, formatarDataHora } from '@/utils/helpers'
@@ -51,13 +50,12 @@ export default function ClientePage() {
     if (status === 'unauthenticated') router.push('/login')
   }, [status, router])
 
-  if (status === 'loading') return <FullPageLoader />
+  if (status === 'loading') return <PageLoader />
 
   const primeiroNome = session?.user?.name?.split(' ')[0]
 
   return (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="CLIENTE" />
+    <div className="conteudo-chega">
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <PageHeader

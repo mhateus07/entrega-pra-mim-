@@ -2,9 +2,10 @@ import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
-import { requireAdmin, notFound, badRequest, serverError } from '@/lib/auth-helpers'
+import { requireGestor, notFound, badRequest, serverError } from '@/lib/auth-helpers'
 import { registrarAuditoria } from '@/lib/audit'
 import { OperacaoError } from '@/lib/operacao-error'
+import { verificarLimiteMotoboys } from '@/lib/uso'
 
 const aprovacaoSchema = z.object({
   aprovacao: z.enum(['APROVADO', 'REPROVADO', 'SUSPENSO']),
@@ -16,7 +17,7 @@ const aprovacaoSchema = z.object({
 // PATCH /api/motoboys/[id]/aprovacao - Aprovar, reprovar ou suspender cadastro (apenas admin)
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const auth = await requireAdmin()
+    const auth = await requireGestor()
     if (!auth.authenticated) return auth.response
 
     const validation = aprovacaoSchema.safeParse(await request.json().catch(() => null))
@@ -24,8 +25,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { aprovacao, motivo } = validation.data
     const { id } = await params
 
-    const motoboy = await prisma.motoboy.findUnique({ where: { id }, select: { aprovacao: true } })
+    const motoboy = await prisma.motoboy.findFirst({ where: { id, organizationId: auth.user.organizationId }, select: { aprovacao: true } })
     if (!motoboy) return notFound('Motoboy não encontrado')
+    if (aprovacao === 'APROVADO' && motoboy.aprovacao !== 'APROVADO') {
+      await verificarLimiteMotoboys(auth.user.organizationId, false)
+    }
 
     const updated = await prisma.$transaction(async tx => {
       if (aprovacao !== 'APROVADO') {
@@ -49,7 +53,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     })
 
     await registrarAuditoria({
-      acao: 'motoboy.aprovacao', entidade: 'Motoboy', entidadeId: id, userId: auth.user.id, request,
+      acao: 'motoboy.aprovacao', entidade: 'Motoboy', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request,
       dados: { de: motoboy.aprovacao, para: aprovacao, ...(motivo ? { motivo } : {}) },
     })
 

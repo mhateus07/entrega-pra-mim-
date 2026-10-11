@@ -1,5 +1,5 @@
 import type { Prisma, StatusPedido } from '@prisma/client'
-import type { AuthenticatedUser } from './auth-helpers'
+import type { OrgUser } from './auth-helpers'
 import type { UpdatePedidoStatusInput } from './validations'
 import { podeAlterarPedido } from './pedido-permissions'
 import { comPedidoBloqueado, liberarCreditoEntrega } from './pedido-transaction'
@@ -13,10 +13,33 @@ const transicoes: Record<StatusPedido, StatusPedido[]> = {
   ENTREGUE: [], CANCELADO: [],
 }
 
-export async function alterarStatusPedido(id: string, user: AuthenticatedUser, data: UpdatePedidoStatusInput) {
+const ATIVOS: StatusPedido[] = ['ACEITO', 'EM_COLETA', 'EM_ENTREGA']
+
+/**
+ * Reserva o motoboy para um pedido (DISPONIVEL → EM_ENTREGA) de forma atômica.
+ * A atualização condicional serializa também dois pedidos disputando o mesmo motoboy.
+ * Chamar com o pedido bloqueado (comPedidoBloqueado).
+ */
+export async function reservarMotoboy(tx: Prisma.TransactionClient, organizationId: string, motoboyId: string) {
+  const reserva = await tx.motoboy.updateMany({
+    where: { id: motoboyId, organizationId, status: 'DISPONIVEL', aprovacao: 'APROVADO' }, data: { status: 'EM_ENTREGA' },
+  })
+  if (reserva.count !== 1) throw new OperacaoError('Motoboy não está disponível')
+  const ativo = await tx.pedido.findFirst({ where: { motoboyId, status: { in: ATIVOS } } })
+  if (ativo) throw new OperacaoError('Motoboy já possui uma entrega em andamento')
+}
+
+/** Encerra ofertas em aberto do pedido (aceite, atribuição manual ou cancelamento). */
+export async function encerrarOfertas(tx: Prisma.TransactionClient, pedidoId: string, status: 'ACEITA' | 'CANCELADA' = 'CANCELADA') {
+  await tx.dispatchOffer.updateMany({ where: { pedidoId, status: 'OFERTADA' }, data: { status, respondidaEm: new Date() } })
+}
+
+export async function alterarStatusPedido(id: string, user: OrgUser, data: UpdatePedidoStatusInput) {
   return comPedidoBloqueado(id, async tx => {
     const pedido = await tx.pedido.findUniqueOrThrow({ where: { id }, include: { pagamento: true } })
-    if (!podeAlterarPedido(user, pedido, data.status, data.motoboyId)) {
+    // Pedido de outra central: responde como inexistente
+    if (pedido.organizationId !== user.organizationId) throw new OperacaoError('Pedido não encontrado', 404)
+    if (!podeAlterarPedido(user, pedido, data.status)) {
       throw new OperacaoError('Você não tem permissão para executar esta ação', 403)
     }
     if (!transicoes[pedido.status].includes(data.status)) {
@@ -24,19 +47,14 @@ export async function alterarStatusPedido(id: string, user: AuthenticatedUser, d
     }
     const update: Prisma.PedidoUncheckedUpdateInput = { status: data.status }
     if (data.status === 'ACEITO') {
-      const motoboyId = user.role === 'MOTOBOY' ? user.motoboyId : data.motoboyId
+      // Atribuição manual pela gestão; o motoboy aceita pela oferta (src/lib/despacho.ts)
+      const motoboyId = data.motoboyId
       if (!motoboyId) throw new OperacaoError('motoboyId é obrigatório para aceitar pedido', 400)
-      // A reserva condicional serializa também dois pedidos disputando um motoboy.
-      const reserva = await tx.motoboy.updateMany({
-        where: { id: motoboyId, status: 'DISPONIVEL', aprovacao: 'APROVADO' }, data: { status: 'EM_ENTREGA' },
-      })
-      if (reserva.count !== 1) throw new OperacaoError('Motoboy não está disponível')
-      const ativo = await tx.pedido.findFirst({
-        where: { motoboyId, status: { in: ['ACEITO', 'EM_COLETA', 'EM_ENTREGA'] } },
-      })
-      if (ativo) throw new OperacaoError('Motoboy já possui uma entrega em andamento')
+      await reservarMotoboy(tx, user.organizationId, motoboyId)
+      await encerrarOfertas(tx, id)
       update.motoboyId = motoboyId
       update.aceitoEm = new Date()
+      update.despachoManual = false
     }
     if (data.status === 'EM_ENTREGA') update.coletadoEm = new Date()
     if (data.status === 'ENTREGUE') {
@@ -52,6 +70,7 @@ export async function alterarStatusPedido(id: string, user: AuthenticatedUser, d
       if (pedido.pagamento?.status === 'PENDENTE' && pedido.pagamento.metodo !== 'DINHEIRO' && !ELECTRONIC_PAYMENTS_AVAILABLE) {
         throw new OperacaoError('Pagamento eletrônico requer conciliação com o gateway', 503)
       }
+      await encerrarOfertas(tx, id)
       update.canceladoEm = new Date()
       update.motivoCancelamento = data.motivoCancelamento || 'Cancelado pelo usuário'
       await tx.pagamento.updateMany({

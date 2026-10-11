@@ -1,5 +1,7 @@
 # Plano de evolução — Entrega Pra Mim
 
+> **Atualização out/2026 — nova ordem de prioridades.** O produto virou um SaaS multi-tenant para centrais de motofrete (ver `docs/PLANO_NEGOCIO.md`): cada central paga mensalidade fixa e a plataforma não tira comissão da corrida. Os princípios deste documento continuam valendo (monólito modular, migrations aditivas, máquina de estados, auditoria), mas a ordem mudou: **multi-tenant vem antes do gateway**. A seção 12 tem a ordem atual; as seções 5 e 11 ficam como histórico do raciocínio original.
+
 ## 1. Objetivo
 
 Transformar o MVP atual em uma plataforma B2B de logística urbana confiável para pequenas e médias empresas, com despacho operacional, rastreamento verificável, pagamentos conciliados, governança multi-tenant e uma experiência mobile-first para operador, cliente e entregador.
@@ -285,16 +287,34 @@ Adotar OWASP ASVS 5.0 como checklist verificável, com foco em autorização, va
 8. Qual gateway será homologado e quem será o recebedor legal do pagamento?
 9. Qual cidade e volume serão usados no piloto?
 
-## 12. Ordem prática de execução
+## 12. Ordem prática de execução (revisada em out/2026)
 
-1. Corrigir P0 e atualizar documentação.
-2. Escolher o modelo B2B e desenhar o modelo de organização.
-3. Homologar gateway e política financeira antes de expor cobrança real.
-4. Implementar ledger, webhooks e idempotência.
-5. Implementar dispatch persistente e console operacional.
-6. Implementar ETA/localização em tempo real.
-7. Migrar para multi-tenant com backfill e testes de isolamento.
-8. Rodar piloto controlado em uma cidade e medir métricas por duas semanas.
-9. Corrigir gargalos observados no piloto.
-10. Só então investir em otimização de rotas, integrações comerciais e aplicativo nativo.
+### Fase 1 — piloto vendável
 
+| # | Entrega | Situação |
+| --- | --- | --- |
+| 0 | P0: segurança, aprovação de motoboy, idempotência, auditoria, healthchecks | ✅ feito (PR #4) |
+| 1 | Multi-tenant: `Organization`, membros por papel, `organizationId` em tudo, teste de isolamento em todas as rotas | ✅ feito (Etapa 1) |
+| 2 | Preço por central (`PricingRule`, bairro fixo, preço congelado) e limites do plano (`UsageCounter`) | ✅ feito (Etapa 2) |
+| 3 | Rastreio público por link, convites e portal da empresa cliente | ✅ feito (Etapa 3) |
+| 4 | Fechamento do dia/mês por motoboy e por empresa, com CSV | ✅ feito (Etapa 4) |
+| 5 | Marca da central no rastreio, no login e no PWA | ✅ feito (Etapa 5) |
+| 6 | Despacho com oferta, prazo, reoferta e fila manual (`DispatchOffer`) | ✅ feito (Etapa 6) |
+| 7 | Aviso por WhatsApp ("saiu para entrega", "entregue" com o link) e domínio próprio da central | ⏳ próximo |
+| 8 | Piloto pago com 3 centrais em Juiz de Fora; medir corridas no sistema contra o total da central | ⏳ depois do item 7 |
+
+### Fase 2 — se a fase 1 vender (meses 3 a 6)
+
+1. Gateway Pix (Mercado Pago, já usado no Pedeli) com webhook assinado e idempotente; o ledger da P1 original volta a fazer sentido aqui.
+2. Integração Pedeli → EPM: restaurante chama motoboy da central parceira.
+3. ETA real pela rota a partir da posição atual (recalculado só quando o motoboy anda uma distância mínima, para controlar o custo do Maps).
+4. Troca do polling por SSE nas telas de rastreio, ofertas e chat.
+5. Importação de pedidos por CSV ou API por central.
+
+### Fase 3
+
+Marketplace aberto ao público com a marca da central e "app de entregas da cidade" (white-label para cidades pequenas). Apps nativos só se o PWA não atender localização em segundo plano.
+
+### Fora de escopo até nova decisão
+
+Split, ledger novo, saque do motoboy e cobrança automática da mensalidade das centrais. O código de pagamento simulado, o ledger atual e o chat continuam no repositório, fora do caminho principal.

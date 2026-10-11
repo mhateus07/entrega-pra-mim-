@@ -8,10 +8,41 @@ datasource db {
 }
 
 // Enums
+// Papel na plataforma. Só SUPERADMIN (equipe Impulsio) tem efeito de acesso;
+// CLIENTE/MOTOBOY indicam o tipo de conta criada. O acesso aos dados vem do
+// papel na organização (OrganizationMember.papel).
 enum UserRole {
-  ADMIN
+  SUPERADMIN
   CLIENTE
   MOTOBOY
+}
+
+// Papel do usuário dentro de uma central (organização)
+enum OrgRole {
+  OWNER
+  DISPATCHER
+  CLIENT
+  DRIVER
+}
+
+enum StatusOrganizacao {
+  PENDENTE
+  ATIVA
+  SUSPENSA
+}
+
+enum StatusOferta {
+  OFERTADA
+  ACEITA
+  RECUSADA
+  EXPIRADA
+  CANCELADA
+}
+
+enum PlanoOrganizacao {
+  ESSENCIAL
+  CENTRAL
+  MARCA_PROPRIA
 }
 
 enum StatusMotoboy {
@@ -70,6 +101,75 @@ enum StatusPagamento {
 }
 
 // Modelos
+
+// Central de motofrete: cada uma vê e opera apenas os próprios dados
+model Organization {
+  id        String            @id @default(cuid())
+  nome      String
+  slug      String            @unique
+  plano     PlanoOrganizacao  @default(ESSENCIAL)
+  status    StatusOrganizacao @default(PENDENTE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  settings    OrganizationSettings?
+  membros     OrganizationMember[]
+  motoboys    Motoboy[]
+  clientes    Cliente[]
+  enderecos   Endereco[]
+  pedidos     Pedido[]
+  pagamentos  Pagamento[]
+  avaliacoes  Avaliacao[]
+  mensagens   Mensagem[]
+  saldos      SaldoMotoboy[]
+  transacoes  TransacaoMotoboy[]
+  auditLogs   AuditLog[]
+  pricingRule PricingRule?
+  bairros     PricingBairro[]
+  uso         UsageCounter[]
+  convites    Convite[]
+  ofertas     DispatchOffer[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  papel          OrgRole
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model OrganizationSettings {
+  id                    String   @id @default(cuid())
+  organizationId        String   @unique
+  // Marca (white-label, plano MARCA_PROPRIA)
+  nomeExibicao          String?
+  logoArquivo           String?
+  corPrimaria           String?  @db.VarChar(7)
+  // Taxa opcional da plataforma sobre a corrida (padrão 0: sem comissão)
+  taxaPlataforma        Decimal  @default(0) @db.Decimal(5, 4)
+  // Fração do valor da corrida repassada ao motoboy no fechamento (só relatório)
+  repasseMotoboy        Decimal  @default(0.7) @db.Decimal(5, 4)
+  fusoHorario           String   @default("America/Sao_Paulo")
+  // Despacho: tempo para o motoboy aceitar e tentativas antes da fila manual
+  despachoTtlSegundos   Int      @default(90)
+  despachoMaxTentativas Int      @default(3)
+  updatedAt             DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_settings")
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -82,10 +182,12 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  motoboy  Motoboy?
-  cliente  Cliente?
-  accounts Account[]
-  sessions Session[]
+  // Um perfil de motoboy/cliente por organização
+  motoboys    Motoboy[]
+  clientes    Cliente[]
+  memberships OrganizationMember[]
+  accounts    Account[]
+  sessions    Session[]
 
   @@map("users")
 }
@@ -131,32 +233,42 @@ model VerificationToken {
 }
 
 model Motoboy {
-  id              String        @id @default(cuid())
-  userId          String        @unique
-  cnh             String        @unique
-  veiculoTipo     String        // Moto, Bicicleta, etc
+  id              String           @id @default(cuid())
+  organizationId  String
+  userId          String
+  cnh             String
+  veiculoTipo     String // Moto, Bicicleta, etc
   veiculoMarca    String
   veiculoModelo   String
-  veiculoPlaca    String        @unique
-  status          StatusMotoboy @default(OFFLINE)
+  veiculoPlaca    String
+  status          StatusMotoboy    @default(OFFLINE)
   aprovacao       AprovacaoMotoboy @default(PENDENTE_APROVACAO)
   aprovacaoEm     DateTime?
   motivoAprovacao String?
   latitudeAtual   Float?
   longitudeAtual  Float?
-  avaliacaoMedia  Float         @default(5.0)
-  totalEntregas   Int           @default(0)
+  avaliacaoMedia  Float            @default(5.0)
+  totalEntregas   Int              @default(0)
   ultimaAtividade DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   disponibilidades Disponibilidade[]
   pedidos          Pedido[]
   avaliacoes       Avaliacao[]
   saldo            SaldoMotoboy?
   transacoes       TransacaoMotoboy[]
+  ofertas          DispatchOffer[]
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@unique([organizationId, cnh])
+  @@unique([organizationId, veiculoPlaca])
+  @@index([userId])
+  @@index([organizationId, status, createdAt, id])
+  @@index([organizationId, aprovacao, createdAt, id])
   @@index([status, createdAt, id])
   @@index([aprovacao, createdAt, id])
   @@map("motoboys")
@@ -166,8 +278,8 @@ model Disponibilidade {
   id         String    @id @default(cuid())
   motoboyId  String
   diaSemana  DiaSemana
-  horaInicio String    // Formato HH:MM
-  horaFim    String    // Formato HH:MM
+  horaInicio String // Formato HH:MM
+  horaFim    String // Formato HH:MM
   ativo      Boolean   @default(true)
 
   motoboy Motoboy @relation(fields: [motoboyId], references: [id], onDelete: Cascade)
@@ -177,75 +289,92 @@ model Disponibilidade {
 }
 
 model Cliente {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  cpfCnpj   String?  @unique
-  tipoPessoa String  @default("PF") // PF ou PJ
-  razaoSocial String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  cpfCnpj        String?
+  tipoPessoa     String   @default("PF") // PF ou PJ
+  razaoSocial    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   enderecos  Endereco[]
   pedidos    Pedido[]
   pagamentos Pagamento[]
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@unique([organizationId, cpfCnpj])
+  @@index([userId])
+  @@index([organizationId, createdAt, id])
   @@map("clientes")
 }
 
 model Endereco {
-  id           String   @id @default(cuid())
-  clienteId    String
-  apelido      String?  // Casa, Trabalho, etc
-  cep          String
-  logradouro   String
-  numero       String
-  complemento  String?
-  bairro       String
-  cidade       String
-  estado       String
-  latitude     Float?
-  longitude    Float?
-  favorito     Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  clienteId      String
+  apelido        String? // Casa, Trabalho, etc
+  cep            String
+  logradouro     String
+  numero         String
+  complemento    String?
+  bairro         String
+  cidade         String
+  estado         String
+  latitude       Float?
+  longitude      Float?
+  favorito       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  cliente          Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  pedidosOrigem    Pedido[] @relation("EnderecoOrigem")
-  pedidosDestino   Pedido[] @relation("EnderecoDestino")
+  cliente        Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  pedidosOrigem  Pedido[] @relation("EnderecoOrigem")
+  pedidosDestino Pedido[] @relation("EnderecoDestino")
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, clienteId])
   @@map("enderecos")
 }
 
 model Pedido {
-  id               String       @id @default(cuid())
-  clienteId        String
-  motoboyId        String?
-  enderecoOrigemId String
-  enderecoDestinoId String
-  tipoServico      TipoServico
-  status           StatusPedido @default(SOLICITADO)
+  id                 String       @id @default(cuid())
+  // Link público de rastreio (/r/[token]): aleatório, 43 caracteres
+  trackingToken      String?      @unique @db.VarChar(64)
+  // Despacho com oferta: tentativas feitas e fila manual do despachante
+  tentativasDespacho Int          @default(0)
+  despachoManual     Boolean      @default(false)
+  organizationId     String
+  clienteId          String
+  motoboyId          String?
+  enderecoOrigemId   String
+  enderecoDestinoId  String
+  tipoServico        TipoServico
+  status             StatusPedido @default(SOLICITADO)
 
   // Detalhes da entrega
-  descricaoItem    String?
-  observacoes      String?      @db.Text
-  pesoAproximado   Float?       // em kg
+  descricaoItem  String?
+  observacoes    String? @db.Text
+  pesoAproximado Float? // em kg
 
   // Valores calculados
-  distanciaKm      Float
-  duracaoEstimada  Int          // em minutos
-  valorBase        Decimal @db.Decimal(14, 2)
-  multiplicador    Float
-  valorTotal       Decimal @db.Decimal(14, 2)
+  distanciaKm     Float
+  duracaoEstimada Int // em minutos
+  valorBase       Decimal @db.Decimal(14, 2)
+  multiplicador   Float
+  valorTotal      Decimal @db.Decimal(14, 2)
 
   // Agendamento (para entregas agendadas)
-  dataAgendada     DateTime?
+  dataAgendada DateTime?
 
   // Timestamps de status
-  aceitoEm         DateTime?
-  coletadoEm       DateTime?
-  entregueEm       DateTime?
-  canceladoEm      DateTime?
+  aceitoEm           DateTime?
+  coletadoEm         DateTime?
+  entregueEm         DateTime?
+  canceladoEm        DateTime?
   motivoCancelamento String?
 
   // Confirmação (para documentos)
@@ -255,15 +384,21 @@ model Pedido {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cliente         Cliente    @relation(fields: [clienteId], references: [id])
-  motoboy         Motoboy?   @relation(fields: [motoboyId], references: [id])
-  enderecoOrigem  Endereco   @relation("EnderecoOrigem", fields: [enderecoOrigemId], references: [id])
-  enderecoDestino Endereco   @relation("EnderecoDestino", fields: [enderecoDestinoId], references: [id])
+  cliente         Cliente            @relation(fields: [clienteId], references: [id])
+  motoboy         Motoboy?           @relation(fields: [motoboyId], references: [id])
+  enderecoOrigem  Endereco           @relation("EnderecoOrigem", fields: [enderecoOrigemId], references: [id])
+  enderecoDestino Endereco           @relation("EnderecoDestino", fields: [enderecoDestinoId], references: [id])
   avaliacao       Avaliacao?
   mensagens       Mensagem[]
   pagamento       Pagamento?
   transacoes      TransacaoMotoboy[]
+  ofertas         DispatchOffer[]
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, status, createdAt, id])
+  @@index([organizationId, clienteId, createdAt, id])
+  @@index([organizationId, motoboyId, status, createdAt, id])
   @@index([status, createdAt, id])
   @@index([clienteId, createdAt, id])
   @@index([motoboyId, status, createdAt, id])
@@ -271,70 +406,83 @@ model Pedido {
 }
 
 model Avaliacao {
-  id         String   @id @default(cuid())
-  pedidoId   String   @unique
-  motoboyId  String
-  nota       Int      // 1 a 5
-  comentario String?  @db.Text
-  createdAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  pedidoId       String   @unique
+  motoboyId      String
+  nota           Int // 1 a 5
+  comentario     String?  @db.Text
+  createdAt      DateTime @default(now())
 
   pedido  Pedido  @relation(fields: [pedidoId], references: [id])
   motoboy Motoboy @relation(fields: [motoboyId], references: [id])
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, motoboyId, createdAt])
   @@map("avaliacoes")
 }
 
 model Mensagem {
-  id         String   @id @default(cuid())
-  pedidoId   String
-  remetente  String   // 'CLIENTE' ou 'MOTOBOY'
-  conteudo   String   @db.Text
-  lida       Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  pedidoId       String
+  remetente      String // 'CLIENTE' ou 'MOTOBOY'
+  conteudo       String   @db.Text
+  lida           Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
   pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, pedidoId])
   @@index([pedidoId])
   @@map("mensagens")
 }
 
 model Pagamento {
-  id                String           @id @default(cuid())
-  pedidoId          String           @unique
-  clienteId         String
+  id             String @id @default(cuid())
+  organizationId String
+  pedidoId       String @unique
+  clienteId      String
 
   // Valores
-  valor             Decimal @db.Decimal(14, 2)
-  taxaPlataforma    Decimal            @default(0) @db.Decimal(14, 2) // Taxa cobrada pela plataforma
-  valorMotoboy      Decimal            @default(0) @db.Decimal(14, 2) // Valor que vai para o motoboy
+  valor          Decimal @db.Decimal(14, 2)
+  taxaPlataforma Decimal @default(0) @db.Decimal(14, 2) // Taxa cobrada pela plataforma
+  valorMotoboy   Decimal @default(0) @db.Decimal(14, 2) // Valor que vai para o motoboy
 
   // Método e status
-  metodo            MetodoPagamento
-  status            StatusPagamento  @default(PENDENTE)
+  metodo MetodoPagamento
+  status StatusPagamento @default(PENDENTE)
 
   // Dados do pagamento (gateway)
-  gatewayId         String?          // ID da transação no gateway
-  gatewayResponse   String?          @db.Text // Resposta JSON do gateway
+  gatewayId       String? // ID da transação no gateway
+  gatewayResponse String? @db.Text // Resposta JSON do gateway
 
   // PIX
-  pixQrCode         String?          @db.Text // QR Code em base64
-  pixCopiaCola      String?          @db.Text // Código copia e cola
-  pixExpiraEm       DateTime?
+  pixQrCode    String?   @db.Text // QR Code em base64
+  pixCopiaCola String?   @db.Text // Código copia e cola
+  pixExpiraEm  DateTime?
 
   // Cartão (dados mascarados)
-  cartaoUltimos4    String?
-  cartaoBandeira    String?
+  cartaoUltimos4 String?
+  cartaoBandeira String?
 
   // Timestamps
-  aprovadoEm        DateTime?
-  canceladoEm       DateTime?
-  reembolsadoEm     DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  aprovadoEm    DateTime?
+  canceladoEm   DateTime?
+  reembolsadoEm DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   pedido  Pedido  @relation(fields: [pedidoId], references: [id])
   cliente Cliente @relation(fields: [clienteId], references: [id])
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, status])
+  @@index([organizationId, clienteId])
   @@index([clienteId])
   @@index([status])
   @@map("pagamentos")
@@ -342,30 +490,38 @@ model Pagamento {
 
 model SaldoMotoboy {
   id              String   @id @default(cuid())
+  organizationId  String
   motoboyId       String   @unique
-  saldoDisponivel Decimal    @default(0) @db.Decimal(14, 2)
-  saldoPendente   Decimal    @default(0) @db.Decimal(14, 2) // Aguardando liberação
-  totalRecebido   Decimal    @default(0) @db.Decimal(14, 2)
+  saldoDisponivel Decimal  @default(0) @db.Decimal(14, 2)
+  saldoPendente   Decimal  @default(0) @db.Decimal(14, 2) // Aguardando liberação
+  totalRecebido   Decimal  @default(0) @db.Decimal(14, 2)
   updatedAt       DateTime @updatedAt
 
   motoboy Motoboy @relation(fields: [motoboyId], references: [id], onDelete: Cascade)
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
   @@map("saldos_motoboy")
 }
 
 model TransacaoMotoboy {
-  id          String   @id @default(cuid())
-  motoboyId   String
-  pedidoId    String?
-  tipo        String   // 'CREDITO' ou 'SAQUE'
-  valor       Decimal @db.Decimal(14, 2)
-  descricao   String
-  status      String   @default("PENDENTE") // PENDENTE, CONCLUIDO, CANCELADO
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  motoboyId      String
+  pedidoId       String?
+  tipo           String // 'CREDITO' ou 'SAQUE'
+  valor          Decimal  @db.Decimal(14, 2)
+  descricao      String
+  status         String   @default("PENDENTE") // PENDENTE, CONCLUIDO, CANCELADO
+  createdAt      DateTime @default(now())
 
-  motoboy Motoboy  @relation(fields: [motoboyId], references: [id])
-  pedido  Pedido?  @relation(fields: [pedidoId], references: [id])
+  motoboy Motoboy @relation(fields: [motoboyId], references: [id])
+  pedido  Pedido? @relation(fields: [pedidoId], references: [id])
 
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, motoboyId, createdAt, id])
   @@index([motoboyId])
   @@index([pedidoId])
   @@index([motoboyId, createdAt, id])
@@ -380,7 +536,7 @@ model IdempotencyKey {
   escopo      String   @db.VarChar(100)
   chave       String   @db.VarChar(255)
   requestHash String   @db.VarChar(64)
-  statusCode  Int?     // null enquanto a requisição original está em processamento
+  statusCode  Int? // null enquanto a requisição original está em processamento
   resposta    String?  @db.LongText
   createdAt   DateTime @default(now())
 
@@ -392,17 +548,111 @@ model IdempotencyKey {
 // Trilha de ações sensíveis (login, status, pagamento, aprovação, comprovante).
 // Somente inserção: nenhuma rota altera ou apaga registros.
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  acao       String   @db.VarChar(100)
-  entidade   String   @db.VarChar(50)
-  entidadeId String?
-  dados      Json?
-  ip         String?  @db.VarChar(64)
-  createdAt  DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  acao           String   @db.VarChar(100)
+  entidade       String   @db.VarChar(50)
+  entidadeId     String?
+  dados          Json?
+  ip             String?  @db.VarChar(64)
+  createdAt      DateTime @default(now())
 
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
   @@index([entidade, entidadeId, createdAt])
   @@index([userId, createdAt])
   @@index([acao, createdAt])
   @@map("audit_logs")
+}
+
+// Tabela de preço da central. O preço calculado é congelado no pedido
+// (valorBase, multiplicador, valorTotal) e nunca recalculado depois.
+model PricingRule {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  precoPorKm     Decimal  @default(3) @db.Decimal(10, 2)
+  valorMinimo    Decimal  @default(0) @db.Decimal(10, 2)
+  multAgendada   Decimal  @default(1) @db.Decimal(5, 2)
+  multDocumentos Decimal  @default(1.2) @db.Decimal(5, 2)
+  multExpressa   Decimal  @default(1.5) @db.Decimal(5, 2)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("pricing_rules")
+}
+
+// Preço fixo por bairro de destino: substitui o cálculo por km e ainda
+// recebe o multiplicador do tipo de serviço.
+model PricingBairro {
+  id             String  @id @default(cuid())
+  organizationId String
+  bairro         String // normalizado: minúsculo, sem acento
+  nome           String // como a central digitou
+  valor          Decimal @db.Decimal(10, 2)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, bairro])
+  @@map("pricing_bairros")
+}
+
+// Consumo mensal da central (limites do plano e custo do Google Maps)
+model UsageCounter {
+  id             String @id @default(cuid())
+  organizationId String
+  mes            String @db.Char(7) // AAAA-MM no fuso da central
+  entregas       Int    @default(0)
+  chamadasMaps   Int    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, mes])
+  @@map("usage_counters")
+}
+
+// Convite para entrar numa central (cliente, motoboy ou despachante).
+// O token aparece uma única vez no link; aqui fica só o hash.
+model Convite {
+  id             String    @id @default(cuid())
+  organizationId String
+  papel          OrgRole
+  tokenHash      String    @unique @db.Char(64)
+  email          String?
+  nome           String?
+  expiresAt      DateTime
+  usadoEm        DateTime?
+  usadoPorId     String?
+  criadoPorId    String
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("convites")
+}
+
+// Oferta de corrida a um motoboy. Há no máximo uma OFERTADA por pedido;
+// expirou ou foi recusada, o sistema oferece ao próximo do score.
+model DispatchOffer {
+  id             String       @id @default(cuid())
+  organizationId String
+  pedidoId       String
+  motoboyId      String
+  status         StatusOferta @default(OFERTADA)
+  tentativa      Int
+  expiresAt      DateTime
+  respondidaEm   DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pedido       Pedido       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  motoboy      Motoboy      @relation(fields: [motoboyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, expiresAt])
+  @@index([pedidoId, status])
+  @@index([motoboyId, status, expiresAt])
+  @@map("dispatch_offers")
 }

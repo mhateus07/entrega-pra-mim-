@@ -6,10 +6,13 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createPedidoSchema } from '@/lib/validations'
 import { calcularRota } from '@/lib/google-maps'
-import { calcularPrecoCompleto, estimarTempo } from '@/lib/pricing'
-import { encontrarMelhorMotoboy } from '@/lib/alocacao'
+import { calcularPrecoComRegra, estimarTempo } from '@/lib/pricing'
+import { carregarRegraPreco } from '@/lib/pricing-org'
+import { registrarEntrega } from '@/lib/uso'
+import { gerarToken } from '@/lib/tokens'
+import { ofertarPedido } from '@/lib/despacho'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireRole, serverError, forbidden, applyMapsRateLimit, type AuthenticatedUser } from '@/lib/auth-helpers'
+import { requireOrgAccess, serverError, forbidden, applyMapsRateLimit, isGestor, type OrgUser } from '@/lib/auth-helpers'
 import { comIdempotencia } from '@/lib/idempotency'
 import { clientePedidoSelect } from '@/lib/pedido-select'
 import { registrarAuditoria } from '@/lib/audit'
@@ -17,8 +20,7 @@ import { registrarAuditoria } from '@/lib/audit'
 // GET /api/pedidos - Listar pedidos (filtrado por papel do usuário)
 export async function GET(request: NextRequest) {
   try {
-    // Requer autenticação
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
@@ -30,25 +32,21 @@ export async function GET(request: NextRequest) {
     const dataInicio = searchParams.get('dataInicio')
     const dataFim = searchParams.get('dataFim')
 
-    const where: Prisma.PedidoWhereInput = {}
+    // Sempre dentro da central ativa
+    const where: Prisma.PedidoWhereInput = { organizationId: auth.user.organizationId }
 
     // Filtrar por papel do usuário (segurança)
-    if (auth.user.role === 'CLIENTE') {
+    if (auth.user.orgRole === 'CLIENT') {
       // Cliente só vê seus próprios pedidos
       if (!auth.user.clienteId) return forbidden('Cadastro de cliente não encontrado')
       where.clienteId = auth.user.clienteId
-    } else if (auth.user.role === 'MOTOBOY') {
+    } else if (auth.user.orgRole === 'DRIVER') {
       if (!auth.user.motoboyId) return forbidden('Cadastro de motoboy não encontrado')
-      const perfil = await prisma.motoboy.findUnique({
-        where: { id: auth.user.motoboyId }, select: { aprovacao: true },
-      })
-      // Motoboy aprovado vê pedidos disponíveis (SOLICITADO) ou atribuídos a ele;
-      // cadastro pendente não vê endereços de pedidos de terceiros
-      where.OR = perfil?.aprovacao === 'APROVADO'
-        ? [{ status: 'SOLICITADO' }, { motoboyId: auth.user.motoboyId }]
-        : [{ motoboyId: auth.user.motoboyId }]
+      // Motoboy vê só os pedidos atribuídos a ele; novas corridas chegam como oferta
+      // (GET /api/despacho/ofertas), não como lista aberta de pedidos da central
+      where.motoboyId = auth.user.motoboyId
     }
-    // Admin vê todos os pedidos
+    // Gestão da central vê todos os pedidos dela
 
     const grupo = enumFilter(searchParams.get('grupo'), ['ativos', 'finalizados'] as const)
     if (grupo) where.status = { in: grupo === 'ativos' ? ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA'] : ['ENTREGUE', 'CANCELADO'] }
@@ -56,10 +54,10 @@ export async function GET(request: NextRequest) {
     if (tipoServico) where.tipoServico = tipoServico
 
     // Clientes não podem filtrar por outros clienteIds
-    if (clienteId && auth.user.role === 'ADMIN') {
+    if (clienteId && isGestor(auth.user)) {
       where.clienteId = clienteId
     }
-    if (motoboyId && (auth.user.role === 'ADMIN' || motoboyId === auth.user.motoboyId)) {
+    if (motoboyId && (isGestor(auth.user) || motoboyId === auth.user.motoboyId)) {
       where.motoboyId = motoboyId
     }
 
@@ -99,7 +97,7 @@ export async function GET(request: NextRequest) {
       pagination: paginationMeta(paging.page, paging.pageSize, total),
       success: true,
       // Antes do aceite, o motoboy vê endereços para decidir, mas não o telefone do cliente
-      data: auth.user.role === 'MOTOBOY'
+      data: auth.user.orgRole === 'DRIVER'
         ? pedidos.map(p => p.motoboyId === auth.user.motoboyId ? p : { ...p, cliente: { ...p.cliente, user: { nome: p.cliente.user.nome, telefone: null } } })
         : pedidos,
     }
@@ -117,7 +115,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Requer autenticação
-    const auth = await requireRole(['CLIENTE', 'ADMIN'])
+    const auth = await requireOrgAccess(['OWNER', 'DISPATCHER', 'CLIENT'])
     if (!auth.authenticated) return auth.response
 
     const body = await request.json().catch(() => null)
@@ -129,7 +127,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: unknown) {
+async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
   try {
     const validation = createPedidoSchema.safeParse(body)
     if (!validation.success) {
@@ -146,13 +144,14 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
     const data = validation.data
 
     // Cliente só pode criar pedido para si mesmo
-    if (user.role === 'CLIENTE' && user.clienteId !== data.clienteId) {
+    if (user.orgRole === 'CLIENT' && user.clienteId !== data.clienteId) {
       return forbidden('Você só pode criar pedidos para sua própria conta')
     }
 
     // Verificar se cliente existe
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: data.clienteId },
+    // Cliente precisa ser da central ativa
+    const cliente = await prisma.cliente.findFirst({
+      where: { id: data.clienteId, organizationId: user.organizationId },
     })
 
     if (!cliente) {
@@ -204,7 +203,8 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
     if (!limite.success) return limite.response
     const rota = await calcularRota(
       { latitude: enderecoOrigem.latitude, longitude: enderecoOrigem.longitude },
-      { latitude: enderecoDestino.latitude, longitude: enderecoDestino.longitude }
+      { latitude: enderecoDestino.latitude, longitude: enderecoDestino.longitude },
+      { organizationId: user.organizationId }
     )
 
     let distanciaKm: number
@@ -221,12 +221,18 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
       duracaoMinutos = estimarTempo(distanciaKm)
     }
 
-    // Calcular preço
-    const preco = calcularPrecoCompleto(distanciaKm, duracaoMinutos, data.tipoServico)
+    // Preço pela tabela da central; fica congelado no pedido e nunca é recalculado
+    const regra = await carregarRegraPreco(user.organizationId)
+    const preco = { ...calcularPrecoComRegra(regra, distanciaKm, data.tipoServico, enderecoDestino.bairro), tempoEstimado: duracaoMinutos }
 
-    // Criar pedido
-    const pedido = await prisma.pedido.create({
+    // Criar pedido e contar a entrega no mês do plano, na mesma transação
+    let avisoPlano: string | null = null
+    const pedido = await prisma.$transaction(async (tx) => {
+      avisoPlano = await registrarEntrega(tx, user.organizationId)
+      return tx.pedido.create({
       data: {
+        organizationId: user.organizationId,
+        trackingToken: gerarToken(),
         clienteId: data.clienteId,
         enderecoOrigemId: data.enderecoOrigemId,
         enderecoDestinoId: data.enderecoDestinoId,
@@ -247,41 +253,26 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
         enderecoOrigem: true,
         enderecoDestino: true,
       },
+      })
     })
 
     await registrarAuditoria({
-      acao: 'pedido.criado', entidade: 'Pedido', entidadeId: pedido.id, userId: user.id, request,
+      acao: 'pedido.criado', entidade: 'Pedido', entidadeId: pedido.id, userId: user.id, organizationId: user.organizationId, request,
       dados: { tipoServico: pedido.tipoServico, valorTotal: pedido.valorTotal.toString() },
     })
 
-    // Para entregas expressas, tentar alocar motoboy automaticamente
-    if (data.tipoServico === 'EXPRESSA') {
-      const motoboys = await prisma.motoboy.findMany({
-        where: { status: 'DISPONIVEL', aprovacao: 'APROVADO' },
-        include: { disponibilidades: true },
-      })
-
-      const melhorMotoboy = encontrarMelhorMotoboy(motoboys, {
-        latitude: enderecoOrigem.latitude,
-        longitude: enderecoOrigem.longitude,
-      })
-
-      if (melhorMotoboy) {
-        // Notificar motoboy (aqui seria via push notification/websocket)
-        // Por enquanto, apenas retornar a sugestão no response
-        const response: ApiResponse<typeof pedido & { motoboyRecomendado?: string }> = {
-          success: true,
-          data: { ...pedido, motoboyRecomendado: melhorMotoboy.motoboyId },
-          message: 'Pedido criado com sucesso. Motoboy será notificado.',
-        }
-        return jsonResponse(response, { status: 201 })
-      }
-    }
+    // Despacho: oferece ao melhor motoboy online (ou manda para a fila manual).
+    // Falha aqui não desfaz o pedido; o job de despacho tenta de novo.
+    const despacho = await ofertarPedido(pedido.id).catch((error) => {
+      console.error('Despacho: falha ao ofertar pedido novo', pedido.id, error)
+      return null
+    })
 
     const response: ApiResponse<typeof pedido> = {
       success: true,
       data: pedido,
-      message: 'Pedido criado com sucesso',
+      message: despacho?.tipo === 'ofertado' ? 'Pedido criado. Procurando o motoboy mais próximo.' : 'Pedido criado com sucesso',
+      ...(avisoPlano ? { aviso: avisoPlano } : {}),
     }
 
     return jsonResponse(response, { status: 201 })

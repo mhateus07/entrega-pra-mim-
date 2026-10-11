@@ -14,7 +14,7 @@ import {
   processarPagamentoCartao,
   IS_PAYMENT_MOCK,
 } from '@/lib/pagamentos'
-import { requireAuth, applyRateLimit, serverError, badRequest, forbidden, type AuthenticatedUser } from '@/lib/auth-helpers'
+import { requireOrgAccess, isGestor, applyRateLimit, serverError, badRequest, forbidden, type OrgUser } from '@/lib/auth-helpers'
 import { comIdempotencia } from '@/lib/idempotency'
 import { registrarAuditoria } from '@/lib/audit'
 
@@ -56,19 +56,19 @@ const criarPagamentoSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     // Requer autenticação
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
 
     const { searchParams } = new URL(request.url)
     const paging = parsePagination(searchParams)
     const status = enumFilter(searchParams.get('status'), ['PENDENTE', 'PROCESSANDO', 'APROVADO', 'RECUSADO', 'CANCELADO', 'REEMBOLSADO'] as const)
 
-    const where: Prisma.PagamentoWhereInput = {}
+    const where: Prisma.PagamentoWhereInput = { organizationId: auth.user.organizationId }
 
     // Filtrar por usuário (exceto admin)
-    if (auth.user.role === 'CLIENTE' && auth.user.clienteId) {
+    if (auth.user.orgRole === 'CLIENT' && auth.user.clienteId) {
       where.clienteId = auth.user.clienteId
-    } else if (auth.user.role !== 'ADMIN') {
+    } else if (!isGestor(auth.user)) {
       // Motoboy não deveria ver pagamentos diretamente
       return forbidden('Acesso não permitido')
     }
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
   try {
     const rateLimit = await applyRateLimit(request, 'sensitive')
     if (!rateLimit.success) return rateLimit.response
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
     const body = await request.json().catch(() => null)
     // A chave usa só o que identifica a operação: dados do cartão não entram no hash guardado
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function criarPagamento(request: NextRequest, user: AuthenticatedUser, body: unknown) {
+async function criarPagamento(request: NextRequest, user: OrgUser, body: unknown) {
   try {
     const validation = criarPagamentoSchema.safeParse(body)
     if (!validation.success) return badRequest('Dados de pagamento inválidos')
@@ -138,6 +138,7 @@ async function criarPagamento(request: NextRequest, user: AuthenticatedUser, bod
 
     const pagamento = await comPedidoBloqueado(pedidoId, async tx => {
       const pedido = await tx.pedido.findUniqueOrThrow({ where: { id: pedidoId }, include: { pagamento: true } })
+      if (pedido.organizationId !== user.organizationId) throw new OperacaoError('Pedido não encontrado', 404)
       if (!podeGerenciarPagamento(user, pedido)) throw new OperacaoError('Acesso negado', 403)
       if (pedido.status === 'CANCELADO') throw new OperacaoError('Pedido cancelado não pode receber pagamento')
       const anterior = pedido.pagamento
@@ -149,10 +150,13 @@ async function criarPagamento(request: NextRequest, user: AuthenticatedUser, bod
         if (anterior.metodo !== metodo) throw new OperacaoError('Cancele o pagamento pendente antes de trocar o método')
         if (metodo === 'DINHEIRO' || (metodo === 'PIX' && anterior.pixExpiraEm && anterior.pixExpiraEm > new Date())) return anterior
       }
-      const valores = dividirPagamento(pedido.valorTotal)
+      const settings = await tx.organizationSettings.findUnique({
+        where: { organizationId: user.organizationId }, select: { taxaPlataforma: true },
+      })
+      const valores = dividirPagamento(pedido.valorTotal, settings?.taxaPlataforma ?? 0)
       const valor = valores.valor.toNumber()
       const dados: Prisma.PagamentoUncheckedCreateInput = {
-        pedidoId, clienteId: pedido.clienteId, ...valores, metodo, status: 'PENDENTE',
+        organizationId: user.organizationId, pedidoId, clienteId: pedido.clienteId, ...valores, metodo, status: 'PENDENTE',
         gatewayId: null, pixQrCode: null, pixCopiaCola: null, pixExpiraEm: null,
         cartaoUltimos4: null, cartaoBandeira: null, aprovadoEm: null,
         canceladoEm: null, reembolsadoEm: null, gatewayResponse: null,
@@ -174,7 +178,7 @@ async function criarPagamento(request: NextRequest, user: AuthenticatedUser, bod
       return updated
     })
     await registrarAuditoria({
-      acao: 'pagamento.criado', entidade: 'Pagamento', entidadeId: pagamento.id, userId: user.id, request,
+      acao: 'pagamento.criado', entidade: 'Pagamento', entidadeId: pagamento.id, userId: user.id, organizationId: user.organizationId, request,
       dados: { pedidoId, metodo, status: pagamento.status },
     })
     if (pagamento.status === 'RECUSADO') return jsonResponse({ success: false, error: 'Pagamento recusado', data: { pagamento } }, { status: 400 })

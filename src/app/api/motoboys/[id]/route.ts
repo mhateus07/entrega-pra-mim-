@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { updateMotoboySchema, updateDisponibilidadeSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
 import { OperacaoError } from '@/lib/operacao-error'
-import { requireMotoboyOwnership, requireAdmin, notFound, serverError, forbidden } from '@/lib/auth-helpers'
+import { requireMotoboyOwnership, requireOwner, notFound, serverError, forbidden } from '@/lib/auth-helpers'
 import { registrarAuditoria } from '@/lib/audit'
 
 interface RouteParams {
@@ -161,6 +161,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (data.veiculoPlaca) {
       const existingPlaca = await prisma.motoboy.findFirst({
         where: {
+          organizationId: auth.user.organizationId,
           veiculoPlaca: data.veiculoPlaca.toUpperCase(),
           NOT: { id },
         },
@@ -242,35 +243,46 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/motoboys/[id] - Deletar motoboy (apenas admin)
+// DELETE /api/motoboys/[id] - Remover motoboy da central (apenas o dono)
+// Remove o perfil e o vínculo nesta central. A conta do usuário só é apagada
+// se ele não pertencer a nenhuma outra central.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
 
-    // Apenas admin pode deletar motoboys
-    const auth = await requireAdmin()
+    const auth = await requireOwner()
     if (!auth.authenticated) return auth.response
 
-    const motoboy = await prisma.motoboy.findUnique({
-      where: { id },
+    const motoboy = await prisma.motoboy.findFirst({
+      where: { id, organizationId: auth.user.organizationId },
+      select: { id: true, userId: true, _count: { select: { pedidos: true } } },
     })
 
     if (!motoboy) {
       return notFound('Motoboy não encontrado')
     }
+    if (motoboy._count.pedidos > 0) {
+      return jsonResponse(
+        { success: false, error: 'Motoboy com entregas registradas não pode ser removido. Suspenda o cadastro.' },
+        { status: 409 }
+      )
+    }
 
-    // Deletar em cascata (usuário -> motoboy -> disponibilidades)
-    await prisma.user.delete({
-      where: { id: motoboy.userId },
+    await prisma.$transaction(async (tx) => {
+      await tx.motoboy.delete({ where: { id } })
+      await tx.organizationMember.deleteMany({ where: { organizationId: auth.user.organizationId, userId: motoboy.userId } })
+      const restantes = await tx.organizationMember.count({ where: { userId: motoboy.userId } })
+      if (restantes === 0) await tx.user.delete({ where: { id: motoboy.userId } })
     })
     await registrarAuditoria({
-      acao: 'motoboy.excluido', entidade: 'Motoboy', entidadeId: id, userId: auth.user.id, request,
+      acao: 'motoboy.excluido', entidade: 'Motoboy', entidadeId: id, userId: auth.user.id,
+      organizationId: auth.user.organizationId, request,
       dados: { motoboyUserId: motoboy.userId },
     })
 
     return jsonResponse({
       success: true,
-      message: 'Motoboy deletado com sucesso',
+      message: 'Motoboy removido da central',
     })
   } catch (error) {
     console.error('Erro ao deletar motoboy:', error)

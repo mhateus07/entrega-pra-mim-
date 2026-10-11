@@ -3,28 +3,27 @@ import { getToken } from 'next-auth/jwt'
 import { NextFetchEvent, NextRequest, NextResponse } from 'next/server'
 import { isPublicApi } from '@/lib/public-api'
 
+// Área de cada papel na central ativa: gestão → /dashboard, cliente → /cliente, motoboy → /motoboy
+function areaDoToken(token: { orgRole?: string | null; superadmin?: boolean } | null): string {
+  if (token?.orgRole === 'OWNER' || token?.orgRole === 'DISPATCHER') return '/dashboard'
+  if (token?.orgRole === 'DRIVER') return '/motoboy'
+  if (token?.orgRole === 'CLIENT') return '/cliente'
+  return token?.superadmin ? '/dashboard' : '/login'
+}
+
 const pageMiddleware = withAuth(
   function middleware(req) {
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
+    const area = areaDoToken(token)
 
-    // Rotas protegidas por role
-    if (path.startsWith('/dashboard') && token?.role !== 'ADMIN') {
-      // Redirecionar não-admins para suas áreas específicas
-      if (token?.role === 'CLIENTE') {
-        return NextResponse.redirect(new URL('/cliente', req.url))
+    // O superadmin acessa qualquer área para dar suporte à central selecionada
+    if (token?.superadmin) return NextResponse.next()
+
+    for (const prefixo of ['/dashboard', '/cliente', '/motoboy']) {
+      if (path.startsWith(prefixo) && area !== prefixo) {
+        return NextResponse.redirect(new URL(area, req.url))
       }
-      if (token?.role === 'MOTOBOY') {
-        return NextResponse.redirect(new URL('/motoboy', req.url))
-      }
-    }
-
-    if (path.startsWith('/cliente') && token?.role !== 'CLIENTE' && token?.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/login', req.url))
-    }
-
-    if (path.startsWith('/motoboy') && token?.role !== 'MOTOBOY' && token?.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/login', req.url))
     }
 
     return NextResponse.next()

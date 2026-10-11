@@ -34,8 +34,10 @@ services:
       DATABASE_URL: mysql://entrega:${DB_PASSWORD}@db:3306/entrega_pra_mim
       REDIS_URL: redis://redis:6379
       COMPROVANTE_DIR: /app/storage/comprovantes
+      LOGO_DIR: /app/storage/logos
     volumes:
       - comprovantes:/app/storage/comprovantes
+      - logos:/app/storage/logos
     depends_on:
       db:
         condition: service_healthy
@@ -58,6 +60,17 @@ services:
       - "traefik.http.routers.${APP_SLUG:-entregapramim}.tls.certresolver=letsencrypt"
       - "traefik.http.services.${APP_SLUG:-entregapramim}.loadbalancer.server.port=3000"
 
+  # Despacho com oferta: expira ofertas vencidas e oferece ao próximo motoboy.
+  # Chama a rota interna a cada 15 s; sem CRON_SECRET no .env, não sobe.
+  despacho-cron:
+    image: curlimages/curl:8.10.1
+    restart: always
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?defina CRON_SECRET no .env (openssl rand -hex 32)}
+    entrypoint: ["sh", "-c", "while true; do curl -fsS -m 10 -o /dev/null -X POST -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/jobs/despacho || true; sleep 15; done"]
+    depends_on:
+      - app
+
 networks:
   default:
     name: ${APP_SLUG:-entrega}_default
@@ -67,3 +80,4 @@ networks:
 volumes:
   mysql:
   comprovantes:
+  logos:

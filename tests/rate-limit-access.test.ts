@@ -29,11 +29,14 @@ describe('rate limit', () => {
 })
 
 describe('APIs públicas', () => {
-  it('libera só NextAuth e cadastro', () => {
+  it('libera só NextAuth, healthchecks e /api/publico (cadastro de motoboy/cliente é por convite)', () => {
     expect(isPublicApi('POST', '/api/auth/callback/credentials')).toBe(true)
     expect(isPublicApi('GET', '/api/auth/session')).toBe(true)
-    expect(isPublicApi('POST', '/api/clientes')).toBe(true)
-    expect(isPublicApi('POST', '/api/motoboys')).toBe(true)
+    expect(isPublicApi('POST', '/api/clientes')).toBe(false)
+    expect(isPublicApi('POST', '/api/motoboys')).toBe(false)
+    expect(isPublicApi('POST', '/api/publico/centrais')).toBe(true)
+    expect(isPublicApi('GET', '/api/publico/rastreio/abc')).toBe(true)
+    expect(isPublicApi('DELETE', '/api/publico/rastreio/abc')).toBe(false)
     expect(isPublicApi('GET', '/api/clientes')).toBe(false)
     expect(isPublicApi('GET', '/api/pedidos/p1/rastreamento')).toBe(false)
     expect(isPublicApi('POST', '/api/rotas')).toBe(false)

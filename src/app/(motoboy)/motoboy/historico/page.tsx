@@ -7,8 +7,7 @@ import { usePaginatedList } from '@/hooks/usePaginatedList'
 import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
 import { ChevronRight, History, Star } from 'lucide-react'
-import Header from '@/components/ui/Header'
-import { EmptyState, FullPageLoader, PageHeader, Segmented } from '@/components/ui/Feedback'
+import { EmptyState, PageLoader, PageHeader, Segmented } from '@/components/ui/Feedback'
 import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
 import { formatarMoeda } from '@/lib/pricing'
 import { formatarDataHora } from '@/utils/helpers'
@@ -86,7 +85,7 @@ export default function HistoricoMotoboyPage() {
     }
   }, [status, session])
 
-  if (status === 'loading' || isLoading) return <FullPageLoader />
+  if (status === 'loading' || isLoading) return <PageLoader />
 
   const pedidosFiltrados = list.data
   const taxaConclusao = stats.totalEntregas + stats.cancelados
@@ -94,8 +93,7 @@ export default function HistoricoMotoboyPage() {
     : null
 
   return (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="MOTOBOY" />
+    <div className="conteudo-chega">
 
       <main className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:px-6">
         <PageHeader title="Histórico" description="Entregas concluídas e canceladas." />

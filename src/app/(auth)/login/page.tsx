@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Alert } from '@/components/ui/Feedback'
 import AuthLayout from '@/components/layout/AuthLayout'
+import { paginaInicial } from '@/utils/area'
 
 const authErrors: Record<string, string> = {
   Configuration: 'Erro de configuração do servidor. Tente novamente mais tarde.',
@@ -62,14 +63,7 @@ function LoginContent() {
         const sessionRes = await fetch('/api/auth/session')
         const session = await sessionRes.json()
 
-        const role = session?.user?.role
-        if (role === 'ADMIN') {
-          router.push('/dashboard')
-        } else if (role === 'MOTOBOY') {
-          router.push('/motoboy')
-        } else {
-          router.push('/cliente')
-        }
+        router.push(paginaInicial(session?.user?.orgRole, session?.user?.superadmin))
         router.refresh()
       }
     } catch {
@@ -81,12 +75,13 @@ function LoginContent() {
 
   return (
     <AuthLayout>
-      <h1 className="text-2xl font-semibold tracking-tight text-fg">Entrar</h1>
+      <h1 className="titulo-display text-[34px] text-fg">Entrar</h1>
       <p className="mt-1.5 text-sm text-fg-3">
-        Não tem conta?{' '}
+        Dono de central?{' '}
         <Link href="/registro" className="font-medium text-fg underline underline-offset-4 hover:text-brand">
-          Cadastre-se
+          Crie a sua
         </Link>
+        . Motoboys e empresas entram pelo convite da central.
       </p>
 
       <form className="mt-8 space-y-4" onSubmit={handleSubmit}>

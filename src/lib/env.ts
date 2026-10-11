@@ -42,6 +42,9 @@ export function validateEnv(): EnvValidationResult {
   }
 
   if (production) {
+    if (!process.env.CRON_SECRET || process.env.CRON_SECRET.length < 24) {
+      warnings.push('CRON_SECRET ausente ou curto: o job de despacho não expira ofertas nem passa ao próximo motoboy')
+    }
     if (!process.env.REDIS_URL) {
       warnings.push('REDIS_URL ausente: rate limit fica por processo e não é compartilhado entre instâncias')
     }

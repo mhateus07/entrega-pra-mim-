@@ -1,12 +1,10 @@
 import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { COMPROVANTE_DIR, detectarFormatoImagem, urlComprovante } from '@/lib/comprovante-storage'
-import { applyRateLimit } from '@/lib/auth-helpers'
+import { applyRateLimit, requireOrgAccess, requirePedidoAccess } from '@/lib/auth-helpers'
 import { registrarAuditoria } from '@/lib/audit'
 
 const MAX_FOTO = 5 * 1024 * 1024
@@ -18,15 +16,10 @@ interface RouteParams {
 // POST /api/pedidos/[id]/comprovante - Upload de foto de comprovante
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return jsonResponse(
-        { success: false, error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
+    const auth = await requireOrgAccess(['DRIVER'])
+    if (!auth.authenticated) return auth.response
 
-    const rateLimit = await applyRateLimit(request, 'upload', session.user.id)
+    const rateLimit = await applyRateLimit(request, 'upload', auth.user.id)
     if (!rateLimit.success) return rateLimit.response
 
     // Recusa corpo grande antes de carregar o multipart em memória
@@ -40,12 +33,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
 
-    // Verificar se é motoboy do pedido
-    const pedido = await prisma.pedido.findUnique({
-      where: { id },
-      include: {
-        motoboy: { select: { userId: true } },
-      },
+    // Pedido da central ativa
+    const pedido = await prisma.pedido.findFirst({
+      where: { id, organizationId: auth.user.organizationId },
     })
 
     if (!pedido) {
@@ -55,7 +45,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    if (pedido.motoboy?.userId !== session.user.id) {
+    // Só o motoboy atribuído envia o comprovante
+    if (!auth.user.motoboyId || pedido.motoboyId !== auth.user.motoboyId) {
       return jsonResponse(
         { success: false, error: 'Acesso negado' },
         { status: 403 }
@@ -113,7 +104,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
 
     await registrarAuditoria({
-      acao: 'comprovante.enviado', entidade: 'Pedido', entidadeId: id, userId: session.user.id, request,
+      acao: 'comprovante.enviado', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request,
       dados: { arquivo: fileName, bytes: buffer.length },
     })
 
@@ -137,23 +128,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 // GET /api/pedidos/[id]/comprovante - Buscar foto de comprovante
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return jsonResponse(
-        { success: false, error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
+    const auth = await requireOrgAccess()
+    if (!auth.authenticated) return auth.response
 
     const { id } = await params
 
-    const pedido = await prisma.pedido.findUnique({
-      where: { id },
-      select: {
-        fotoComprovante: true,
-        cliente: { select: { userId: true } },
-        motoboy: { select: { userId: true } },
-      },
+    const pedido = await prisma.pedido.findFirst({
+      where: { id, organizationId: auth.user.organizationId },
+      select: { organizationId: true, clienteId: true, motoboyId: true, fotoComprovante: true },
     })
 
     if (!pedido) {
@@ -163,16 +145,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const isCliente = pedido.cliente.userId === session.user.id
-    const isMotoboy = pedido.motoboy?.userId === session.user.id
-    const isAdmin = session.user.role === 'ADMIN'
-
-    if (!isCliente && !isMotoboy && !isAdmin) {
-      return jsonResponse(
-        { success: false, error: 'Acesso negado' },
-        { status: 403 }
-      )
-    }
+    const acesso = await requirePedidoAccess(pedido)
+    if (!acesso.authenticated) return acesso.response
 
     return jsonResponse({
       success: true,

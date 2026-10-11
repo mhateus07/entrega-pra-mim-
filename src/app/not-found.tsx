@@ -9,7 +9,7 @@ export default function NotFound() {
       <div className="flex flex-1 items-center justify-center">
         <div className="max-w-sm text-center">
           <p className="font-mono text-sm text-brand">404</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg">Página não encontrada</h1>
+          <h1 className="titulo-display mt-2 text-[34px] text-fg">Página não encontrada</h1>
           <p className="mt-2 text-sm text-fg-2">O endereço pode ter mudado ou não existe mais.</p>
           <Link href="/" className={buttonClass('primary', 'md', 'mt-6')}>Voltar ao início</Link>
         </div>

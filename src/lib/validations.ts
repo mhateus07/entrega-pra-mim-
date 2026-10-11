@@ -160,6 +160,23 @@ export const calcularRotaSchema = z.object({
   destinoLatitude: z.number().min(-90).max(90),
   destinoLongitude: z.number().min(-180).max(180),
   tipoServico: z.enum(['EXPRESSA', 'AGENDADA', 'DOCUMENTOS']),
+  // Para aplicar o preço fixo por bairro da central
+  bairroDestino: z.string().max(100).optional(),
+})
+
+// Tabela de preço da central
+const valorMonetario = z.number().min(0).max(100000)
+const multiplicador = z.number().min(0.1).max(10)
+export const tabelaPrecoSchema = z.object({
+  // Fração do valor da corrida repassada ao motoboy no fechamento (0 a 1)
+  repasseMotoboy: z.number().min(0).max(1).optional(),
+  precoPorKm: valorMonetario,
+  valorMinimo: valorMonetario,
+  multiplicadores: z.object({ AGENDADA: multiplicador, DOCUMENTOS: multiplicador, EXPRESSA: multiplicador }),
+  bairros: z.array(z.object({
+    nome: z.string().trim().min(2, 'Informe o nome do bairro').max(100),
+    valor: valorMonetario,
+  })).max(500),
 })
 
 // Schema de login
@@ -189,3 +206,28 @@ export type CreateAvaliacaoInput = z.infer<typeof createAvaliacaoSchema>
 export type CalcularRotaInput = z.infer<typeof calcularRotaSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type UpdateLocalizacaoInput = z.infer<typeof updateLocalizacaoSchema>
+
+// "Criar minha central": cadastro público que gera a organização e o dono
+export const criarCentralSchema = z.object({
+  nomeCentral: z.string().trim().min(3, 'Informe o nome da central').max(80),
+  nome: z.string().trim().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100),
+  email: z.string().email('Email inválido'),
+  telefone: z.string().regex(/^\d{10,12}$/, 'Telefone inválido').optional(),
+  senha: senhaSchema,
+})
+
+// Convite gerado pela central (o link é enviado por WhatsApp ou copiado)
+export const criarConviteSchema = z.object({
+  papel: z.enum(['CLIENT', 'DRIVER', 'DISPATCHER']),
+  email: z.string().email('Email inválido').optional(),
+  nome: z.string().trim().max(100).optional(),
+  validadeDias: z.number().int().min(1).max(30).default(7),
+})
+
+// Aceite de convite de despachante (cliente e motoboy usam os schemas de cadastro)
+export const aceitarConviteDespachanteSchema = z.object({
+  email: z.string().email('Email inválido'),
+  senha: senhaSchema,
+  nome: z.string().trim().min(2).max(100),
+  telefone: z.string().regex(/^\d{10,12}$/, 'Telefone inválido').optional(),
+})

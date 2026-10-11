@@ -2,15 +2,16 @@ import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import { calcularRotaSchema } from '@/lib/validations'
 import { calcularRota, calcularDistanciaHaversine } from '@/lib/google-maps'
-import { calcularPrecoCompleto, estimarTempo, validarDistancia } from '@/lib/pricing'
+import { calcularPrecoComRegra, estimarTempo, validarDistancia } from '@/lib/pricing'
+import { carregarRegraPreco } from '@/lib/pricing-org'
 import { ApiResponse, RotaCalculada } from '@/types'
-import { requireAuth, applyMapsRateLimit } from '@/lib/auth-helpers'
+import { requireOrgAccess, applyMapsRateLimit } from '@/lib/auth-helpers'
 
 // POST /api/rotas - Calcular rota e preço
 export async function POST(request: NextRequest) {
   try {
     // Cada chamada consome cota paga do Google Maps
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
     const rateLimit = await applyMapsRateLimit(auth.user.id)
     if (!rateLimit.success) return rateLimit.response
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Tentar calcular via Google Maps API
-    const rota = await calcularRota(origem, destino)
+    const rota = await calcularRota(origem, destino, { organizationId: auth.user.organizationId })
 
     let distanciaKm: number
     let duracaoMinutos: number
@@ -67,8 +68,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calcular preço
-    const preco = calcularPrecoCompleto(distanciaKm, duracaoMinutos, data.tipoServico)
+    // Preço pela tabela da central (mesma regra do POST /api/pedidos)
+    const regra = await carregarRegraPreco(auth.user.organizationId)
+    const preco = calcularPrecoComRegra(regra, distanciaKm, data.tipoServico, data.bairroDestino)
 
     const resultado: RotaCalculada = {
       distanciaKm: Number(distanciaKm.toFixed(2)),

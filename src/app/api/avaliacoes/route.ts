@@ -5,7 +5,7 @@ import { createAvaliacaoSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
 import { Prisma } from '@prisma/client'
 import { parsePagination, paginationMeta } from '@/lib/pagination'
-import { requireAuth, requireClienteOwnership, serverError, badRequest, notFound, forbidden } from '@/lib/auth-helpers'
+import { requireOrgAccess, requireClienteOwnership, isGestor, serverError, badRequest, notFound, forbidden } from '@/lib/auth-helpers'
 
 // Campos públicos de uma avaliação: nada de CNH, placa, localização ou dados do pedido
 const avaliacaoSelect = {
@@ -18,7 +18,7 @@ const avaliacaoSelect = {
 // Cliente vê as avaliações dos próprios pedidos; motoboy, as que recebeu; admin, todas.
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
@@ -26,12 +26,12 @@ export async function GET(request: NextRequest) {
     const motoboyId = searchParams.get('motoboyId')
     const { user } = auth
 
-    const where: Prisma.AvaliacaoWhereInput = {}
-    if (user.role === 'ADMIN') {
+    const where: Prisma.AvaliacaoWhereInput = { organizationId: user.organizationId }
+    if (isGestor(user)) {
       if (motoboyId) where.motoboyId = motoboyId
-    } else if (user.role === 'MOTOBOY' && user.motoboyId) {
+    } else if (user.orgRole === 'DRIVER' && user.motoboyId) {
       where.motoboyId = user.motoboyId
-    } else if (user.role === 'CLIENTE' && user.clienteId) {
+    } else if (user.orgRole === 'CLIENT' && user.clienteId) {
       where.pedido = { clienteId: user.clienteId }
       if (motoboyId) where.motoboyId = motoboyId
     } else {
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
     // Verificar se é o cliente do pedido
     const auth = await requireClienteOwnership(pedido.clienteId)
     if (!auth.authenticated) return auth.response
+    if (pedido.organizationId !== auth.user.organizationId) return notFound('Pedido não encontrado')
 
     if (pedido.status !== 'ENTREGUE') {
       return badRequest('Só é possível avaliar pedidos entregues')
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
     // Criar avaliação
     const avaliacao = await prisma.avaliacao.create({
       data: {
+        organizationId: pedido.organizationId,
         pedidoId: data.pedidoId,
         motoboyId: pedido.motoboyId,
         nota: data.nota,

@@ -15,6 +15,7 @@ export async function GET(
       where: { id },
       select: {
         id: true,
+        organizationId: true,
         clienteId: true,
         motoboyId: true,
         status: true,

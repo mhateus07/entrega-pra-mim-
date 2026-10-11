@@ -7,10 +7,17 @@ export function Spinner({ className }: { className?: string }) {
   return <Loader2 className={cn('h-5 w-5 animate-spin text-fg-3', className)} aria-hidden="true" />
 }
 
+// Carregando: a rota da marca se traçando em laço (anel, linha e ponto). Só
+// aparece depois de um instante, para não piscar quando a resposta é rápida.
 export function PageLoader({ label = 'Carregando…' }: { label?: string }) {
   return (
-    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-sm text-fg-3" role="status">
-      <Spinner />
+    <div className="carregando flex min-h-[50vh] flex-col items-center justify-center gap-3 text-sm text-fg-3" role="status">
+      <svg viewBox="0 0 64 20" className="h-5 w-16" aria-hidden="true">
+        <path d="M8 14 H26 L36 6 H54" fill="none" stroke="var(--border-strong)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M8 14 H26 L36 6 H54" pathLength={1} fill="none" stroke="var(--brand-mark)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="carregando-rota" />
+        <circle cx="8" cy="14" r="3.5" fill="var(--surface)" stroke="var(--fg)" strokeWidth="2" />
+        <circle cx="56" cy="6" r="3.5" fill="var(--brand-mark)" className="carregando-ponto" />
+      </svg>
       <span>{label}</span>
     </div>
   )
@@ -47,8 +54,8 @@ export function PageHeader({ title, description, actions, eyebrow }: {
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
-        {eyebrow && <div className="mb-1 text-[13px] text-fg-3">{eyebrow}</div>}
-        <h1 className="text-[22px] font-semibold tracking-tight text-fg">{title}</h1>
+        {eyebrow && <div className="rotulo mb-2 text-fg-3">{eyebrow}</div>}
+        <h1 className="titulo-display text-[30px] text-fg sm:text-[34px]">{title}</h1>
         {description && <p className="mt-1 text-sm text-fg-3">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

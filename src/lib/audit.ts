@@ -23,12 +23,21 @@ export type AcaoAuditoria =
   | 'pagamento.cancelado'
   | 'comprovante.enviado'
   | 'comprovante.acessado'
+  | 'organizacao.troca'
+  | 'organizacao.criada'
+  | 'organizacao.alterada'
+  | 'convite.criado'
+  | 'convite.aceito'
+  | 'convite.revogado'
+  | 'rastreio.link'
+  | 'marca.alterada'
 
 export interface EntradaAuditoria {
   acao: AcaoAuditoria
   entidade: string
   entidadeId?: string | null
   userId?: string | null
+  organizationId?: string | null
   dados?: Prisma.InputJsonValue
   request?: Request | null
   ip?: string | null
@@ -43,6 +52,7 @@ export async function registrarAuditoria(entrada: EntradaAuditoria): Promise<voi
         entidade: entrada.entidade,
         entidadeId: entrada.entidadeId ?? null,
         userId: entrada.userId ?? null,
+        organizationId: entrada.organizationId ?? null,
         dados: entrada.dados,
         ip: ip && ip !== 'unknown' ? ip.slice(0, 64) : null,
       },

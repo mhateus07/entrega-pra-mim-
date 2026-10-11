@@ -1,4 +1,15 @@
+import { cacheGet, cacheSet } from './cache'
+import { registrarChamadaMaps } from './uso'
+
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ''
+
+// Cada chamada paga ao Google é contada na central (UsageCounter.chamadasMaps).
+// Rotas e geocodificações repetidas saem do cache, sem custo.
+export interface OpcoesMaps {
+  organizationId?: string
+}
+const TTL_ROTA = 24 * 60 * 60
+const TTL_GEOCODE = 30 * 24 * 60 * 60
 
 export interface Coordenadas {
   latitude: number
@@ -30,9 +41,14 @@ export interface ResultadoGeocodificacao {
 
 // Geocodificar um endereço (texto -> coordenadas)
 export async function geocodificarEndereco(
-  endereco: EnderecoParaGeocodificar
+  endereco: EnderecoParaGeocodificar,
+  opcoes: OpcoesMaps = {}
 ): Promise<ResultadoGeocodificacao | null> {
   const enderecoStr = `${endereco.logradouro}, ${endereco.numero} - ${endereco.bairro}, ${endereco.cidade} - ${endereco.estado}, Brasil`
+  const chave = `geo:${enderecoStr.toLowerCase().replace(/\s+/g, ' ')}`
+  const emCache = await cacheGet<ResultadoGeocodificacao>(chave)
+  if (emCache) return emCache
+  if (!GOOGLE_MAPS_API_KEY) return null
 
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json')
   url.searchParams.append('address', enderecoStr)
@@ -42,15 +58,18 @@ export async function geocodificarEndereco(
 
   try {
     const response = await fetch(url.toString())
+    await registrarChamadaMaps(opcoes.organizationId)
     const data = await response.json()
 
     if (data.status === 'OK' && data.results.length > 0) {
       const resultado = data.results[0]
-      return {
+      const geocode = {
         latitude: resultado.geometry.location.lat,
         longitude: resultado.geometry.location.lng,
         enderecoFormatado: resultado.formatted_address,
       }
+      await cacheSet(chave, geocode, TTL_GEOCODE)
+      return geocode
     }
 
     console.error('Erro na geocodificacao:', data.status)
@@ -63,7 +82,8 @@ export async function geocodificarEndereco(
 
 // Geocodificação reversa (coordenadas -> endereço)
 export async function geocodificacaoReversa(
-  coordenadas: Coordenadas
+  coordenadas: Coordenadas,
+  opcoes: OpcoesMaps = {}
 ): Promise<ResultadoGeocodificacao | null> {
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json')
   url.searchParams.append('latlng', `${coordenadas.latitude},${coordenadas.longitude}`)
@@ -72,6 +92,7 @@ export async function geocodificacaoReversa(
 
   try {
     const response = await fetch(url.toString())
+    await registrarChamadaMaps(opcoes.organizationId)
     const data = await response.json()
 
     if (data.status === 'OK' && data.results.length > 0) {
@@ -94,8 +115,14 @@ export async function geocodificacaoReversa(
 // que não pode mais ser ativada em projetos novos do Google Cloud)
 export async function calcularRota(
   origem: Coordenadas,
-  destino: Coordenadas
+  destino: Coordenadas,
+  opcoes: OpcoesMaps = {}
 ): Promise<ResultadoRota | null> {
+  // Cotação por par origem–destino (~11 m de precisão)
+  const ponto = (c: Coordenadas) => `${c.latitude.toFixed(4)},${c.longitude.toFixed(4)}`
+  const chave = `rota:${ponto(origem)}>${ponto(destino)}`
+  const emCache = await cacheGet<ResultadoRota>(chave)
+  if (emCache) return { ...emCache, origem, destino }
   if (!GOOGLE_MAPS_API_KEY) return null
 
   try {
@@ -116,17 +143,20 @@ export async function calcularRota(
       }),
       signal: AbortSignal.timeout(8000),
     })
+    await registrarChamadaMaps(opcoes.organizationId)
     const data = await response.json()
     const rota = data?.routes?.[0]
 
     if (response.ok && rota?.distanceMeters) {
-      return {
+      const resultado = {
         distanciaKm: rota.distanceMeters / 1000,
         duracaoMinutos: Math.ceil(parseInt(String(rota.duration ?? '0'), 10) / 60),
         polyline: rota.polyline?.encodedPolyline ?? '',
         origem,
         destino,
       }
+      await cacheSet(chave, resultado, TTL_ROTA)
+      return resultado
     }
 
     console.error('Erro ao calcular rota:', data?.error?.status ?? response.status, data?.error?.message ?? '')

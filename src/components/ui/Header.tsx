@@ -7,7 +7,10 @@ import { signOut } from 'next-auth/react'
 import { ArrowLeft, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from './ThemeToggle'
+import OrgSwitcher from '@/components/org/OrgSwitcher'
+import Faixa from '@/components/brand/Faixa'
 import { cn } from '@/utils/cn'
+import { Fixo } from '@/components/layout/Transicao'
 
 interface HeaderProps {
   userName?: string | null
@@ -50,6 +53,7 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
+      <Faixa className="h-[5px]" reflexo="nao" />
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           {showBackButton && backHref && (
@@ -68,17 +72,21 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
                 href={link.href}
                 aria-current={isActive(link.href) ? 'page' : undefined}
                 className={cn(
-                  'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                  isActive(link.href) ? 'bg-surface-2 text-fg' : 'text-fg-3 hover:text-fg'
+                  'relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  isActive(link.href) ? 'text-fg' : 'text-fg-3 hover:text-fg'
                 )}
               >
-                {link.label}
+                {isActive(link.href) && (
+                  <Fixo nome="indicador-aba" classe="indicador"><span aria-hidden="true" className="absolute inset-0 rounded-lg bg-surface-2" /></Fixo>
+                )}
+                <span className="relative">{link.label}</span>
               </Link>
             ))}
           </nav>
         </div>
 
         <div className="hidden items-center gap-1 md:flex">
+          <OrgSwitcher className="mr-2" />
           <ThemeToggle />
           {userName && <span className="ml-2 max-w-[160px] truncate text-sm text-fg-2">{userName}</span>}
           <button
@@ -107,6 +115,7 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
       {menuOpen && (
         <div className="border-t border-line bg-surface px-4 pb-4 pt-2 md:hidden">
           {userName && <p className="px-3 py-2 text-[13px] text-fg-3">Conectado como <span className="font-medium text-fg">{userName}</span></p>}
+          <OrgSwitcher className="px-3 pb-2" />
           <nav className="flex flex-col gap-0.5">
             {navLinks.map((link) => (
               <Link

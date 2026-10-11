@@ -1,7 +1,7 @@
 import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireMotoboyOwnership, requireAuth, requirePedidoAccess, applyRateLimit, notFound, badRequest, forbidden, serverError } from '@/lib/auth-helpers'
+import { requireMotoboyOwnership, requireOrgAccess, requirePedidoAccess, isGestor, applyRateLimit, notFound, badRequest, forbidden, serverError } from '@/lib/auth-helpers'
 
 const STATUS_COM_RASTREAMENTO = ['ACEITO', 'EM_COLETA', 'EM_ENTREGA'] as const
 
@@ -49,8 +49,8 @@ export async function POST(
 }
 
 // GET /api/motoboys/[id]/localizacao - Obter localização
-// Permitido ao próprio motoboy, ao admin e ao cliente com entrega em andamento
-// com este motoboy. Qualquer outro usuário logado recebe 403.
+// Permitido ao próprio motoboy, à gestão da central e ao cliente com entrega em
+// andamento com este motoboy, sempre dentro da organização ativa.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -58,18 +58,18 @@ export async function GET(
   try {
     const { id } = await params
 
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
 
     const rateLimit = await applyRateLimit(request, 'polling', auth.user.id)
     if (!rateLimit.success) return rateLimit.response
 
     const { user } = auth
-    if (user.role !== 'ADMIN' && user.motoboyId !== id) {
-      const pedido = user.role === 'CLIENTE' && user.clienteId
+    if (!isGestor(user) && user.motoboyId !== id) {
+      const pedido = user.orgRole === 'CLIENT' && user.clienteId
         ? await prisma.pedido.findFirst({
-          where: { motoboyId: id, clienteId: user.clienteId, status: { in: [...STATUS_COM_RASTREAMENTO] } },
-          select: { clienteId: true, motoboyId: true },
+          where: { organizationId: user.organizationId, motoboyId: id, clienteId: user.clienteId, status: { in: [...STATUS_COM_RASTREAMENTO] } },
+          select: { organizationId: true, clienteId: true, motoboyId: true },
         })
         : null
       if (!pedido) return forbidden('Você não tem permissão para ver esta localização')
@@ -77,8 +77,8 @@ export async function GET(
       if (!acesso.authenticated) return acesso.response
     }
 
-    const motoboy = await prisma.motoboy.findUnique({
-      where: { id },
+    const motoboy = await prisma.motoboy.findFirst({
+      where: { id, organizationId: user.organizationId },
       select: {
         id: true,
         latitudeAtual: true,

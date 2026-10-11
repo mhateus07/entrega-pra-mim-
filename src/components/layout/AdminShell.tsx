@@ -4,17 +4,27 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { LayoutDashboard, Package, Bike, Users, LogOut, Menu, X } from 'lucide-react'
+import OrgSwitcher from '@/components/org/OrgSwitcher'
+import Faixa from '@/components/brand/Faixa'
+import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Calculator, Palette, Radio, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { cn } from '@/utils/cn'
+import { Fixo, TransicaoTela } from '@/components/layout/Transicao'
 
 const nav = [
   { href: '/dashboard', label: 'Visão geral', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/despacho', label: 'Despacho', icon: Radio },
   { href: '/dashboard/pedidos', label: 'Pedidos', icon: Package },
   { href: '/dashboard/motoboys', label: 'Entregadores', icon: Bike },
   { href: '/dashboard/clientes', label: 'Clientes', icon: Users },
+  { href: '/dashboard/fechamento', label: 'Fechamento', icon: Calculator },
+  { href: '/dashboard/precos', label: 'Preços', icon: Tags },
+  { href: '/dashboard/convites', label: 'Convites', icon: Send },
+  { href: '/dashboard/marca', label: 'Marca', icon: Palette },
 ]
+// Só para a equipe da plataforma (superadmin)
+const navPlataforma = { href: '/dashboard/plataforma', label: 'Centrais', icon: Building2, exact: false }
 
 function initials(name?: string | null) {
   if (!name) return '·'
@@ -22,11 +32,15 @@ function initials(name?: string | null) {
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+// `indicador`: o destaque do item ativo desliza pelo menu ao trocar de tela (só
+// numa lista por vez, porque o nome da transição precisa ser único na página)
+function NavList({ onNavigate, indicador }: { onNavigate?: () => void; indicador?: boolean }) {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const itens = session?.user?.superadmin ? [...nav, navPlataforma] : nav
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Navegação principal">
-      {nav.map((item) => {
+      {itens.map((item) => {
         const active = item.exact ? pathname === item.href : pathname.startsWith(item.href)
         const Icon = item.icon
         return (
@@ -36,12 +50,15 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors',
-              active ? 'bg-surface text-fg shadow-xs ring-1 ring-line' : 'text-fg-2 hover:bg-surface-3/60 hover:text-fg'
+              'relative flex h-9 items-center gap-2.5 rounded-[10px] px-2.5 text-sm font-medium transition-colors',
+              active ? 'font-semibold text-fg' : 'text-fg-2 hover:bg-surface-3/60 hover:text-fg'
             )}
           >
-            <Icon className={cn('h-4 w-4', active ? 'text-brand' : 'text-fg-3')} aria-hidden="true" />
-            {item.label}
+            {active && (indicador
+              ? <Fixo nome="indicador-menu" classe="indicador"><span aria-hidden="true" className="indicador-menu" /></Fixo>
+              : <span aria-hidden="true" className="indicador-menu" />)}
+            <Icon className={cn('relative h-4 w-4', active ? 'text-brand' : 'text-fg-3')} aria-hidden="true" />
+            <span className="relative">{item.label}</span>
           </Link>
         )
       })}
@@ -58,7 +75,7 @@ function UserBlock() {
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium text-fg">{session?.user?.name ?? '—'}</p>
-        <p className="truncate text-xs text-fg-3">Administrador</p>
+        <OrgSwitcher className="mt-0.5" />
       </div>
       <button
         type="button"
@@ -73,18 +90,37 @@ function UserBlock() {
   )
 }
 
+// Central pendente ou suspensa: o dono entra, mas vê o aviso no lugar da operação
+function ConteudoDaCentral({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession()
+  const status = session?.user?.orgStatus
+  if (!session?.user || session.user.superadmin || !status || status === 'ATIVA') return <>{children}</>
+  return (
+    <div className="mx-auto max-w-lg rounded-xl border border-line bg-surface p-6 text-center shadow-xs">
+      <Clock className="mx-auto h-8 w-8 text-fg-3" aria-hidden="true" />
+      <h1 className="mt-3 text-lg font-semibold text-fg">{status === 'PENDENTE' ? 'Sua central está aguardando ativação' : 'Esta central está suspensa'}</h1>
+      <p className="mt-2 text-sm text-fg-2">
+        {status === 'PENDENTE'
+          ? 'Recebemos seu cadastro. Nossa equipe vai entrar em contato pelo WhatsApp para ativar o acesso e ajudar na implantação.'
+          : 'Fale com a equipe do Entrega Pra Mim para reativar o acesso.'}
+      </p>
+    </div>
+  )
+}
+
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className="min-h-screen bg-page lg:pl-60">
       {/* Sidebar (desktop) */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface-2 px-3 py-4 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface-2 px-3 pb-4 lg:flex">
+        <Faixa className="-mx-3 mb-4 h-[12px] w-auto" />
         <Link href="/dashboard" className="mb-6 px-2">
           <Logo markClassName="h-7 w-7" />
         </Link>
-        <p className="mb-2 px-2.5 text-[11px] font-medium uppercase tracking-wider text-fg-3">Operação</p>
-        <NavList />
+        <p className="rotulo mb-2 px-2.5 text-fg-3">Operação</p>
+        <NavList indicador />
         <div className="mt-auto space-y-2 border-t border-line pt-3">
           <div className="flex items-center justify-between px-2">
             <span className="text-xs text-fg-3">Tema</span>
@@ -128,7 +164,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><TransicaoTela><ConteudoDaCentral>{children}</ConteudoDaCentral></TransicaoTela></main>
     </div>
   )
 }

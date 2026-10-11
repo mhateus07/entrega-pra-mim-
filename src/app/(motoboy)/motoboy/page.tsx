@@ -3,14 +3,10 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
-import { usePaginatedList } from '@/hooks/usePaginatedList'
-import Pagination from '@/components/ui/Pagination'
 import Link from 'next/link'
 import { AlertTriangle, ArrowRight, Inbox, Navigation, Phone, Power, Radio, RefreshCw, Star } from 'lucide-react'
 import Button, { buttonClass } from '@/components/ui/Button'
-import Header from '@/components/ui/Header'
-import Badge from '@/components/ui/Badge'
-import { Alert, EmptyState, FullPageLoader } from '@/components/ui/Feedback'
+import { Alert, EmptyState, PageLoader } from '@/components/ui/Feedback'
 import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
 import { cn } from '@/utils/cn'
 import TrackingMap from '@/components/maps/TrackingMap'
@@ -19,6 +15,7 @@ import { LABELS_TIPO_SERVICO, codigoPedido } from '@/utils/helpers'
 import type { AprovacaoMotoboy, StatusPedido, StatusMotoboy, TipoServico } from '@prisma/client'
 import { useLocationSharing } from '@/hooks/useTracking'
 import { useNotifications } from '@/hooks/useNotifications'
+import ContagemOferta from '@/components/brand/ContagemOferta'
 import toast from 'react-hot-toast'
 
 interface Pedido {
@@ -53,6 +50,20 @@ interface Pedido {
   }
 }
 
+interface Oferta {
+  id: string
+  expiresAt: string
+  pedido: {
+    id: string
+    tipoServico: string
+    distanciaKm: number
+    duracaoEstimada: number
+    seuGanho: number
+    enderecoOrigem: { bairro: string }
+    enderecoDestino: { bairro: string }
+  }
+}
+
 interface MotoboyInfo {
   id: string
   status: StatusMotoboy
@@ -74,9 +85,12 @@ export default function MotoboyPage() {
   const [motoboy, setMotoboy] = useState<MotoboyInfo | null>(null)
   const [saldo, setSaldo] = useState<SaldoInfo | null>(null)
   const [pedidoAtual, setPedidoAtual] = useState<Pedido | null>(null)
-  const list = usePaginatedList<Pedido>(motoboy?.status === 'DISPONIVEL' && !pedidoAtual ? '/api/pedidos?status=SOLICITADO' : null, 10000)
-  const pedidosDisponiveis = list.data
-  const previousAvailable = useRef<{ page: number; ids: string[] } | null>(null)
+  // Corridas chegam como oferta exclusiva, com prazo para aceitar
+  const [ofertas, setOfertas] = useState<Oferta[]>([])
+  const [respondendo, setRespondendo] = useState<string | null>(null)
+  const [agora, setAgora] = useState(() => Date.now())
+  const ofertasVistas = useRef<Set<string>>(new Set())
+  const recebendoOfertas = motoboy?.status === 'DISPONIVEL' && !pedidoAtual
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
@@ -148,14 +162,31 @@ export default function MotoboyPage() {
   }, [status, session])
 
   useEffect(() => {
-    if (list.loading) return
-    const previous = previousAvailable.current
-    if (list.pagination.page === 1 && previous?.page === 1 && previous.ids.length) {
-      const novo = pedidosDisponiveis.find(p => !previous.ids.includes(p.id))
-      if (novo) notifyNewOrder(novo.valorTotal, novo.enderecoOrigem.bairro)
-    }
-    previousAvailable.current = { page: list.pagination.page, ids: pedidosDisponiveis.map(p => p.id) }
-  }, [pedidosDisponiveis, list.loading, list.pagination.page, notifyNewOrder])
+    if (!recebendoOfertas) return
+    let ativo = true
+    const carregar = () => fetch('/api/despacho/ofertas')
+      .then((r) => r.json())
+      .then((body) => {
+        if (!ativo || !body.success) return
+        const lista: Oferta[] = body.data
+        for (const o of lista) {
+          if (!ofertasVistas.current.has(o.id)) notifyNewOrder(o.pedido.seuGanho, o.pedido.enderecoOrigem.bairro)
+          ofertasVistas.current.add(o.id)
+        }
+        setOfertas(lista)
+      })
+      .catch(() => {})
+    void carregar()
+    const timer = setInterval(carregar, 5000)
+    return () => { ativo = false; clearInterval(timer) }
+  }, [recebendoOfertas, notifyNewOrder])
+
+  // Relógio da contagem regressiva das ofertas
+  useEffect(() => {
+    if (ofertas.length === 0) return
+    const timer = setInterval(() => setAgora(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [ofertas.length])
 
   const handleToggleStatus = async () => {
     if (!motoboy) return
@@ -192,38 +223,31 @@ export default function MotoboyPage() {
     }
   }
 
-  const handleAceitarPedido = async (pedidoId: string) => {
+  const responderOferta = async (oferta: Oferta, acao: 'aceitar' | 'recusar') => {
     if (!motoboy) return
-
+    setRespondendo(oferta.id)
     try {
-      const response = await fetch(`/api/pedidos/${pedidoId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'ACEITO',
-          motoboyId: motoboy.id,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setPedidoAtual(data.data)
-        setMotoboy({ ...motoboy, status: 'EM_ENTREGA' })
-        toast.success('Pedido aceito. Siga para o local de coleta.')
-      } else {
-        toast.error(data.error || 'Erro ao aceitar pedido')
-      }
-    } catch (error) {
-      console.error('Erro ao aceitar pedido:', error)
-      toast.error('Erro ao aceitar pedido')
+      const body = await (await fetch(`/api/despacho/ofertas/${oferta.id}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao }),
+      })).json()
+      setOfertas((atual) => atual.filter((o) => o.id !== oferta.id))
+      if (!body.success) { toast.error(body.error || 'Oferta indisponível'); return }
+      if (acao === 'recusar') return
+      const detalhe = await (await fetch(`/api/pedidos/${oferta.pedido.id}`)).json()
+      if (detalhe.success) setPedidoAtual(detalhe.data)
+      setMotoboy({ ...motoboy, status: 'EM_ENTREGA' })
+      toast.success('Corrida aceita. Siga para o local de coleta.')
+    } catch {
+      toast.error('Erro ao responder a oferta')
+    } finally {
+      setRespondendo(null)
     }
   }
 
   const handleAtualizarStatusPedido = async (novoStatus: StatusPedido) => {
     if (!pedidoAtual) return
     if (novoStatus === 'ENTREGUE') {
-      window.location.href = `/motoboy/pedido/${pedidoAtual.id}`
+      router.push(`/motoboy/pedido/${pedidoAtual.id}`)
       return
     }
 
@@ -258,7 +282,7 @@ export default function MotoboyPage() {
     }
   }
 
-  if (status === 'loading' || isLoading) return <FullPageLoader />
+  if (status === 'loading' || isLoading) return <PageLoader />
 
   const getNextStatus = (currentStatus: StatusPedido): StatusPedido | null => {
     const flow: Record<StatusPedido, StatusPedido | null> = {
@@ -313,8 +337,7 @@ export default function MotoboyPage() {
   )
 
   return (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="MOTOBOY" />
+    <div className="conteudo-chega">
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
         {motoboy && !aprovado && (
@@ -426,42 +449,47 @@ export default function MotoboyPage() {
           </section>
         )}
 
-        {/* Pedidos disponíveis */}
-        {!pedidoAtual && motoboy?.status === 'DISPONIVEL' && (
+        {/* Ofertas de corrida */}
+        {recebendoOfertas && (
           <section>
             <div className="mb-3 mt-6 flex items-center justify-between">
-              <h2 className="text-sm font-medium text-fg-2">Pedidos disponíveis</h2>
-              <span className="flex items-center gap-1.5 text-xs text-fg-3"><RefreshCw className="h-3 w-3" /> atualiza a cada 10 s</span>
+              <h2 className="text-sm font-medium text-fg-2">Ofertas de corrida</h2>
+              <span className="flex items-center gap-1.5 text-xs text-fg-3"><RefreshCw className="h-3 w-3" /> atualiza a cada 5 s</span>
             </div>
-            {pedidosDisponiveis.length === 0 ? (
+            {ofertas.length === 0 ? (
               <div className="rounded-xl border border-dashed border-line-strong bg-surface">
-                <EmptyState icon={Inbox} title="Nenhum pedido no momento" description="Fique nesta tela: novos pedidos aparecem automaticamente." />
+                <EmptyState icon={Inbox} title="Aguardando corridas" description="Fique nesta tela: quando a central oferecer uma corrida, ela aparece aqui." />
               </div>
             ) : (
               <ul className="space-y-3">
-                {pedidosDisponiveis.map((pedido) => (
-                  <li key={pedido.id} className="rounded-xl border border-line bg-surface p-4 shadow-xs">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xl font-semibold tracking-tight tabular text-fg">{formatarMoeda(pedido.valorTotal)}</p>
-                        <p className="mt-0.5 text-[13px] tabular text-fg-3">
-                          {pedido.distanciaKm.toFixed(1)} km · ~{pedido.duracaoEstimada} min · {LABELS_TIPO_SERVICO[pedido.tipoServico as TipoServico] ?? pedido.tipoServico}
-                        </p>
+                {ofertas.map((oferta) => {
+                  const segundos = Math.max(0, Math.round((new Date(oferta.expiresAt).getTime() - agora) / 1000))
+                  const { pedido } = oferta
+                  return (
+                    <li key={oferta.id} className="rounded-xl border border-brand/40 bg-surface p-4 shadow-xs ring-1 ring-brand/20">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="rotulo text-fg-3">Seu ganho</p>
+                          <p className="font-mono text-2xl font-medium tabular text-fg">{formatarMoeda(pedido.seuGanho)}</p>
+                          <p className="mt-0.5 text-[13px] tabular text-fg-3">
+                            {pedido.distanciaKm.toFixed(1)} km · ~{pedido.duracaoEstimada} min · {LABELS_TIPO_SERVICO[pedido.tipoServico as TipoServico] ?? pedido.tipoServico}
+                          </p>
+                        </div>
+                        <ContagemOferta segundos={segundos} />
                       </div>
-                      {pedido.tipoServico === 'EXPRESSA' && <Badge variant="brand">Prioridade</Badge>}
-                    </div>
-                    <div className="mt-3 flex items-center gap-2 text-sm text-fg-2">
-                      <span className="truncate">{pedido.enderecoOrigem.bairro}</span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-fg-3" />
-                      <span className="truncate">{pedido.enderecoDestino.bairro}</span>
-                    </div>
-                    <Button className="mt-4 w-full" onClick={() => handleAceitarPedido(pedido.id)}>Aceitar entrega</Button>
-                  </li>
-                ))}
+                      <div className="mt-3 flex items-center gap-2 text-sm text-fg-2">
+                        <span className="truncate">{pedido.enderecoOrigem.bairro}</span>
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-fg-3" />
+                        <span className="truncate">{pedido.enderecoDestino.bairro}</span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-[1fr_2fr] gap-2">
+                        <Button variant="outline" disabled={respondendo === oferta.id} onClick={() => responderOferta(oferta, 'recusar')}>Recusar</Button>
+                        <Button disabled={segundos === 0} isLoading={respondendo === oferta.id} onClick={() => responderOferta(oferta, 'aceitar')}>Aceitar corrida</Button>
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
-            )}
-            {list.pagination.totalPages > 1 && (
-              <Pagination pagination={list.pagination} onPageChange={list.setPage} loading={list.loading} error={list.error} />
             )}
           </section>
         )}

@@ -5,13 +5,18 @@ import { jsonResponse } from '@/lib/json-response'
 import { parsePagination, paginationMeta } from '@/lib/pagination'
 
 describe('valores monetários e contrato da API', () => {
+  it('sem taxa configurada, a central fica com o valor inteiro (modelo SaaS)', () => {
+    const split = dividirPagamento('19.99')
+    expect(split.taxaPlataforma.toFixed(2)).toBe('0.00')
+    expect(split.valorMotoboy.toFixed(2)).toBe('19.99')
+  })
   it('arredonda centavos e mantém a soma exata do repasse com a comissão', () => {
     expect(money('1.005').toFixed(2)).toBe('1.01')
     for (const total of ['0.10', '0.30', '19.99', '33.33', '100.00']) {
-      const split = dividirPagamento(total)
+      const split = dividirPagamento(total, '0.15')
       expect(split.valorMotoboy.plus(split.taxaPlataforma).equals(total)).toBe(true)
     }
-    const split = dividirPagamento('19.99')
+    const split = dividirPagamento('19.99', '0.15')
     expect(split.taxaPlataforma.toFixed(2)).toBe('3.00')
     expect(split.valorMotoboy.toFixed(2)).toBe('16.99')
   })

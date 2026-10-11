@@ -111,7 +111,7 @@ export function KpiCard({
   return (
     <div className="flex flex-col rounded-xl border border-line bg-surface p-4 shadow-xs">
       <p className="text-[13px] text-fg-3">{label}</p>
-      <p className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight text-fg">{value}</p>
+      <p className="mt-2 font-mono text-[26px] font-medium leading-none tabular text-fg">{value}</p>
       <div className="mt-2 flex items-center gap-1.5">
         <Delta atual={atual} anterior={anterior} menorMelhor={menorMelhor} />
         <span className="truncate text-xs text-fg-3">{hint ?? 'vs. período anterior'}</span>

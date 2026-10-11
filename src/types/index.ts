@@ -1,13 +1,21 @@
 import { UserRole, StatusMotoboy, TipoServico, StatusPedido, DiaSemana } from '@prisma/client'
 
 // Extensão dos tipos do NextAuth
+// O acesso aos dados vem da organização ativa (activeOrganizationId + orgRole);
+// motoboyId/clienteId são os perfis do usuário nessa organização.
+type OrgRoleSessao = 'OWNER' | 'DISPATCHER' | 'CLIENT' | 'DRIVER'
+type StatusOrgSessao = 'PENDENTE' | 'ATIVA' | 'SUSPENSA'
+
 declare module 'next-auth' {
   interface Session {
     user: {
       id: string
       email: string
       name: string
-      role: string
+      superadmin: boolean
+      activeOrganizationId: string | null
+      orgRole: OrgRoleSessao | null
+      orgStatus: StatusOrgSessao | null
       motoboyId: string | null
       clienteId: string | null
     }
@@ -17,19 +25,20 @@ declare module 'next-auth' {
     id: string
     email: string
     name: string
-    role: string
-    motoboyId: string | null
-    clienteId: string | null
-    verificadoEm?: number
+    superadmin: boolean
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
     id: string
-    role: string
+    superadmin: boolean
+    activeOrganizationId: string | null
+    orgRole: OrgRoleSessao | null
+    orgStatus: StatusOrgSessao | null
     motoboyId: string | null
     clienteId: string | null
+    verificadoEm?: number
   }
 }
 
@@ -39,6 +48,8 @@ export interface ApiResponse<T = unknown> {
   data?: T
   error?: string
   message?: string
+  // Aviso não bloqueante (ex.: central acima do limite de entregas do plano)
+  aviso?: string
 }
 
 // Types para criação de usuário

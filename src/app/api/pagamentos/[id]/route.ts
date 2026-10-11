@@ -2,7 +2,7 @@ import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import prisma from '@/lib/prisma'
-import { requireAuth, forbidden, notFound, serverError, badRequest, applyRateLimit } from '@/lib/auth-helpers'
+import { requireOrgAccess, forbidden, notFound, serverError, badRequest, applyRateLimit } from '@/lib/auth-helpers'
 import { podeGerenciarPagamento } from '@/lib/pedido-permissions'
 import { executarAcaoPagamento } from '@/lib/payment-operations'
 import { OperacaoError } from '@/lib/operacao-error'
@@ -18,11 +18,11 @@ function erroPagamento(error: unknown) {
 
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
     const { id } = await params
-    const pagamento = await prisma.pagamento.findUnique({
-      where: { id },
+    const pagamento = await prisma.pagamento.findFirst({
+      where: { id, organizationId: auth.user.organizationId },
       include: { pedido: { select: { id: true, status: true, tipoServico: true, valorTotal: true } } },
     })
     if (!pagamento) return notFound('Pagamento não encontrado')
@@ -35,20 +35,20 @@ const acaoSchema = z.object({ acao: z.enum(['verificar', 'confirmar_dinheiro']) 
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
     const limit = await applyRateLimit(request, 'sensitive')
     if (!limit.success) return limit.response
     const validation = acaoSchema.safeParse(await request.json().catch(() => null))
     if (!validation.success) return badRequest('Ação inválida')
     const { id } = await params
-    const pagamento = await prisma.pagamento.findUnique({ where: { id }, select: { pedidoId: true } })
+    const pagamento = await prisma.pagamento.findFirst({ where: { id, organizationId: auth.user.organizationId }, select: { pedidoId: true } })
     if (!pagamento) return notFound('Pagamento não encontrado')
     const updated = await executarAcaoPagamento(pagamento.pedidoId, id, auth.user, validation.data.acao)
     // "verificar" é a consulta periódica do PIX; só entra na trilha quando muda algo
     if (validation.data.acao === 'confirmar_dinheiro' || updated.status === 'APROVADO') {
       await registrarAuditoria({
-        acao: 'pagamento.acao', entidade: 'Pagamento', entidadeId: id, userId: auth.user.id, request,
+        acao: 'pagamento.acao', entidade: 'Pagamento', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request,
         dados: { acao: validation.data.acao, status: updated.status, pedidoId: pagamento.pedidoId },
       })
     }
@@ -59,16 +59,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
     const limit = await applyRateLimit(request, 'sensitive')
     if (!limit.success) return limit.response
     const { id } = await params
-    const pagamento = await prisma.pagamento.findUnique({ where: { id }, select: { pedidoId: true } })
+    const pagamento = await prisma.pagamento.findFirst({ where: { id, organizationId: auth.user.organizationId }, select: { pedidoId: true } })
     if (!pagamento) return notFound('Pagamento não encontrado')
     const updated = await executarAcaoPagamento(pagamento.pedidoId, id, auth.user, 'cancelar')
     await registrarAuditoria({
-      acao: 'pagamento.cancelado', entidade: 'Pagamento', entidadeId: id, userId: auth.user.id, request,
+      acao: 'pagamento.cancelado', entidade: 'Pagamento', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request,
       dados: { status: updated.status, pedidoId: pagamento.pedidoId },
     })
     return jsonResponse({ success: true, data: updated, message: 'Pagamento cancelado' })

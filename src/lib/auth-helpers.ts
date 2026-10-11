@@ -1,13 +1,15 @@
 // =============================================================================
 // Helpers de Autorização e Rate Limiting
 // =============================================================================
-// Funções centralizadas para verificação de autenticação e autorização
-// Use em todas as rotas de API para garantir segurança consistente
+// Toda leitura e escrita de negócio acontece dentro da organização (central)
+// ativa da sessão. Use requireOrgAccess (ou os atalhos abaixo) no início das
+// rotas e filtre as queries por user.organizationId.
 // =============================================================================
 
 import { getServerSession } from 'next-auth'
 import { NextResponse, NextRequest } from 'next/server'
 import { authOptions } from './auth'
+import prisma from './prisma'
 import {
   checkRateLimit,
   getClientIP,
@@ -17,20 +19,28 @@ import {
 } from './rate-limit'
 
 // Tipos
-export type UserRole = 'ADMIN' | 'CLIENTE' | 'MOTOBOY'
+export type OrgRole = 'OWNER' | 'DISPATCHER' | 'CLIENT' | 'DRIVER'
 
 export interface AuthenticatedUser {
   id: string
   email: string
   name?: string | null
-  role: UserRole
+  superadmin: boolean
+  organizationId: string | null
+  orgRole: OrgRole | null
   motoboyId: string | null
   clienteId: string | null
 }
 
-export interface AuthResult {
+/** Usuário com organização ativa: o tipo que as rotas de negócio recebem. */
+export interface OrgUser extends AuthenticatedUser {
+  organizationId: string
+  orgRole: OrgRole
+}
+
+export interface AuthResult<U = AuthenticatedUser> {
   authenticated: true
-  user: AuthenticatedUser
+  user: U
 }
 
 export interface AuthError {
@@ -38,253 +48,163 @@ export interface AuthError {
   response: NextResponse
 }
 
+export const PAPEIS_GESTAO: OrgRole[] = ['OWNER', 'DISPATCHER']
+
 // =============================================================================
 // Respostas de erro padronizadas
 // =============================================================================
 
 export function unauthorized(message = 'Autenticação necessária') {
-  return NextResponse.json(
-    { success: false, error: message },
-    { status: 401 }
-  )
+  return NextResponse.json({ success: false, error: message }, { status: 401 })
 }
 
 export function forbidden(message = 'Acesso negado') {
-  return NextResponse.json(
-    { success: false, error: message },
-    { status: 403 }
-  )
+  return NextResponse.json({ success: false, error: message }, { status: 403 })
 }
 
 export function notFound(message = 'Recurso não encontrado') {
-  return NextResponse.json(
-    { success: false, error: message },
-    { status: 404 }
-  )
+  return NextResponse.json({ success: false, error: message }, { status: 404 })
 }
 
 export function badRequest(message = 'Requisição inválida') {
-  return NextResponse.json(
-    { success: false, error: message },
-    { status: 400 }
-  )
+  return NextResponse.json({ success: false, error: message }, { status: 400 })
 }
 
 export function serverError(message = 'Erro interno do servidor') {
-  return NextResponse.json(
-    { success: false, error: message },
-    { status: 500 }
-  )
+  return NextResponse.json({ success: false, error: message }, { status: 500 })
+}
+
+function negar(response: NextResponse): AuthError {
+  return { authenticated: false, response }
 }
 
 // =============================================================================
-// Verificação de autenticação
-// =============================================================================
-
-/**
- * Verifica se o usuário está autenticado
- * Use no início de todas as rotas de API que requerem login
- *
- * @example
- * const auth = await requireAuth()
- * if (!auth.authenticated) return auth.response
- * const { user } = auth
- */
-export async function requireAuth(): Promise<AuthResult | AuthError> {
-  const session = await getServerSession(authOptions)
-
-  // Sessão sem id = usuário removido (ver callback jwt em auth.ts)
-  if (!session?.user?.id) {
-    return {
-      authenticated: false,
-      response: unauthorized(),
-    }
-  }
-
-  return {
-    authenticated: true,
-    user: {
-      id: session.user.id,
-      email: session.user.email || '',
-      name: session.user.name,
-      role: session.user.role as UserRole,
-      motoboyId: session.user.motoboyId,
-      clienteId: session.user.clienteId,
-    },
-  }
-}
-
-// =============================================================================
-// Verificação de papel (role)
-// =============================================================================
-
-/**
- * Verifica se o usuário tem um dos papéis permitidos
- *
- * @example
- * const auth = await requireRole(['ADMIN', 'CLIENTE'])
- * if (!auth.authenticated) return auth.response
- */
-export async function requireRole(
-  allowedRoles: UserRole[]
-): Promise<AuthResult | AuthError> {
-  const auth = await requireAuth()
-  if (!auth.authenticated) return auth
-
-  if (!allowedRoles.includes(auth.user.role)) {
-    return {
-      authenticated: false,
-      response: forbidden(`Acesso restrito a: ${allowedRoles.join(', ')}`),
-    }
-  }
-
-  return auth
-}
-
-/**
- * Verifica se o usuário é admin
- */
-export async function requireAdmin(): Promise<AuthResult | AuthError> {
-  return requireRole(['ADMIN'])
-}
-
-// =============================================================================
-// Verificação de propriedade de recursos
-// =============================================================================
-
-/**
- * Verifica se o usuário é dono do recurso cliente
- * Admin sempre tem acesso
- *
- * @param clienteId - ID do cliente a verificar
- */
-export async function requireClienteOwnership(
-  clienteId: string
-): Promise<AuthResult | AuthError> {
-  const auth = await requireAuth()
-  if (!auth.authenticated) return auth
-
-  // Admin tem acesso a tudo
-  if (auth.user.role === 'ADMIN') return auth
-
-  // Verifica se é o cliente correto
-  if (auth.user.clienteId !== clienteId) {
-    return {
-      authenticated: false,
-      response: forbidden('Você não tem permissão para acessar este recurso'),
-    }
-  }
-
-  return auth
-}
-
-/**
- * Verifica se o usuário é dono do recurso motoboy
- * Admin sempre tem acesso
- *
- * @param motoboyId - ID do motoboy a verificar
- */
-export async function requireMotoboyOwnership(
-  motoboyId: string
-): Promise<AuthResult | AuthError> {
-  const auth = await requireAuth()
-  if (!auth.authenticated) return auth
-
-  // Admin tem acesso a tudo
-  if (auth.user.role === 'ADMIN') return auth
-
-  // Verifica se é o motoboy correto
-  if (auth.user.motoboyId !== motoboyId) {
-    return {
-      authenticated: false,
-      response: forbidden('Você não tem permissão para acessar este recurso'),
-    }
-  }
-
-  return auth
-}
-
-/**
- * Verifica se o usuário tem acesso a um pedido
- * - Cliente: só seus próprios pedidos
- * - Motoboy: pedidos atribuídos a ele
- * - Admin: todos os pedidos
- *
- * @param pedido - Objeto do pedido com clienteId e motoboyId
- */
-export async function requirePedidoAccess(pedido: {
-  clienteId: string
-  motoboyId: string | null
-}): Promise<AuthResult | AuthError> {
-  const auth = await requireAuth()
-  if (!auth.authenticated) return auth
-
-  // Admin tem acesso a tudo
-  if (auth.user.role === 'ADMIN') return auth
-
-  // Cliente só acessa seus pedidos
-  if (auth.user.role === 'CLIENTE' && auth.user.clienteId === pedido.clienteId) {
-    return auth
-  }
-
-  // Motoboy só acessa pedidos atribuídos a ele
-  if (auth.user.role === 'MOTOBOY' && auth.user.motoboyId === pedido.motoboyId) {
-    return auth
-  }
-
-  return {
-    authenticated: false,
-    response: forbidden('Você não tem permissão para acessar este pedido'),
-  }
-}
-
-/**
- * Verifica se o usuário tem acesso a um endereço
- * - Admin ou dono do cliente
- *
- * @param endereco - Objeto do endereço com clienteId
- */
-export async function requireEnderecoAccess(endereco: {
-  clienteId: string
-}): Promise<AuthResult | AuthError> {
-  return requireClienteOwnership(endereco.clienteId)
-}
-
-// =============================================================================
-// Helpers de verificação de papel
-// =============================================================================
-
-export function isAdmin(user: AuthenticatedUser): boolean {
-  return user.role === 'ADMIN'
-}
-
-export function isCliente(user: AuthenticatedUser): boolean {
-  return user.role === 'CLIENTE'
-}
-
-export function isMotoboy(user: AuthenticatedUser): boolean {
-  return user.role === 'MOTOBOY'
-}
-
-// =============================================================================
-// Utilitário para obter usuário ou null (para rotas opcionalmente autenticadas)
+// Sessão
 // =============================================================================
 
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   const session = await getServerSession(authOptions)
-
-  if (!session?.user?.id) {
-    return null
-  }
-
+  // Sessão sem id = usuário removido (ver callback jwt em auth.ts)
+  if (!session?.user?.id) return null
   return {
     id: session.user.id,
     email: session.user.email || '',
     name: session.user.name,
-    role: session.user.role as UserRole,
-    motoboyId: session.user.motoboyId,
-    clienteId: session.user.clienteId,
+    superadmin: !!session.user.superadmin,
+    organizationId: session.user.activeOrganizationId ?? null,
+    orgRole: session.user.orgRole ?? null,
+    motoboyId: session.user.motoboyId ?? null,
+    clienteId: session.user.clienteId ?? null,
   }
+}
+
+/** Exige login, sem exigir organização (seletor de central, perfil). */
+export async function requireAuth(): Promise<AuthResult | AuthError> {
+  const user = await getAuthenticatedUser()
+  return user ? { authenticated: true, user } : negar(unauthorized())
+}
+
+export async function requireSuperadmin(): Promise<AuthResult | AuthError> {
+  const auth = await requireAuth()
+  if (!auth.authenticated) return auth
+  return auth.user.superadmin ? auth : negar(forbidden('Acesso restrito à equipe da plataforma'))
+}
+
+/**
+ * Exige login, organização ativa e (opcionalmente) um dos papéis informados.
+ * Central pendente ou suspensa só é acessível ao superadmin.
+ *
+ * @example
+ * const auth = await requireOrgAccess(['OWNER', 'DISPATCHER'])
+ * if (!auth.authenticated) return auth.response
+ * prisma.pedido.findMany({ where: { organizationId: auth.user.organizationId } })
+ */
+export async function requireOrgAccess(papeis?: OrgRole[]): Promise<AuthResult<OrgUser> | AuthError> {
+  const session = await getServerSession(authOptions)
+  const user = session?.user?.id ? await getAuthenticatedUser() : null
+  if (!user) return negar(unauthorized())
+  if (!user.organizationId || !user.orgRole) return negar(forbidden('Selecione uma central para continuar'))
+  if (!user.superadmin && session?.user?.orgStatus !== 'ATIVA') {
+    return negar(forbidden(session?.user?.orgStatus === 'PENDENTE'
+      ? 'Sua central está aguardando ativação pela equipe do Entrega Pra Mim'
+      : 'Esta central está suspensa'))
+  }
+  if (papeis && !papeis.includes(user.orgRole)) {
+    return negar(forbidden('Você não tem permissão para esta ação nesta central'))
+  }
+  return { authenticated: true, user: user as OrgUser }
+}
+
+/** Dono ou despachante da central ativa. */
+export function requireGestor() {
+  return requireOrgAccess(PAPEIS_GESTAO)
+}
+
+/** Apenas o dono da central ativa. */
+export function requireOwner() {
+  return requireOrgAccess(['OWNER'])
+}
+
+export function isGestor(user: Pick<AuthenticatedUser, 'orgRole'>): boolean {
+  return user.orgRole === 'OWNER' || user.orgRole === 'DISPATCHER'
+}
+
+// =============================================================================
+// Posse de recursos (sempre dentro da organização ativa)
+// =============================================================================
+
+/**
+ * Cliente (empresa atendida): o próprio cliente ou a gestão da central,
+ * desde que o cliente pertença à organização ativa.
+ */
+export async function requireClienteOwnership(clienteId: string): Promise<AuthResult<OrgUser> | AuthError> {
+  const auth = await requireOrgAccess()
+  if (!auth.authenticated) return auth
+  const { user } = auth
+  if (user.clienteId === clienteId) return auth
+  if (isGestor(user)) {
+    const existe = await prisma.cliente.findFirst({ where: { id: clienteId, organizationId: user.organizationId }, select: { id: true } })
+    if (existe) return auth
+    return negar(notFound('Cliente não encontrado'))
+  }
+  return negar(forbidden('Você não tem permissão para acessar este recurso'))
+}
+
+/** Motoboy: o próprio motoboy ou a gestão da central, dentro da organização ativa. */
+export async function requireMotoboyOwnership(motoboyId: string): Promise<AuthResult<OrgUser> | AuthError> {
+  const auth = await requireOrgAccess()
+  if (!auth.authenticated) return auth
+  const { user } = auth
+  if (user.motoboyId === motoboyId) return auth
+  if (isGestor(user)) {
+    const existe = await prisma.motoboy.findFirst({ where: { id: motoboyId, organizationId: user.organizationId }, select: { id: true } })
+    if (existe) return auth
+    return negar(notFound('Motoboy não encontrado'))
+  }
+  return negar(forbidden('Você não tem permissão para acessar este recurso'))
+}
+
+/**
+ * Pedido: gestão da central, cliente dono ou motoboy atribuído.
+ * Pedido de outra organização responde 404, sem revelar que existe.
+ */
+export async function requirePedidoAccess(pedido: {
+  organizationId: string
+  clienteId: string
+  motoboyId: string | null
+}): Promise<AuthResult<OrgUser> | AuthError> {
+  const auth = await requireOrgAccess()
+  if (!auth.authenticated) return auth
+  const { user } = auth
+  if (pedido.organizationId !== user.organizationId) return negar(notFound('Pedido não encontrado'))
+  if (isGestor(user)) return auth
+  if (user.orgRole === 'CLIENT' && user.clienteId === pedido.clienteId) return auth
+  if (user.orgRole === 'DRIVER' && !!user.motoboyId && user.motoboyId === pedido.motoboyId) return auth
+  return negar(forbidden('Você não tem permissão para acessar este pedido'))
+}
+
+export async function requireEnderecoAccess(endereco: { clienteId: string }): Promise<AuthResult<OrgUser> | AuthError> {
+  return requireClienteOwnership(endereco.clienteId)
 }
 
 // =============================================================================

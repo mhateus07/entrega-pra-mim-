@@ -1,20 +1,21 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import type { AuthenticatedUser } from '@/lib/auth-helpers'
+import type { OrgUser } from '@/lib/auth-helpers'
 import { podeAlterarPedido, podeConfirmarDinheiro, podeGerenciarPagamento } from '@/lib/pedido-permissions'
 
-const cliente: AuthenticatedUser = { id: 'u1', email: 'c@test.local', role: 'CLIENTE', clienteId: 'c1', motoboyId: null }
-const motoboy: AuthenticatedUser = { id: 'u2', email: 'm@test.local', role: 'MOTOBOY', clienteId: null, motoboyId: 'm1' }
+const base = { superadmin: false, organizationId: 'org1' }
+const cliente: OrgUser = { ...base, id: 'u1', email: 'c@test.local', orgRole: 'CLIENT', clienteId: 'c1', motoboyId: null }
+const motoboy: OrgUser = { ...base, id: 'u2', email: 'm@test.local', orgRole: 'DRIVER', clienteId: null, motoboyId: 'm1' }
 const pedido = { clienteId: 'c1', motoboyId: null, status: 'SOLICITADO' as const }
 
 describe('permissões por operação', () => {
-  it('permite aceitar pedido livre somente para o próprio motoboy', () => {
-    expect(podeAlterarPedido(motoboy, pedido, 'ACEITO', 'm1')).toBe(true)
-    expect(podeAlterarPedido(motoboy, pedido, 'ACEITO', 'm2')).toBe(false)
-    expect(podeAlterarPedido(motoboy, { ...pedido, motoboyId: 'm2' }, 'ACEITO', 'm1')).toBe(false)
+  it('motoboy não assume pedido pelo PATCH: só aceitando a oferta do despacho', () => {
+    expect(podeAlterarPedido(motoboy, pedido, 'ACEITO')).toBe(false)
+    expect(podeAlterarPedido(motoboy, { ...pedido, motoboyId: 'm1', status: 'ACEITO' }, 'EM_COLETA')).toBe(true)
+    expect(podeAlterarPedido(motoboy, { ...pedido, motoboyId: 'm2', status: 'ACEITO' }, 'EM_COLETA')).toBe(false)
   })
   it('cliente pode cancelar o próprio pedido, mas não operá-lo ou cancelar de outro cliente', () => {
     expect(podeAlterarPedido(cliente, pedido, 'CANCELADO')).toBe(true)
-    expect(podeAlterarPedido(cliente, pedido, 'ACEITO', 'm1')).toBe(false)
+    expect(podeAlterarPedido(cliente, pedido, 'ACEITO')).toBe(false)
     expect(podeAlterarPedido(cliente, pedido, 'ENTREGUE')).toBe(false)
     expect(podeAlterarPedido(cliente, { ...pedido, clienteId: 'c2' }, 'CANCELADO')).toBe(false)
   })

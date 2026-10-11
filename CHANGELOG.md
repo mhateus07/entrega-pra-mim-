@@ -6,6 +6,332 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [Não lançado] — SaaS multi-tenant para centrais de motofrete
+
+### Transições entre telas (2026-10-11)
+
+**Na prática**
+- **Entrar no sistema:** depois do login, uma faixa colete (laranja com as faixas refletivas) atravessa a tela da esquerda para a direita. Atrás dela já aparece o painel.
+- **Dentro do sistema**, cada troca de tela mostra para onde a pessoa foi:
+  - abrir um detalhe (um pedido, por exemplo) desliza a tela para a esquerda, e voltar para a lista desliza para a direita;
+  - no menu lateral do painel, descer no menu sobe a tela e subir no menu desce;
+  - nas abas do motoboy e do cliente, o movimento é para o lado;
+  - a tela nova chega e "freia", passando um pouco e assentando, como a moto parando na porta. O total fica abaixo de meio segundo.
+- O destaque do item ativo desliza de um item para o outro, no menu lateral e nas abas.
+- O menu lateral e o cabeçalho ficam parados; só o conteúdo troca.
+- **Carregamento:**
+  - a rota da marca se traça em laço no lugar do spinner e só aparece se a espera passar de 250 ms;
+  - o conteúdo que chega depois sobe e assenta;
+  - o cabeçalho do motoboy e do cliente não some mais enquanto a tela carrega.
+- Quem pede menos movimento no sistema vê as trocas sem animação.
+- O botão voltar do navegador troca a tela sem animação.
+
+**Técnico**
+- Usa o `<ViewTransition>` do React que o Next 16 embute no App Router. Os tipos vêm de `react/canary` (`src/types/react-canary.d.ts`).
+- `src/lib/navegacao.ts`:
+  - `areaDe()` e `direcaoNavegacao()` calculam a direção a partir da rota anterior e da nova;
+  - o comportamento está coberto por `tests/navegacao.test.ts`.
+- `src/components/layout/Transicao.tsx` tem dois níveis:
+  - `TransicaoArea`, no layout raiz, com `key` igual à área e nome `area`;
+  - `TransicaoTela`, com `key` igual à rota e nome `tela-<área>`, para que telas de áreas diferentes nunca formem par.
+- O React só forma o par se a tela que sai também tiver classe diferente de `none`, por isso sempre existe uma classe base.
+- O cabeçalho do motoboy e do cliente passou para os layouts dos grupos (`AppShell`) e saiu das 7 páginas.
+- `FullPageLoader` virou `PageLoader` nessas páginas.
+- A tela de entrega do motoboy usa `router.push` em vez de `window.location`.
+- A cortina é só CSS:
+  - o fundo do `::view-transition-image-pair(.area-entrar)` desenha a faixa;
+  - `clip-path` sincronizado revela a tela nova e esconde a antiga;
+  - a posição é animada com `@property`.
+
+### Entrada da landing com mapa de cidade (2026-10-11)
+
+**Na prática**
+- O painel ao vivo do topo virou uma cidade de verdade, inspirada no centro de Juiz de Fora:
+  - Av. Barão do Rio Branco, Av. Getúlio Vargas, Rua Halfeld, Parque Halfeld com árvores, Rio Paraibuna com pontes e o bairro São Mateus;
+  - quadras com prédios, que aparecem do centro para fora quando a página abre;
+  - outros motoboys online circulando pelas ruas.
+- A corrida agora tem câmera:
+  - abre mostrando a cidade inteira com o radar procurando motoboy;
+  - aproxima na oferta e no aceite;
+  - segue a moto pela rota com o tempo restante ao lado;
+  - termina no destino com o carimbo de "Entregue".
+- O título entra linha a linha e "Fecha o dia." ganha uma rota desenhada embaixo.
+- Quem pede menos movimento no sistema vê o painel parado, no meio da entrega.
+
+**Técnico**
+- `src/components/landing/MapaCidade.tsx`:
+  - mundo 760×480 visto por uma janela 380×240;
+  - exporta `CidadeBase` (memo), `Frota`, `camera()` e as coordenadas da rota.
+- Prédios e árvores usam um gerador pseudoaleatório só com aritmética inteira (mulberry32), com coordenadas arredondadas. O `Math.sin` dava valores diferentes entre Node e Chrome e quebrava a hidratação.
+- `DespachoAoVivo.tsx`:
+  - a moto e a câmera passaram a usar `requestAnimationFrame` + `getPointAtLength` (hook `usePercurso`);
+  - o motivo: `animateMotion` conta o tempo desde a abertura do documento e, inserido depois, pulava direto para o fim.
+- `globals.css`:
+  - variáveis `--mapa-*` nos temas claro e escuro;
+  - classes `.mapa-quadra`, `.mapa-camera`, `.radar` e `.linha-mascara`, com fallback para movimento reduzido.
+
+### Identidade visual aplicada no site (2026-10-11)
+
+**Na prática**
+- O site inteiro segue a marca nova (`brand/README.md`):
+  - papel e asfalto como base, laranja colete com intenção;
+  - títulos em Archivo estreitado e rótulos em caixa alta;
+  - códigos, horários e valores em IBM Plex Mono;
+  - faixa colete, rota (anel, linha e ponto) e placa Mercosul.
+- **Landing nova:**
+  - painel de despacho **ao vivo** no topo, que roda uma corrida inteira em loop: oferta com contagem de 90 s, aceite, coleta, moto percorrendo as ruas e carimbo de "Entregue";
+  - o grupo de WhatsApp sendo riscado e trocado por uma corrida organizada;
+  - "Como funciona" com uma rota que se desenha conforme a página rola;
+  - rastreio com uma chave que troca a marca do EPM pela da central;
+  - fechamento com valores rodando como taxímetro.
+- As animações vêm da operação (rota se desenhando, ponto de entrega pousando como carimbo, reflexo de farol na faixa colete, GPS pulsando, odômetro), e não de efeitos genéricos. Quem desativa movimento no sistema vê o estado final direto.
+- **Telas de entrada** (login, criar central, convite) com painel asfalto, assinatura "Despacha. Rastreia. Fecha o dia." e rota animada.
+- **Rastreio público** igual ao mockup da marca: mapa com a rota na cor da central, código do pedido, status em título grande, linha do tempo com horários e rodapé conforme o plano.
+- **Painel e apps:**
+  - faixa colete no topo;
+  - item ativo do menu com marcador laranja;
+  - títulos de página no estilo da marca;
+  - valores em mono;
+  - anel de contagem nas ofertas do motoboy.
+
+**Técnico**
+- `globals.css`:
+  - tokens `--faixa`, `--rota`, `--asfalto`;
+  - classes `titulo-display`, `cartaz` e `rotulo`, sem o prefixo `text-` para o tailwind-merge não apagá-las (`.text-display` fica como sinônimo);
+  - `faixa-colete` com reflexo, `placa`;
+  - animações `rota-traco`, `pouso`, `gps-pulso`, `chega`, `regua`, `carimbo` e `status-troca`, com fallback completo para `prefers-reduced-motion`;
+  - o hero anima só com CSS (`.entrada`), sem depender do JavaScript.
+- Componentes novos:
+  - em `src/components/brand/`: `Faixa`, `Rota`, `Placa`, `Odometro`, `ContagemOferta` e `NaTela` (com `useNaTela`, `IntersectionObserver`);
+  - em `src/components/landing/`: `DespachoAoVivo` (SVG com `animateMotion`, que acompanha qualquer largura), `AntesDepois`, `ComoFunciona` (progresso por rolagem com `requestAnimationFrame`), `RastreioMarca` e `FechamentoDemo`.
+- Primitivos:
+  - botões e campos com raio de 10 px e cartões com 16 px;
+  - botão de ação com `--brand-fg`;
+  - `PageHeader` e `CardTitle` no estilo da marca;
+  - KPIs e fechamento em mono.
+- O rastreio público ganhou `codigo` (6 últimos caracteres do pedido, nunca o id inteiro).
+- Inclui os arquivos da identidade que estavam fora do git: `brand/`, ícones e OG em `public/`, `layout.tsx` (Archivo e IBM Plex Mono, metadados novos) e `Logo.tsx`.
+- Verificado:
+  - capturas em desktop e celular (emulação real de 390 px, sem rolagem horizontal), nos temas claro e escuro;
+  - nenhum erro de console no build de produção em landing, login, registro, rastreio e login da central;
+  - lint, tipos e 162 testes.
+
+### Etapa 7 — Textos e documentação (2026-10-11)
+
+**Na prática**
+- A página inicial agora fala com o **dono da central**: "Sua central despachando, rastreando e fechando o dia num sistema só, com a sua marca, por preço fixo. Sem comissão por corrida."
+- A página mostra:
+  - as dores do WhatsApp;
+  - como funciona em 3 passos;
+  - os recursos;
+  - os **planos com preço fixo**;
+  - um FAQ de dono de central.
+- A calculadora de preço para o consumidor final saiu. O botão principal virou "Criar minha central".
+- O login e a tela lateral de entrada falam de central, e não mais de "solicitar entregas".
+- One-pager e pitch foram reescritos para o modelo SaaS. Saíram os números de TAM/SAM sem fonte, a "taxa de 10–15% por corrida" e a afirmação de "código 100% proprietário", que ainda depende do acerto com o cliente original.
+
+**Técnico**
+- `src/app/page.tsx`: landing nova. Os planos vêm de `src/lib/planos.ts`, então preço e limite mudam num lugar só.
+- `src/components/landing/PriceCalculator.tsx` foi removido (era usado só pela landing).
+- `AuthLayout` e `login` com textos novos.
+- `README.md`: modelo e papéis, funcionalidades, mapa de rotas, modelos, fórmula de preço da central, despacho, instalação (`create-admin` com `ORG_SLUG`, `CRON_SECRET`, seed) e roadmap.
+- `docs/ONE_PAGER.md` e `docs/PITCH_INVESTIDORES.md` foram reescritos a partir de `docs/PLANO_NEGOCIO.md`, com fontes nos concorrentes.
+- `docs/PLANO_EVOLUCAO.md`: aviso de reposicionamento no topo e seção 12 com a nova ordem (Etapas 0–6 ✅ → WhatsApp e domínio próprio → piloto → fase 2: Pix, Pedeli, ETA real, SSE).
+- `docs/CORRECOES_OPERACIONAIS.md`: regra de aceite atualizada para o despacho com oferta.
+
+### Etapa 6 — Despacho com oferta (2026-10-11)
+
+**Na prática**
+- Quando entra um pedido, o sistema oferece a corrida ao **melhor motoboy online**, pelo mesmo score de antes: proximidade da coleta, avaliação e tempo parado.
+- No app, o motoboy vê a oferta com o **seu ganho**, os bairros, a distância e uma **contagem de 90 segundos** para aceitar ou recusar. O endereço completo só aparece depois do aceite.
+- Se ele recusa ou o tempo acaba, a corrida vai para o próximo. Ninguém recebe duas ofertas ao mesmo tempo, e a mesma oferta nunca vira dois aceites.
+- Depois de **3 tentativas**, ou se não houver ninguém online, o pedido cai na fila **"Sem motoboy"** em **Painel → Despacho**. O despachante vê um aviso no painel e pode atribuir na mão ou "ofertar de novo".
+- O motoboy deixou de ver a lista aberta de pedidos da central: só recebe as ofertas feitas para ele.
+- Entrega agendada entra no despacho 30 minutos antes do horário marcado.
+
+**Técnico**
+- Migration `202610110006_despacho_ofertas`:
+  - modelo `DispatchOffer` (`OFERTADA | ACEITA | RECUSADA | EXPIRADA | CANCELADA`, tentativa, `expiresAt`);
+  - `Pedido.tentativasDespacho` e `Pedido.despachoManual`;
+  - `OrganizationSettings.despachoTtlSegundos` (90) e `despachoMaxTentativas` (3).
+- `src/lib/despacho.ts`:
+  - `ofertarPedido` (idempotente, sob `comPedidoBloqueado`; usa o score de `alocacao.ts` com "online" como disponibilidade);
+  - `aceitarOferta` (oferta marcada com `updateMany` condicional + `reservarMotoboy` atômico);
+  - `recusarOferta`, `reofertarPedido` (novo ciclo) e `processarDespacho` (varredura do job).
+- `pedido-status.ts` passa a expor `reservarMotoboy` e `encerrarOfertas`. Cancelar o pedido ou atribuí-lo na mão encerra as ofertas abertas. O motoboy não aceita mais pelo `PATCH` (`podeAlterarPedido`).
+- Rotas:
+  - `GET /api/despacho/ofertas` e `POST /api/despacho/ofertas/[id]` (motoboy);
+  - `GET/POST /api/despacho/fila` (gestão);
+  - `POST /api/jobs/despacho`, com `Authorization: Bearer CRON_SECRET` comparado em tempo constante; sem o segredo a rota fica desligada.
+- `POST /api/pedidos` dispara a primeira oferta. `GET /api/pedidos` do motoboy lista só os pedidos dele.
+- Job: serviço `despacho-cron` no `docker-compose.yml` (curl a cada 15 s). `CRON_SECRET` foi para o `.env.production.example`, e o boot avisa se ele faltar.
+- UI:
+  - app do motoboy com ofertas, contagem regressiva, aceitar e recusar;
+  - `/dashboard/despacho` com fila manual (atribuir e ofertar de novo) e ofertas em andamento;
+  - aviso de fila manual no painel.
+- Testes (`despacho.test.ts`):
+  - **concorrência:** 5 aceites simultâneos + atribuição manual + motoboy errado → só um vence;
+  - **expiração** gera oferta ao próximo;
+  - **3 tentativas** → fila manual e "ofertar de novo";
+  - também: ordem pelo score, recusa, sem ninguém online, sem duas ofertas simultâneas ao mesmo motoboy, cancelamento, pedido novo pela API, motoboy bloqueado no `PATCH` e autenticação do job;
+  - isolamento cobrindo as 4 rotas novas;
+  - testes antigos de concorrência adaptados à atribuição pela gestão.
+
+  Total: 162 testes.
+
+### Etapa 5 — Marca da central (white-label básico) (2026-10-11)
+
+**Na prática**
+- Em **Painel → Marca**, o dono de uma central no plano **Marca própria** envia o logo e define o nome de exibição e a cor principal.
+- A marca aparece:
+  - no **link de rastreio** que o cliente final recebe;
+  - na **tela de login da central** (`/o/nome-da-central/login`);
+  - no **app instalado no celular** (PWA), com nome, cor e ícone da central.
+- Nos planos Essencial e Central aparece a marca do Entrega Pra Mim. A tela explica que o recurso é do plano Marca própria.
+- Toda central ganha um **link de acesso próprio** (copiável na tela de Marca). Quem entra por ele cai direto naquela central.
+- O despachante vê a configuração de marca, mas só o dono altera.
+
+**Técnico**
+- Sem migration: os campos `nomeExibicao`, `logoArquivo` e `corPrimaria` de `OrganizationSettings` já existiam.
+- `src/lib/marca.ts`: `marcaPermitida(plano)`, `marcaPublica(slug)` e validação de nome de arquivo. Logo e cor só são expostos no plano `MARCA_PROPRIA`.
+- Rotas:
+  - `GET/PUT /api/organizacao/marca` (PUT: dono e plano Marca própria; cor `#RRGGBB`);
+  - `POST/DELETE /api/organizacao/marca/logo` (multipart; JPG/PNG/WebP reconhecidos pelos bytes, como no comprovante; SVG recusado; até 1 MB; `LOGO_DIR`);
+  - `GET /api/publico/organizacoes/[slug]` e `.../logo`;
+  - `GET /o/[slug]/manifest.webmanifest`;
+  - página `/o/[slug]/login`, que após o login troca a sessão para aquela central.
+- O rastreio público lê logo e cor pela mesma regra de plano.
+- Deploy: volume `logos` em `docker-compose.yml` (`LOGO_DIR=/app/storage/logos`) e diretório criado no `Dockerfile`.
+- UI: `/dashboard/marca` (item "Marca" no menu), com prévia do rastreio.
+- Testes:
+  - `marca.test.ts`: plano, permissão do dono, cor inválida, SVG e arquivo grande recusados, logo servido, marca do EPM fora do plano, manifest por central;
+  - isolamento cobrindo as 4 rotas novas.
+
+  Total: 149 testes.
+
+### Etapa 4 — Fechamento do dia/mês (2026-10-11)
+
+**Na prática**
+- Em **Painel → Fechamento**, o dono escolhe o período: hoje, ontem, este mês, mês passado ou datas livres. O sistema mostra duas visões:
+  - **Por motoboy:** corridas, km, valor das corridas, repasse (70% por padrão, ajustável em Preços), dinheiro que o motoboy recebeu em mãos e o **saldo do acerto**. Positivo é o que a central paga a ele; negativo é o que ele devolve.
+  - **Por empresa cliente:** corridas, km, valor total, quanto já foi pago e quanto falta cobrar.
+- Botão **Exportar CSV** nas duas visões. O arquivo abre direto no Excel em português (separador ";" e vírgula nos centavos).
+- O relatório só lê os dados: não mexe em saldo nem em dinheiro.
+- Entram as corridas entregues no período, pela hora de entrega no fuso da central. Uma corrida entregue às 23h30 conta naquele dia.
+
+**Técnico**
+- `src/lib/fechamento.ts`:
+  - `porMotoboy` e `porCliente` fazem as contas em `Prisma.Decimal` com `money()`;
+  - `inicioDoDia` calcula a meia-noite no fuso da central;
+  - `gerarCsv` grava com BOM UTF-8 e protege contra fórmula no Excel (CSV injection).
+- `GET /api/fechamento?de&ate&visao=motoboy|cliente[&formato=csv]`, só para a gestão, com período de até 1 ano. Lê só `Pedido` + `Pagamento`.
+- Sem migration: `OrganizationSettings.repasseMotoboy` já existia. Ele passa a ser editado pela tabela de preço (`PUT /api/organizacao/precos`).
+- UI: `/dashboard/fechamento` (item "Fechamento" no menu) e o campo "Repasse ao motoboy (%)" em Preços.
+- Testes:
+  - unitários de agregação, saldo negativo, CSV e fuso;
+  - integração com período no fuso, exclusão de outra central, CSV, permissão, nenhum lançamento em saldo e período inválido;
+  - isolamento: o caso do fechamento agora pega vazamento (validado injetando o erro), e todas as listagens exigem resposta 200.
+
+  Total: 141 testes.
+
+### Etapa 3 — Link público de rastreio e portal da empresa cliente (2026-10-11)
+
+**Na prática**
+- Todo pedido tem um **link de rastreio** (botão "Link de rastreio" no pedido, com cópia e envio pelo WhatsApp). Quem recebe a entrega acompanha sem criar conta: status, horários, primeiro nome do entregador e previsão aproximada.
+- O mapa com a posição do motoboy aparece **só enquanto o pedido está "em entrega"**. Antes disso, revelaria onde fica o remetente. Depois da entrega, o link mostra a foto do comprovante.
+- O link nunca mostra telefone, documento, valor nem o endereço completo, só bairro e cidade.
+- O cadastro deixou de ser aberto. Motoboys, empresas clientes e despachantes entram por **convite**: a central gera o link em **Painel → Convites** e manda pelo WhatsApp.
+- Cada link vale uma vez e expira em 7 dias, por padrão. Pode ser preso a um e-mail ou revogado.
+- Quem já tem conta em outra central usa o mesmo e-mail e senha.
+- Só o dono convida despachantes.
+- O cadastro público agora é **"Criar minha central"**: gera a central e o dono, no plano Essencial e com status pendente. O dono consegue entrar, mas vê "aguardando ativação" até a equipe da plataforma ativar em **Painel → Centrais**, que só o superadmin vê.
+- O painel `/cliente` continua sendo o portal da empresa cliente, agora sempre dentro da central que a convidou.
+
+**Técnico**
+- Migration `202610110005_rastreio_convites`:
+  - `Pedido.trackingToken` (único, 43 caracteres aleatórios, gerado na criação; pedidos antigos ganham token na primeira vez em `POST /api/pedidos/[id]/rastreio-publico`);
+  - modelo `Convite` (papel, `tokenHash` SHA-256, e-mail opcional, `expiresAt`, `usadoEm`).
+- Rotas públicas, todas sob `/api/publico/*` (o `public-api.ts` libera só GET/POST) e com rate limit por IP:
+  - `GET /api/publico/rastreio/[token]` e `.../comprovante`;
+  - `GET/POST /api/publico/convites/[token]` (aceite atômico com `updateMany` condicional);
+  - `POST /api/publico/centrais`.
+- Rotas autenticadas:
+  - `GET/POST /api/convites` e `DELETE /api/convites/[id]` (gestão);
+  - `GET /api/plataforma/organizacoes` e `PATCH /api/plataforma/organizacoes/[id]` (superadmin: status e plano).
+- `POST /api/clientes` e `POST /api/motoboys` deixaram de ser públicos e viraram cadastro direto pela gestão da central. `organizacaoPadrao` foi removido.
+- Libs novas:
+  - `src/lib/contas.ts`: `vincularConta` reaproveita conta existente conferindo a senha, com mensagem única que não revela se o e-mail existe; também tem os perfis por central e `gerarSlug`;
+  - `src/lib/tokens.ts`;
+  - `src/lib/rastreio-publico.ts`.
+- UI:
+  - páginas `/r/[token]`, `/convite/[token]` e `/registro` ("criar minha central");
+  - `/dashboard/convites` e `/dashboard/plataforma`;
+  - componente `CompartilharRastreio`;
+  - aviso de central pendente ou suspensa no painel.
+- Testes:
+  - `convites-centrais.test.ts`: conta nova, e-mail preso, conta existente com senha certa e errada, aceites concorrentes, revogação, despachante, central pendente → ativação, privacidade do rastreio;
+  - isolamento cobrindo as 10 rotas novas.
+
+  Total: 132 testes.
+
+### Etapa 2 — Preço por central e limites do plano (2026-10-11)
+
+**Na prática**
+- Cada central monta a própria tabela de preço em **Painel → Preços**: valor por km, corrida mínima, acréscimo por tipo de serviço e preço fixo por bairro de destino. A tela também simula o preço de uma corrida.
+- Só o dono da central altera a tabela. O despachante pode consultar.
+- O preço é calculado quando o pedido é criado e fica congelado nele: mudar a tabela depois não altera pedidos já feitos.
+- O sistema respeita o plano contratado:
+
+  | Plano | Motoboys ativos | Entregas por mês |
+  |---|---|---|
+  | Essencial | 5 | 600 |
+  | Central | 20 | 2.500 |
+  | Marca própria | 50 | 6.000 |
+
+- Passou do limite de entregas, o pedido continua sendo aceito e a entrega conta como excedente (R$ 0,10 cada). O dono vê um aviso no painel. Acima de 120% do limite, novos pedidos são bloqueados com uma mensagem clara.
+- O painel mostra o plano, as entregas do mês e os motoboys ativos em relação ao limite.
+- A tela de nova entrega do cliente mostra o preço por km da tabela da central dele.
+- Rotas e endereços repetidos saem de um cache, sem nova chamada paga ao Google Maps. Cada chamada real é contada por central.
+
+**Técnico**
+- Modelos: `PricingRule` (1 por org: `precoPorKm`, `valorMinimo`, `multAgendada | multDocumentos | multExpressa`), `PricingBairro` (bairro normalizado, único por org) e `UsageCounter` (org + mês `AAAA-MM` no fuso da central; `entregas`, `chamadasMaps`).
+- Migration `202610110004_precos_uso`: cria as tabelas, copia a tabela global antiga (R$ 3/km; 1,0/1,2/1,5) para cada central existente e preenche o histórico de entregas por mês.
+- `src/lib/pricing.ts`: `calcularPrecoComRegra` (bairro fixo → valor base; multiplicador; mínimo) e `normalizarBairro`. `calcularPreco` continua com a regra padrão, para a landing. `src/lib/pricing-org.ts` carrega a regra da central.
+- `src/lib/planos.ts` (limites e `situacaoEntregas`) e `src/lib/uso.ts` (`registrarEntrega` na mesma transação da criação do pedido; `verificarLimiteMotoboys` no cadastro e na aprovação; `registrarChamadaMaps`; `lerUso`).
+- `src/lib/cache.ts`: Redis com alternativa em memória. `google-maps.ts` faz cache de rota (24 h) e geocodificação (30 dias) e conta chamadas por `organizationId`.
+- Rotas novas: `GET/PUT /api/organizacao/precos` (PUT só OWNER) e `GET /api/organizacao/uso`. `POST /api/pedidos` e `POST /api/rotas` usam a tabela da central, e a resposta do pedido pode trazer `aviso`.
+- UI: `/dashboard/precos`, `PlanoUsoCard` no painel e item "Preços" no menu.
+- Testes:
+  - unitários de preço, planos e cache do Maps;
+  - integração com bairro fixo, aviso e bloqueio do limite, preço congelado após a tabela mudar e o status avançar, limite de motoboys e permissão do dono;
+  - isolamento cobrindo as rotas novas.
+
+  Total: 116 testes.
+
+### Etapa 1 — Fundação multi-tenant (2026-10-11)
+
+**Na prática**
+- Várias centrais usam o mesmo sistema, e nenhuma vê os dados da outra: pedidos, motoboys, clientes, endereços, pagamentos, avaliações, chat e comprovantes ficam presos à central.
+- A instalação atual virou a "Central Principal". Todos os dados existentes foram para ela e tudo continua funcionando.
+- Quem pertence a mais de uma central escolhe a central ativa no topo da tela. O papel muda conforme a central: dono, despachante, cliente ou entregador.
+- O antigo administrador virou **superadmin** da plataforma (equipe Impulsio). Ele pode entrar em qualquer central para dar suporte e continua como dono da Central Principal.
+- A plataforma deixou de tirar 15% da corrida. A taxa agora é uma configuração por central, com padrão 0. Pagamentos antigos mantêm os valores já gravados.
+- Remover um motoboy ou cliente tira essa pessoa só da central atual. A conta só é apagada se ela não estiver em nenhuma outra central.
+
+**Técnico**
+- Modelos novos: `Organization` (slug único, `plano`, `status`), `OrganizationMember` (papel `OWNER | DISPATCHER | CLIENT | DRIVER`, único por org+usuário) e `OrganizationSettings` (marca, `taxaPlataforma` padrão 0, `repasseMotoboy` padrão 0,70, fuso).
+- `organizationId` em `Motoboy`, `Cliente`, `Endereco`, `Pedido`, `Pagamento`, `Avaliacao`, `Mensagem`, `SaldoMotoboy`, `TransacaoMotoboy` e `AuditLog` (opcional neste último), com índices `(organizationId, ...)`.
+- Unicidade por central: `Motoboy (org, userId | cnh | veiculoPlaca)` e `Cliente (org, userId | cpfCnpj)`. `User.email` continua global.
+- `UserRole`: `ADMIN` → `SUPERADMIN`.
+- Migrations: `202610110001_org_expand` (colunas opcionais), `202610110002_org_backfill` (Central Principal, memberships e preenchimento), `202610110003_org_contract` (NOT NULL e troca de uniques). Validadas sobre dados no formato antigo e em banco vazio.
+- Sessão: `activeOrganizationId`, `orgRole`, `orgStatus` e `motoboyId`/`clienteId` resolvidos na central ativa (`src/lib/org-context.ts`). A troca usa `update()` do NextAuth, com membership validada no banco. A revalidação acontece a cada 5 min.
+- `auth-helpers.ts`: `requireOrgAccess(papéis?)`, `requireGestor`, `requireOwner`, `requireSuperadmin`. Os helpers de posse (`requirePedidoAccess`, `requireClienteOwnership`, `requireMotoboyOwnership`) respondem 404 para recurso de outra central. `pedido-permissions.ts` e `pedido-status.ts` passam a usar o papel na org.
+- Todas as rotas de `src/app/api` filtram por `organizationId`. Chat e comprovante deixaram de comparar `userId` direto. Rota nova: `GET /api/organizacoes`. Componente `OrgSwitcher` no painel e no cabeçalho. O middleware de páginas roteia pelo papel na org.
+- `dividirPagamento(total, taxa)` usa a taxa da central (padrão 0).
+- Cadastro público continua entrando na central padrão (`DEFAULT_ORGANIZATION_SLUG`) até a Etapa 3.
+- Scripts (`create-admin`, `seed-demo`, `seed-preview`, `create-demo-users`) adaptados. `create-admin` aceita `ORG_SLUG` para dar o papel de OWNER.
+- Testes: `tests/integration/isolamento-orgs.test.ts` cria duas centrais e prova, em todas as rotas, que a A não lê, lista, altera nem baixa dados da B. A suíte falha se surgir rota sem caso. Também cobre fixtures multi-tenant e taxa 0 por padrão. Total: 103 testes.
+
 ## [1.4.0] - 2026-01-30
 
 ### Fase 4: Sistema de Pagamentos
