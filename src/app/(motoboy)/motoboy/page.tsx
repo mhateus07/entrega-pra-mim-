@@ -16,6 +16,7 @@ import { LABELS_TIPO_SERVICO, codigoPedido } from '@/utils/helpers'
 import type { AprovacaoMotoboy, StatusPedido, StatusMotoboy, TipoServico } from '@prisma/client'
 import { useLocationSharing } from '@/hooks/useTracking'
 import { useNotifications } from '@/hooks/useNotifications'
+import ContagemOferta from '@/components/brand/ContagemOferta'
 import toast from 'react-hot-toast'
 
 interface Pedido {
@@ -470,15 +471,13 @@ export default function MotoboyPage() {
                     <li key={oferta.id} className="rounded-xl border border-brand/40 bg-surface p-4 shadow-xs ring-1 ring-brand/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-xs text-fg-3">Seu ganho</p>
-                          <p className="text-xl font-semibold tracking-tight tabular text-fg">{formatarMoeda(pedido.seuGanho)}</p>
+                          <p className="rotulo text-fg-3">Seu ganho</p>
+                          <p className="font-mono text-2xl font-medium tabular text-fg">{formatarMoeda(pedido.seuGanho)}</p>
                           <p className="mt-0.5 text-[13px] tabular text-fg-3">
                             {pedido.distanciaKm.toFixed(1)} km · ~{pedido.duracaoEstimada} min · {LABELS_TIPO_SERVICO[pedido.tipoServico as TipoServico] ?? pedido.tipoServico}
                           </p>
                         </div>
-                        <span className={cn('rounded-md px-2 py-1 text-sm font-semibold tabular', segundos <= 15 ? 'bg-danger-soft text-danger' : 'bg-brand-soft text-brand')}>
-                          {segundos}s
-                        </span>
+                        <ContagemOferta segundos={segundos} />
                       </div>
                       <div className="mt-3 flex items-center gap-2 text-sm text-fg-2">
                         <span className="truncate">{pedido.enderecoOrigem.bairro}</span>

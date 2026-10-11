@@ -21,7 +21,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = 'default', hover: _hover, padding = true, children, ...props }, ref) => {
     void _hover
     return (
-      <div ref={ref} className={cn('rounded-xl', padding && 'p-5', variants[variant], className)} {...props}>
+      <div ref={ref} className={cn('rounded-2xl', padding && 'p-5', variants[variant], className)} {...props}>
         {children}
       </div>
     )
@@ -35,7 +35,7 @@ const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(({
 CardHeader.displayName = 'CardHeader'
 
 const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (
-  <h3 ref={ref} className={cn('text-[15px] font-semibold tracking-tight text-fg', className)} {...props} />
+  <h3 ref={ref} className={cn('text-[16px] font-bold tracking-[-0.01em] text-fg', className)} {...props} />
 ))
 CardTitle.displayName = 'CardTitle'
 

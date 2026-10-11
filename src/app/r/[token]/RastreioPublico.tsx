@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Circle, Clock, MapPin, PackageX } from 'lucide-react'
+import { PackageX } from 'lucide-react'
 import TrackingMap from '@/components/maps/TrackingMap'
-import Logo from '@/components/brand/Logo'
+import { LogoMark } from '@/components/brand/Logo'
 import { cn } from '@/utils/cn'
 
+type Status = 'SOLICITADO' | 'ACEITO' | 'EM_COLETA' | 'EM_ENTREGA' | 'ENTREGUE' | 'CANCELADO'
+
 interface Rastreio {
-  status: 'SOLICITADO' | 'ACEITO' | 'EM_COLETA' | 'EM_ENTREGA' | 'ENTREGUE' | 'CANCELADO'
+  codigo: string
+  status: Status
   horarios: Record<'criado' | 'aceito' | 'coletado' | 'entregue' | 'cancelado', string | null>
   origem: { bairro: string; cidade: string }
   destino: { bairro: string; cidade: string; latitude?: number; longitude?: number }
@@ -19,15 +22,45 @@ interface Rastreio {
   atualizadoEm: string
 }
 
+const TITULO: Record<Status, string> = {
+  SOLICITADO: 'Procurando um motoboy',
+  ACEITO: 'Motoboy a caminho da coleta',
+  EM_COLETA: 'Coletando o seu pedido',
+  EM_ENTREGA: 'Saiu para entrega',
+  ENTREGUE: 'Entregue',
+  CANCELADO: 'Entrega cancelada',
+}
+
 const ETAPAS = [
-  { status: 'SOLICITADO', titulo: 'Pedido recebido', horario: 'criado' },
-  { status: 'ACEITO', titulo: 'Entregador a caminho da coleta', horario: 'aceito' },
+  { status: 'ACEITO', titulo: 'Pedido aceito', horario: 'aceito' },
+  { status: 'EM_COLETA', titulo: 'Na coleta', horario: 'aceito' },
   { status: 'EM_ENTREGA', titulo: 'Saiu para entrega', horario: 'coletado' },
-  { status: 'ENTREGUE', titulo: 'Entregue', horario: 'entregue' },
+  { status: 'ENTREGUE', titulo: 'Entregue, com foto', horario: 'entregue' },
 ] as const
-const ORDEM = ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA', 'ENTREGUE']
+const ORDEM: Status[] = ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA', 'ENTREGUE']
 
 const hora = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null)
+
+// Mapa desenhado (quarteirões e a rota da marca) quando não há posição ao vivo:
+// mostra em que ponto do caminho a entrega está.
+function MapaDaRota({ status }: { status: Status }) {
+  const ROTA = 'M52 196 V146 H170 V86 L214 42 H300'
+  const progresso = { SOLICITADO: 0, ACEITO: 0.12, EM_COLETA: 0.3, EM_ENTREGA: 0.6, ENTREGUE: 1, CANCELADO: 0 }[status]
+  const entregue = status === 'ENTREGUE'
+  return (
+    <svg viewBox="0 0 340 220" className="block w-full bg-[#f1f0eb] dark:bg-surface-2" aria-hidden="true">
+      {[0, 1, 2, 3, 4].map((r) => [0, 1, 2, 3, 4, 5].map((c) => (
+        <rect key={`${r}${c}`} x={c * 60 + 8} y={r * 46 + 6} width="48" height="34" rx="3" className="fill-[#e9e8e3] dark:fill-surface-3" />
+      )))}
+      <path d={ROTA} fill="none" stroke="var(--cor-suave)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={ROTA} pathLength={1} fill="none" stroke="var(--cor)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"
+        strokeDasharray="1" strokeDashoffset={1 - progresso} style={{ transition: 'stroke-dashoffset 1.6s cubic-bezier(0.2,0.8,0.2,1)' }} />
+      <circle cx="52" cy="196" r="10" fill="#fff" stroke="var(--cor)" strokeWidth="5" />
+      <circle cx="300" cy="42" r="12" fill={entregue ? 'var(--cor)' : '#141413'} />
+      {entregue && <path d="M294 42 l4.5 4.5 l8 -9" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="carimbo-check" />}
+    </svg>
+  )
+}
 
 export default function RastreioPublico({ token }: { token: string }) {
   const [dados, setDados] = useState<Rastreio | null>(null)
@@ -47,101 +80,102 @@ export default function RastreioPublico({ token }: { token: string }) {
     return () => { ativo = false; clearInterval(timer) }
   }, [token])
 
-  // Cor da central (plano Marca própria) sobrescreve o token da marca
-  const estiloMarca = dados?.central.corPrimaria ? ({ '--brand': dados.central.corPrimaria } as React.CSSProperties) : undefined
+  // Marca própria troca a cor da rota e dos marcadores; nos outros planos é o laranja do EPM
+  const marcaPropria = !!dados?.central.corPrimaria || !!dados?.central.logoUrl
+  const cor = dados?.central.corPrimaria ?? '#e2570f'
+  const estilo = { '--cor': cor, '--cor-suave': `color-mix(in srgb, ${cor} 32%, transparent)`, '--brand': cor } as React.CSSProperties
   const indice = dados ? ORDEM.indexOf(dados.status) : -1
-  const emEntrega = dados?.status === 'EM_ENTREGA'
+  const aoVivo = dados?.status === 'EM_ENTREGA' && dados.posicao && dados.destino.latitude != null
 
   return (
-    <div className="min-h-screen bg-page" style={estiloMarca}>
-      <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex h-14 max-w-xl items-center gap-3 px-4">
-          {dados?.central.logoUrl
-            // eslint-disable-next-line @next/next/no-img-element -- logo servido pela rota pública da central
-            ? <img src={dados.central.logoUrl} alt={dados.central.nome} className="h-8 max-w-[140px] object-contain" />
-            : !dados?.central.corPrimaria && <Logo markClassName="h-7 w-7" className="[&>span:last-child]:hidden" />}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-fg">{dados?.central.nome ?? 'Acompanhe sua entrega'}</p>
-            <p className="text-xs text-fg-3">Acompanhamento da entrega</p>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-page sm:py-8" style={estilo}>
+      <div className="mx-auto min-h-screen max-w-md overflow-hidden bg-surface sm:min-h-0 sm:rounded-[28px] sm:border sm:border-line sm:shadow-pop">
+        <header className="flex items-center gap-2.5 px-5 pb-4 pt-6">
+          {marcaPropria ? (
+            dados?.central.logoUrl
+              // eslint-disable-next-line @next/next/no-img-element -- logo servido pela rota pública da central
+              ? <img src={dados.central.logoUrl} alt="" className="h-8 max-w-[120px] object-contain" />
+              : <span className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[12px] font-bold text-white" style={{ background: cor }}>
+                {dados?.central.nome.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase()}
+              </span>
+          ) : <LogoMark className="h-8 w-8" />}
+          <p className="truncate text-[16px] font-bold text-fg">{marcaPropria ? dados?.central.nome : 'Entrega Pra Mim'}</p>
+        </header>
 
-      <main className="mx-auto max-w-xl space-y-4 px-4 py-5">
         {erro && !dados && (
-          <div className="rounded-xl border border-line bg-surface p-6 text-center">
+          <div className="px-5 py-16 text-center">
             <PackageX className="mx-auto h-8 w-8 text-fg-3" aria-hidden="true" />
             <p className="mt-3 text-sm text-fg-2">{erro}</p>
           </div>
         )}
-        {!dados && !erro && <div className="skeleton h-40 rounded-xl" />}
+        {!dados && !erro && <div className="skeleton mx-5 h-56" />}
 
         {dados && (
           <>
-            <section className="rounded-xl border border-line bg-surface p-5">
-              {dados.status === 'CANCELADO' ? (
-                <p className="text-lg font-semibold text-fg">Esta entrega foi cancelada</p>
-              ) : (
-                <>
-                  <p className="text-[13px] text-fg-3">{dados.status === 'ENTREGUE' ? 'Entregue às' : 'Previsão'}</p>
-                  <p className="text-2xl font-semibold tracking-tight text-fg">
-                    {dados.status === 'ENTREGUE'
-                      ? hora(dados.horarios.entregue)
-                      : dados.etaMinutos != null ? `cerca de ${dados.etaMinutos} min` : 'aguardando entregador'}
-                  </p>
-                  {dados.etaMinutos != null && dados.status !== 'ENTREGUE' && (
-                    <p className="mt-1 text-xs text-fg-3">Estimativa aproximada, atualizada às {hora(dados.posicao?.atualizadoEm ?? dados.atualizadoEm)}</p>
-                  )}
-                </>
-              )}
-              <p className="mt-3 flex items-center gap-1.5 text-sm text-fg-2">
-                <MapPin className="h-4 w-4 text-fg-3" aria-hidden="true" />
-                {dados.origem.bairro} → {dados.destino.bairro}, {dados.destino.cidade}
-              </p>
-              {dados.motoboy && <p className="mt-1 text-sm text-fg-2">Entregador: <span className="font-medium text-fg">{dados.motoboy.nome}</span></p>}
-            </section>
-
-            {emEntrega && dados.posicao && dados.destino.latitude != null && (
+            {aoVivo ? (
               <TrackingMap
-                className="h-72 overflow-hidden rounded-xl border border-line"
+                className="h-60"
                 origem={null}
-                destino={{ lat: dados.destino.latitude, lng: dados.destino.longitude!, label: 'Destino' }}
-                motoboyLocation={{ lat: dados.posicao.latitude, lng: dados.posicao.longitude, label: dados.motoboy?.nome }}
+                destino={{ lat: dados.destino.latitude!, lng: dados.destino.longitude!, label: 'Destino' }}
+                motoboyLocation={{ lat: dados.posicao!.latitude, lng: dados.posicao!.longitude, label: dados.motoboy?.nome }}
               />
-            )}
+            ) : dados.status !== 'CANCELADO' && <MapaDaRota status={dados.status} />}
 
-            {dados.status !== 'CANCELADO' && (
-              <ol className="rounded-xl border border-line bg-surface p-5">
-                {ETAPAS.map((etapa) => {
-                  const feito = indice >= ORDEM.indexOf(etapa.status)
-                  return (
-                    <li key={etapa.status} className="flex items-start gap-3 py-1.5">
-                      {feito
-                        ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand)]" aria-hidden="true" />
-                        : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-fg-3" aria-hidden="true" />}
-                      <div className="flex-1">
-                        <p className={cn('text-sm', feito ? 'font-medium text-fg' : 'text-fg-3')}>{etapa.titulo}</p>
-                      </div>
-                      {hora(dados.horarios[etapa.horario]) && (
-                        <span className="flex items-center gap-1 text-xs tabular text-fg-3"><Clock className="h-3 w-3" aria-hidden="true" />{hora(dados.horarios[etapa.horario])}</span>
-                      )}
-                    </li>
-                  )
-                })}
-              </ol>
-            )}
+            <section className="px-5 pb-6 pt-5">
+              <p className="rotulo text-fg-3">Pedido {dados.codigo}</p>
+              <h1 key={dados.status} className="titulo-display status-troca mt-1.5 text-[34px] text-fg">{TITULO[dados.status]}</h1>
+              <p className="mt-1.5 text-[15px] text-fg-2">
+                {dados.status === 'ENTREGUE'
+                  ? <>Entregue às <b className="font-mono font-medium text-fg">{hora(dados.horarios.entregue)}</b> · {dados.destino.bairro}</>
+                  : dados.status === 'CANCELADO'
+                    ? <>Fale com a central para mais informações.</>
+                    : <>{dados.etaMinutos != null ? <>Chega em <b className="text-fg">~{dados.etaMinutos} min</b> · </> : null}{dados.destino.bairro}, {dados.destino.cidade}</>}
+              </p>
+              {dados.etaMinutos != null && dados.status !== 'ENTREGUE' && (
+                <p className="mt-1 text-xs text-fg-3">Previsão aproximada · atualizada às <span className="font-mono">{hora(dados.posicao?.atualizadoEm ?? dados.atualizadoEm)}</span></p>
+              )}
+              {dados.motoboy && dados.status !== 'CANCELADO' && (
+                <p className="mt-3 text-sm text-fg-2">Entregador: <span className="font-semibold text-fg">{dados.motoboy.nome}</span></p>
+              )}
 
-            {dados.comprovanteUrl && (
-              <section className="rounded-xl border border-line bg-surface p-5">
-                <p className="mb-3 text-sm font-medium text-fg">Comprovante de entrega</p>
-                {/* eslint-disable-next-line @next/next/no-img-element -- imagem servida pela rota pública do comprovante */}
-                <img src={dados.comprovanteUrl} alt="Foto do comprovante de entrega" className="w-full rounded-lg border border-line" />
-              </section>
-            )}
+              {dados.status !== 'CANCELADO' && (
+                <ol className="relative mt-6 space-y-3.5">
+                  <span aria-hidden="true" className="absolute bottom-2 left-[4px] top-2 w-[2px] bg-line" />
+                  {ETAPAS.map((etapa) => {
+                    const feito = indice >= ORDEM.indexOf(etapa.status)
+                    const h = feito ? hora(dados.horarios[etapa.horario]) : null
+                    return (
+                      <li key={etapa.status} className="relative flex items-center justify-between pl-6 text-[14px]">
+                        <span
+                          aria-hidden="true"
+                          className={cn('absolute left-0 top-1/2 h-[10px] w-[10px] -translate-y-1/2 rounded-full border-2 transition-colors duration-500', !feito && 'border-line-strong bg-surface')}
+                          style={feito ? { background: cor, borderColor: cor } : undefined}
+                        />
+                        <span className={feito ? 'text-fg' : 'text-fg-3'}>{etapa.titulo}</span>
+                        <span className="font-mono text-[13px] text-fg-3">{h ?? '--:--'}</span>
+                      </li>
+                    )
+                  })}
+                </ol>
+              )}
+
+              {dados.comprovanteUrl && (
+                <figure className="mt-6">
+                  <p className="rotulo mb-2 text-fg-3">Comprovante de entrega</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- imagem servida pela rota pública do comprovante */}
+                  <img src={dados.comprovanteUrl} alt="Foto do comprovante de entrega" className="w-full rounded-[10px] border border-line" />
+                </figure>
+              )}
+            </section>
           </>
         )}
-        <p className="pt-2 text-center text-xs text-fg-3">Tecnologia Entrega Pra Mim</p>
-      </main>
+
+        <footer className="border-t border-line px-5 py-4 text-[12px] text-fg-3">
+          {marcaPropria
+            ? <>tecnologia <b className="ml-1 text-fg">Entrega Pra Mim</b></>
+            : <>Entrega feita por <b className="ml-1 text-fg">{dados?.central.nome ?? '…'}</b></>}
+        </footer>
+      </div>
     </div>
   )
 }

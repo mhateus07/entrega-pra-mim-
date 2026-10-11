@@ -4,30 +4,32 @@
 
 /*
  * Entrega Pra Mim — design tokens
- * Neutros quentes, tinta quase preta para ações principais e laranja da marca
- * usado com parcimônia (marca, foco, destaques). Cores de gráfico vêm de uma
- * paleta categórica validada para daltonismo (ver src/components/charts).
+ * Identidade: brand/README.md. Neutros quentes (papel, asfalto) e laranja colete
+ * usado com intenção. --brand-mark é a cor da marca (símbolo, grafismos);
+ * --brand é o laranja de ação, escurecido para texto branco passar de 4.5:1.
+ * Cores de gráfico vêm de uma paleta categórica validada para daltonismo (ver src/components/charts).
  */
 :root {
   color-scheme: light;
 
-  --page: #f7f7f5;
+  --page: #f6f5f1;
   --surface: #ffffff;
-  --surface-2: #f2f2ef;
-  --surface-3: #e9e9e5;
-  --border: #e4e3de;
-  --border-strong: #cfcdc6;
+  --surface-2: #f1f0eb;
+  --surface-3: #e9e8e3;
+  --border: #e4e2dc;
+  --border-strong: #cfccc4;
 
-  --fg: #121211;
+  --fg: #141413;
   --fg-2: #52514e;
-  --fg-3: #85837d;
+  --fg-3: #6f6d66;
 
-  --primary: #121211;
+  --primary: #141413;
   --primary-fg: #ffffff;
   --primary-hover: #2b2b29;
 
-  --brand: #e2570f;
-  --brand-hover: #c94a08;
+  --brand: #bc450a;
+  --brand-mark: #e2570f;
+  --brand-hover: #a83d08;
   --brand-soft: #fdeee5;
   --brand-fg: #ffffff;
 
@@ -39,6 +41,11 @@
   --danger-soft: #fbe9e9;
   --info: #1f63c1;
   --info-soft: #e7effb;
+
+  /* Elementos da marca: faixas refletivas do colete e a tarja azul da placa */
+  --faixa: #c9cccd;
+  --rota: #1f63c1;
+  --asfalto: #141413;
 
   /* Gráficos */
   --chart-1: #2a78d6;
@@ -54,7 +61,7 @@
   --seq-4: #256abf;
   --seq-5: #104281;
 
-  --ring: rgba(226, 87, 15, 0.35);
+  --ring: rgba(188, 69, 10, 0.35);
   --shadow-sm: 0 1px 2px rgba(18, 18, 17, 0.05);
   --shadow-md: 0 1px 2px rgba(18, 18, 17, 0.04), 0 4px 12px rgba(18, 18, 17, 0.06);
   --shadow-lg: 0 2px 4px rgba(18, 18, 17, 0.04), 0 12px 32px rgba(18, 18, 17, 0.10);
@@ -72,13 +79,14 @@
 
   --fg: #f4f4f2;
   --fg-2: #c3c2b7;
-  --fg-3: #8d8b84;
+  --fg-3: #9a988f;
 
   --primary: #f4f4f2;
   --primary-fg: #121211;
   --primary-hover: #dcdcd8;
 
   --brand: #f0712b;
+  --brand-mark: #f0712b;
   --brand-hover: #f58847;
   --brand-soft: #3a2116;
   --brand-fg: #121211;
@@ -91,6 +99,10 @@
   --danger-soft: #331a1a;
   --info: #6aa5ef;
   --info-soft: #172338;
+
+  --faixa: #4a4c4d;
+  --rota: #6aa5ef;
+  --asfalto: #0e0e0d;
 
   --chart-1: #3987e5;
   --chart-2: #d95926;
@@ -126,6 +138,7 @@
   --color-primary-hover: var(--primary-hover);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
+  --color-brand-mark: var(--brand-mark);
   --color-brand-soft: var(--brand-soft);
   --color-brand-fg: var(--brand-fg);
   --color-success: var(--success);
@@ -140,9 +153,12 @@
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
+  --color-faixa: var(--faixa);
+  --color-rota: var(--rota);
+  --color-asfalto: var(--asfalto);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, 'SF Mono', Menlo, monospace;
 
   --shadow-xs: var(--shadow-sm);
   --shadow-card: var(--shadow-md);
@@ -156,7 +172,222 @@ html {
 body {
   background: var(--page);
   color: var(--fg);
-  font-feature-settings: 'cv11', 'ss01';
+}
+
+/* Títulos da marca: Archivo estreitado (ver brand/README.md).
+ * Nomes sem o prefixo "text-": o tailwind-merge (cn) apagaria a classe ao
+ * combiná-la com uma cor ou tamanho text-*. .text-display fica como sinônimo. */
+.titulo-display,
+.text-display {
+  font-weight: 800;
+  font-stretch: 90%;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+
+/* Manchete em caixa alta, bem estreita (post "Ainda despachando…") */
+.cartaz {
+  font-weight: 800;
+  font-stretch: 72%;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.92;
+}
+
+/* Rótulo de sinalização: caixa alta, estreito. Nunca para frases. */
+.rotulo {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  font-stretch: 80%;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* =========================================================================
+ * Elementos gráficos da marca
+ * ========================================================================= */
+
+/* Faixa colete: banda laranja com duas faixas refletivas */
+.faixa-colete {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(var(--faixa), var(--faixa)) 0 22.5% / 100% 14.5% no-repeat,
+    linear-gradient(var(--faixa), var(--faixa)) 0 63% / 100% 14.5% no-repeat,
+    var(--brand-mark);
+}
+
+/* Reflexo: o farol que passa pelo colete. Só as faixas refletivas acendem. */
+.faixa-colete[data-reflexo]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0, rgba(255, 255, 255, 0.95) 50%, transparent 100%) 0 22.5% / 160px 14.5% no-repeat,
+    linear-gradient(90deg, transparent 0, rgba(255, 255, 255, 0.95) 50%, transparent 100%) 0 63% / 160px 14.5% no-repeat;
+  transform: translateX(-200px);
+  animation: farol 2.6s cubic-bezier(0.55, 0, 0.25, 1) 0.4s 1 both;
+}
+
+.faixa-colete[data-reflexo='sempre']::after {
+  animation: farol 2.6s cubic-bezier(0.55, 0, 0.25, 1) 0.4s infinite;
+  animation-delay: 1.2s;
+}
+
+@keyframes farol {
+  0% { transform: translateX(-200px); }
+  70%, 100% { transform: translateX(calc(100vw + 200px)); }
+}
+
+/* Placa (Mercosul): código de pedido e placa do motoboy */
+.placa {
+  display: inline-flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 2px solid var(--fg);
+  border-radius: 6px;
+  background: #fff;
+  color: #141413;
+  line-height: 1;
+}
+
+.placa > b {
+  background: var(--rota);
+  color: #fff;
+  padding: 3px 8px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  font-stretch: 80%;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.placa > span {
+  padding: 4px 9px 5px;
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+/* =========================================================================
+ * Movimento da marca
+ * Tudo vem da operação: a rota se desenha, o ponto de entrega pousa como um
+ * carimbo, o GPS pulsa, o odômetro roda. Curvas firmes, nada flutuando.
+ * ========================================================================= */
+
+:root {
+  --curva-firme: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --curva-pouso: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Rota se desenhando: use em <path pathLength="1" class="rota-traco"> */
+.rota-traco {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+[data-visivel='true'] .rota-traco,
+.rota-traco[data-visivel='true'] {
+  animation: tracar var(--duracao-rota, 1.4s) var(--curva-firme) var(--atraso-rota, 0s) forwards;
+}
+
+@keyframes tracar {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Ponto de entrega pousando (carimbo) */
+.pouso {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0);
+}
+
+[data-visivel='true'] .pouso {
+  animation: pousar 0.5s var(--curva-pouso) var(--atraso-pouso, 1.2s) forwards;
+}
+
+@keyframes pousar {
+  to { transform: scale(1); }
+}
+
+/* GPS do motoboy */
+.gps-pulso {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: gps 1.8s ease-out infinite;
+}
+
+@keyframes gps {
+  0% { transform: scale(0.6); opacity: 0.55; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* Carimbo de "Entregue": cai em cima e assenta */
+.carimbo {
+  animation: carimbar 0.42s var(--curva-pouso) both;
+}
+
+@keyframes carimbar {
+  from { opacity: 0; transform: scale(1.7) rotate(-7deg); }
+  to { opacity: 1; transform: scale(1) rotate(-7deg); }
+}
+
+.carimbo-check {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: tracar-check 0.35s var(--curva-firme) 0.1s forwards;
+}
+
+@keyframes tracar-check {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Chip de status trocando: o novo entra de baixo, curto */
+.status-troca {
+  animation: status-troca 0.32s var(--curva-firme) both;
+}
+
+@keyframes status-troca {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Entrada de bloco: sobe pouco, firme, uma vez. Dentro de .entrada (hero, acima da
+ * dobra) roda direto no CSS, sem esperar o JavaScript: a página nunca abre em branco. */
+.chega {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+[data-visivel='true'] .chega,
+.chega[data-visivel='true'],
+.entrada .chega {
+  animation: chegar 0.7s var(--curva-firme) var(--atraso, 0s) forwards;
+}
+
+@keyframes chegar {
+  to { opacity: 1; transform: none; }
+}
+
+/* Linha de rótulo que se estende sob títulos de seção */
+.regua {
+  display: block;
+  height: 3px;
+  width: 56px;
+  background: var(--brand-mark);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+
+[data-visivel='true'] .regua {
+  animation: regua 0.8s var(--curva-firme) 0.1s forwards;
+}
+
+@keyframes regua {
+  to { transform: scaleX(1); }
 }
 
 .tabular {
@@ -219,6 +450,14 @@ textarea:focus-visible {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  /* Sem movimento, o estado final aparece direto */
+  .rota-traco { stroke-dashoffset: 0; }
+  .pouso, .regua { transform: none; }
+  .chega { opacity: 1; transform: none; }
+  .faixa-colete[data-reflexo]::after { display: none; }
 }

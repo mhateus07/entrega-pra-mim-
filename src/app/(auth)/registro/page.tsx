@@ -55,7 +55,7 @@ export default function RegistroPage() {
         <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-success-soft text-success">
           <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Central criada</h1>
+        <h1 className="titulo-display text-[34px] text-fg">Central criada</h1>
         <p className="mt-1.5 text-sm text-fg-2">{sucesso}</p>
         <Link href="/login" className="mt-6 inline-block text-sm font-medium text-fg underline underline-offset-4">Ir para o login</Link>
       </AuthLayout>
@@ -64,7 +64,7 @@ export default function RegistroPage() {
 
   return (
     <AuthLayout wide>
-      <h1 className="text-2xl font-semibold tracking-tight text-fg">Criar minha central</h1>
+      <h1 className="titulo-display text-[34px] text-fg">Criar minha central</h1>
       <p className="mt-1.5 text-sm text-fg-3">
         Para donos de central de motofrete. É motoboy ou empresa cliente? Peça o link de convite à sua central.{' '}
         Já tem conta? <Link href="/login" className="font-medium text-fg underline underline-offset-4 hover:text-brand">Entrar</Link>

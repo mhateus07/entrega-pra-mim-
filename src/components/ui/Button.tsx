@@ -13,7 +13,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const buttonVariants: Record<Variant, string> = {
   primary: 'bg-primary text-primary-fg hover:bg-primary-hover shadow-xs',
-  brand: 'bg-brand text-white hover:bg-brand-hover shadow-xs',
+  brand: 'bg-brand text-brand-fg hover:bg-brand-hover shadow-xs',
   secondary: 'bg-surface-2 text-fg hover:bg-surface-3',
   outline: 'border border-line-strong bg-surface text-fg hover:bg-surface-2 shadow-xs',
   ghost: 'text-fg-2 hover:bg-surface-2 hover:text-fg',
@@ -31,7 +31,7 @@ export const buttonSizes: Record<Size, string> = {
 
 export function buttonClass(variant: Variant = 'primary', size: Size = 'md', className?: string) {
   return cn(
-    'inline-flex items-center justify-center rounded-lg font-medium whitespace-nowrap transition-colors',
+    'inline-flex items-center justify-center rounded-[10px] font-semibold whitespace-nowrap transition-[background-color,color,border-color,transform] duration-150 active:translate-y-px',
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
     'disabled:pointer-events-none disabled:opacity-50',
     buttonVariants[variant],

@@ -12,7 +12,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const fieldClass = cn(
-  'block w-full rounded-lg border bg-surface text-sm text-fg shadow-xs transition-colors',
+  'block w-full rounded-[10px] border bg-surface text-sm text-fg shadow-xs transition-colors',
   'placeholder:text-fg-3',
   'focus:outline-none focus:border-brand focus:ring-[3px] focus:ring-[var(--ring)]',
   'disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-3'

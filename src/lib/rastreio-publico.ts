@@ -49,6 +49,8 @@ export function montarRastreioPublico(pedido: NonNullable<Awaited<ReturnType<typ
   const settings = pedido.organization.settings
   const marcaPropria = pedido.organization.plano === 'MARCA_PROPRIA'
   return {
+    // Código curto do pedido (6 últimos caracteres), o mesmo que a central vê no painel
+    codigo: `#${pedido.id.slice(-6).toUpperCase()}`,
     status: pedido.status,
     tipoServico: pedido.tipoServico,
     horarios: { criado: pedido.createdAt, aceito: pedido.aceitoEm, coletado: pedido.coletadoEm, entregue: pedido.entregueEm, cancelado: pedido.canceladoEm },

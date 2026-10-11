@@ -1,0 +1,13 @@
+@font-face{font-family:Archivo;src:url(fontes/archivo.woff2) format("woff2");font-weight:100 900;font-stretch:62% 125%;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Archivo;src:url(fontes/archivo-ext.woff2) format("woff2");font-weight:100 900;font-stretch:62% 125%;unicode-range:U+0100-02AF,U+0304,U+0308,U+0329,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"IBM Plex Mono";src:url(fontes/plex400.woff2);font-weight:400}
+@font-face{font-family:"IBM Plex Mono";src:url(fontes/plex500.woff2);font-weight:500}
+:root{--laranja:#e2570f;--laranja-acao:#bc450a;--laranja-suave:#fdeee5;--asfalto:#141413;--papel:#f6f5f1;--branco:#fff;--linha:#e4e2dc;--texto-2:#52514e;--texto-3:#6f6d66;--rota:#1f63c1;--rota-suave:#e7effb;--faixa:#c9cccd;--sucesso:#11793a;--sucesso-suave:#e6f4ea}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Archivo,sans-serif;-webkit-font-smoothing:antialiased;color:var(--asfalto)}
+.disp{font-weight:800;font-stretch:90%;letter-spacing:-.025em;line-height:.98}
+.caps{font-weight:800;font-stretch:72%;text-transform:uppercase;letter-spacing:.02em}
+.mono{font-family:"IBM Plex Mono",monospace}
+.placa{display:inline-flex;flex-direction:column;border:2px solid var(--asfalto);border-radius:6px;overflow:hidden;background:#fff;line-height:1}
+.placa b{background:var(--rota);color:#fff;font:600 9px/1 Archivo;font-stretch:80%;letter-spacing:.14em;text-transform:uppercase;padding:3px 8px;text-align:center}
+.placa span{font:500 18px/1 "IBM Plex Mono";padding:5px 10px 6px;letter-spacing:.04em}

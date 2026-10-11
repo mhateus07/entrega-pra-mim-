@@ -8,6 +8,7 @@ import { ArrowLeft, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from './ThemeToggle'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
+import Faixa from '@/components/brand/Faixa'
 import { cn } from '@/utils/cn'
 
 interface HeaderProps {
@@ -51,6 +52,7 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
+      <Faixa className="h-[5px]" reflexo="nao" />
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           {showBackButton && backHref && (

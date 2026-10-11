@@ -75,7 +75,7 @@ function LoginContent() {
 
   return (
     <AuthLayout>
-      <h1 className="text-2xl font-semibold tracking-tight text-fg">Entrar</h1>
+      <h1 className="titulo-display text-[34px] text-fg">Entrar</h1>
       <p className="mt-1.5 text-sm text-fg-3">
         Dono de central?{' '}
         <Link href="/registro" className="font-medium text-fg underline underline-offset-4 hover:text-brand">

@@ -51,7 +51,7 @@ export default function LoginCentral({ marca }: { marca: Marca }) {
             // eslint-disable-next-line @next/next/no-img-element -- logo servido pela rota pública da central
             ? <img src={marca.logoUrl} alt={marca.nome} className="h-14 max-w-[200px] object-contain" />
             : <Logo markClassName="h-9 w-9" />}
-          <h1 className="mt-4 text-xl font-semibold tracking-tight text-fg">{marca.nome}</h1>
+          <h1 className="titulo-display mt-4 text-[30px] text-fg">{marca.nome}</h1>
           <p className="mt-1 text-sm text-fg-3">Entre com seu e-mail e senha</p>
         </div>
         <form className="space-y-4 rounded-xl border border-line bg-surface p-5 shadow-xs" onSubmit={entrar}>

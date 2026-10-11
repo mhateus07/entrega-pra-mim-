@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
+import Faixa from '@/components/brand/Faixa'
 import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Calculator, Palette, Radio, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
@@ -46,8 +47,10 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors',
-              active ? 'bg-surface text-fg shadow-xs ring-1 ring-line' : 'text-fg-2 hover:bg-surface-3/60 hover:text-fg'
+              'relative flex h-9 items-center gap-2.5 rounded-[10px] px-2.5 text-sm font-medium transition-colors',
+              active
+                ? 'bg-surface font-semibold text-fg shadow-xs ring-1 ring-line before:absolute before:-left-3 before:top-2 before:bottom-2 before:w-[3px] before:rounded-r-full before:bg-brand-mark'
+                : 'text-fg-2 hover:bg-surface-3/60 hover:text-fg'
             )}
           >
             <Icon className={cn('h-4 w-4', active ? 'text-brand' : 'text-fg-3')} aria-hidden="true" />
@@ -107,11 +110,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   return (
     <div className="min-h-screen bg-page lg:pl-60">
       {/* Sidebar (desktop) */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface-2 px-3 py-4 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface-2 px-3 pb-4 lg:flex">
+        <Faixa className="-mx-3 mb-4 h-[12px] w-auto" />
         <Link href="/dashboard" className="mb-6 px-2">
           <Logo markClassName="h-7 w-7" />
         </Link>
-        <p className="mb-2 px-2.5 text-[11px] font-medium uppercase tracking-wider text-fg-3">Operação</p>
+        <p className="rotulo mb-2 px-2.5 text-fg-3">Operação</p>
         <NavList />
         <div className="mt-auto space-y-2 border-t border-line pt-3">
           <div className="flex items-center justify-between px-2">

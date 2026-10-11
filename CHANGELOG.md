@@ -8,6 +8,52 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Identidade visual aplicada no site (2026-10-11)
+
+**Na prática**
+- O site inteiro segue a marca nova (`brand/README.md`):
+  - papel e asfalto como base, laranja colete com intenção;
+  - títulos em Archivo estreitado e rótulos em caixa alta;
+  - códigos, horários e valores em IBM Plex Mono;
+  - faixa colete, rota (anel, linha e ponto) e placa Mercosul.
+- **Landing nova:**
+  - painel de despacho **ao vivo** no topo, que roda uma corrida inteira em loop: oferta com contagem de 90 s, aceite, coleta, moto percorrendo as ruas e carimbo de "Entregue";
+  - o grupo de WhatsApp sendo riscado e trocado por uma corrida organizada;
+  - "Como funciona" com uma rota que se desenha conforme a página rola;
+  - rastreio com uma chave que troca a marca do EPM pela da central;
+  - fechamento com valores rodando como taxímetro.
+- As animações vêm da operação (rota se desenhando, ponto de entrega pousando como carimbo, reflexo de farol na faixa colete, GPS pulsando, odômetro), e não de efeitos genéricos. Quem desativa movimento no sistema vê o estado final direto.
+- **Telas de entrada** (login, criar central, convite) com painel asfalto, assinatura "Despacha. Rastreia. Fecha o dia." e rota animada.
+- **Rastreio público** igual ao mockup da marca: mapa com a rota na cor da central, código do pedido, status em título grande, linha do tempo com horários e rodapé conforme o plano.
+- **Painel e apps:**
+  - faixa colete no topo;
+  - item ativo do menu com marcador laranja;
+  - títulos de página no estilo da marca;
+  - valores em mono;
+  - anel de contagem nas ofertas do motoboy.
+
+**Técnico**
+- `globals.css`:
+  - tokens `--faixa`, `--rota`, `--asfalto`;
+  - classes `titulo-display`, `cartaz` e `rotulo`, sem o prefixo `text-` para o tailwind-merge não apagá-las (`.text-display` fica como sinônimo);
+  - `faixa-colete` com reflexo, `placa`;
+  - animações `rota-traco`, `pouso`, `gps-pulso`, `chega`, `regua`, `carimbo` e `status-troca`, com fallback completo para `prefers-reduced-motion`;
+  - o hero anima só com CSS (`.entrada`), sem depender do JavaScript.
+- Componentes novos:
+  - em `src/components/brand/`: `Faixa`, `Rota`, `Placa`, `Odometro`, `ContagemOferta` e `NaTela` (com `useNaTela`, `IntersectionObserver`);
+  - em `src/components/landing/`: `DespachoAoVivo` (SVG com `animateMotion`, que acompanha qualquer largura), `AntesDepois`, `ComoFunciona` (progresso por rolagem com `requestAnimationFrame`), `RastreioMarca` e `FechamentoDemo`.
+- Primitivos:
+  - botões e campos com raio de 10 px e cartões com 16 px;
+  - botão de ação com `--brand-fg`;
+  - `PageHeader` e `CardTitle` no estilo da marca;
+  - KPIs e fechamento em mono.
+- O rastreio público ganhou `codigo` (6 últimos caracteres do pedido, nunca o id inteiro).
+- Inclui os arquivos da identidade que estavam fora do git: `brand/`, ícones e OG em `public/`, `layout.tsx` (Archivo e IBM Plex Mono, metadados novos) e `Logo.tsx`.
+- Verificado:
+  - capturas em desktop e celular (emulação real de 390 px, sem rolagem horizontal), nos temas claro e escuro;
+  - nenhum erro de console no build de produção em landing, login, registro, rastreio e login da central;
+  - lint, tipos e 162 testes.
+
 ### Etapa 7 — Textos e documentação (2026-10-11)
 
 **Na prática**

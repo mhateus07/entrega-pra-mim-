@@ -109,7 +109,7 @@ export default function CadastroConvite({ token, papel, central, email: emailCon
         <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-success-soft text-success">
           <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">Cadastro concluído</h1>
+        <h1 className="titulo-display text-[34px] text-fg">Cadastro concluído</h1>
         <p className="mt-1.5 text-sm text-fg-2">{success}</p>
         <p className="mt-1.5 text-sm text-fg-3">Redirecionando para o login…</p>
       </AuthLayout>
@@ -118,7 +118,7 @@ export default function CadastroConvite({ token, papel, central, email: emailCon
 
   return (
     <AuthLayout wide>
-      <h1 className="text-2xl font-semibold tracking-tight text-fg">Convite de {central}</h1>
+      <h1 className="titulo-display text-[34px] text-fg">Convite de {central}</h1>
       <p className="mt-1.5 text-sm text-fg-3">
         {papel === 'DRIVER' ? 'Cadastre-se como entregador da central.' : papel === 'CLIENT' ? 'Cadastre sua empresa para pedir entregas à central.' : 'Entre na equipe da central como despachante.'}
         {' '}Já tem conta no Entrega Pra Mim? Use o mesmo e-mail e senha.

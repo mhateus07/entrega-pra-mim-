@@ -111,10 +111,10 @@ export default function FechamentoPage() {
                     <TD className="font-medium text-fg">{l.nome}</TD>
                     <TD className="text-right tabular">{l.corridas}</TD>
                     <TD className="text-right tabular">{l.km.toLocaleString('pt-BR')}</TD>
-                    <TD className="text-right tabular">{formatarMoeda(l.valorCorridas)}</TD>
-                    <TD className="text-right tabular">{formatarMoeda(l.repasse)}</TD>
-                    <TD className="text-right tabular">{formatarMoeda(l.dinheiroRecebido)}</TD>
-                    <TD className={cn('text-right font-semibold tabular', l.saldoAcerto < 0 ? 'text-danger' : 'text-fg')}>{formatarMoeda(l.saldoAcerto)}</TD>
+                    <TD className="text-right font-mono tabular">{formatarMoeda(l.valorCorridas)}</TD>
+                    <TD className="text-right font-mono tabular">{formatarMoeda(l.repasse)}</TD>
+                    <TD className="text-right font-mono tabular">{formatarMoeda(l.dinheiroRecebido)}</TD>
+                    <TD className={cn('text-right font-mono font-semibold tabular', l.saldoAcerto < 0 ? 'text-danger' : 'text-fg')}>{formatarMoeda(l.saldoAcerto)}</TD>
                   </tr>
                 ))
                 : (linhas as LinhaCliente[]).map((l) => (
@@ -122,19 +122,19 @@ export default function FechamentoPage() {
                     <TD className="font-medium text-fg">{l.nome}</TD>
                     <TD className="text-right tabular">{l.corridas}</TD>
                     <TD className="text-right tabular">{l.km.toLocaleString('pt-BR')}</TD>
-                    <TD className="text-right tabular">{formatarMoeda(l.valorTotal)}</TD>
-                    <TD className="text-right tabular">{formatarMoeda(l.pago)}</TD>
-                    <TD className="text-right font-semibold tabular text-fg">{formatarMoeda(l.aCobrar)}</TD>
+                    <TD className="text-right font-mono tabular">{formatarMoeda(l.valorTotal)}</TD>
+                    <TD className="text-right font-mono tabular">{formatarMoeda(l.pago)}</TD>
+                    <TD className="text-right font-mono font-semibold tabular text-fg">{formatarMoeda(l.aCobrar)}</TD>
                   </tr>
                 ))}
               <tr className="bg-surface-2/60 font-semibold">
                 <TD className="text-fg">Total</TD>
                 <TD className="text-right tabular">{totais.corridas}</TD>
                 <TD className="text-right tabular">{(Math.round(totais.km * 10) / 10).toLocaleString('pt-BR')}</TD>
-                <TD className="text-right tabular">{formatarMoeda(totais.a)}</TD>
-                <TD className="text-right tabular">{formatarMoeda(totais.b)}</TD>
-                <TD className="text-right tabular">{formatarMoeda(totais.c)}</TD>
-                {visao === 'motoboy' && <TD className="text-right tabular">{formatarMoeda(totais.d)}</TD>}
+                <TD className="text-right font-mono tabular">{formatarMoeda(totais.a)}</TD>
+                <TD className="text-right font-mono tabular">{formatarMoeda(totais.b)}</TD>
+                <TD className="text-right font-mono tabular">{formatarMoeda(totais.c)}</TD>
+                {visao === 'motoboy' && <TD className="text-right font-mono tabular">{formatarMoeda(totais.d)}</TD>}
               </tr>
             </TBody>
           </Table>
