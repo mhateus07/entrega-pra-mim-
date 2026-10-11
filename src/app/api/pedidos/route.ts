@@ -9,6 +9,7 @@ import { calcularRota } from '@/lib/google-maps'
 import { calcularPrecoComRegra, estimarTempo } from '@/lib/pricing'
 import { carregarRegraPreco } from '@/lib/pricing-org'
 import { registrarEntrega } from '@/lib/uso'
+import { gerarToken } from '@/lib/tokens'
 import { encontrarMelhorMotoboy } from '@/lib/alocacao'
 import { ApiResponse } from '@/types'
 import { requireOrgAccess, serverError, forbidden, applyMapsRateLimit, isGestor, type OrgUser } from '@/lib/auth-helpers'
@@ -236,6 +237,7 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
       return tx.pedido.create({
       data: {
         organizationId: user.organizationId,
+        trackingToken: gerarToken(),
         clienteId: data.clienteId,
         enderecoOrigemId: data.enderecoOrigemId,
         enderecoDestinoId: data.enderecoDestinoId,

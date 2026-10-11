@@ -119,6 +119,7 @@ model Organization {
   pricingRule PricingRule?
   bairros     PricingBairro[]
   uso         UsageCounter[]
+  convites    Convite[]
 
   @@map("organizations")
 }
@@ -328,6 +329,8 @@ model Endereco {
 
 model Pedido {
   id                String       @id @default(cuid())
+  // Link público de rastreio (/r/[token]): aleatório, 43 caracteres
+  trackingToken     String?      @unique @db.VarChar(64)
   organizationId    String
   clienteId         String
   motoboyId         String?
@@ -591,4 +594,25 @@ model UsageCounter {
 
   @@unique([organizationId, mes])
   @@map("usage_counters")
+}
+
+// Convite para entrar numa central (cliente, motoboy ou despachante).
+// O token aparece uma única vez no link; aqui fica só o hash.
+model Convite {
+  id             String    @id @default(cuid())
+  organizationId String
+  papel          OrgRole
+  tokenHash      String    @unique @db.Char(64)
+  email          String?
+  nome           String?
+  expiresAt      DateTime
+  usadoEm        DateTime?
+  usadoPorId     String?
+  criadoPorId    String
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("convites")
 }

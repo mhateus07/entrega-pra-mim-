@@ -1,5 +1,6 @@
 'use client'
 
+import CompartilharRastreio from '@/components/pedido/CompartilharRastreio'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -172,6 +173,7 @@ export default function PedidoAdminDetailPage() {
             <Badge variant="outline" size="md">{LABELS_TIPO_SERVICO[pedido.tipoServico]}</Badge>
           </div>
           <p className="mt-1 text-sm text-fg-3">Criado em {formatarDataHora(pedido.createdAt)}</p>
+          {pedido.status !== 'CANCELADO' && <div className="mt-3"><CompartilharRastreio pedidoId={pedido.id} /></div>}
         </div>
         <p className="text-[26px] font-semibold tracking-tight tabular text-fg">{formatarMoeda(pedido.valorTotal)}</p>
       </div>

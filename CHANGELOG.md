@@ -8,6 +8,46 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Etapa 3 — Link público de rastreio e portal da empresa cliente (2026-10-11)
+
+**Na prática**
+- Todo pedido tem um **link de rastreio** (botão "Link de rastreio" no pedido, com cópia e envio pelo WhatsApp). Quem recebe a entrega acompanha sem criar conta: status, horários, primeiro nome do entregador e previsão aproximada.
+- O mapa com a posição do motoboy aparece **só enquanto o pedido está "em entrega"**. Antes disso, revelaria onde fica o remetente. Depois da entrega, o link mostra a foto do comprovante.
+- O link nunca mostra telefone, documento, valor nem o endereço completo, só bairro e cidade.
+- O cadastro deixou de ser aberto. Motoboys, empresas clientes e despachantes entram por **convite**: a central gera o link em **Painel → Convites** e manda pelo WhatsApp.
+- Cada link vale uma vez e expira em 7 dias, por padrão. Pode ser preso a um e-mail ou revogado.
+- Quem já tem conta em outra central usa o mesmo e-mail e senha.
+- Só o dono convida despachantes.
+- O cadastro público agora é **"Criar minha central"**: gera a central e o dono, no plano Essencial e com status pendente. O dono consegue entrar, mas vê "aguardando ativação" até a equipe da plataforma ativar em **Painel → Centrais**, que só o superadmin vê.
+- O painel `/cliente` continua sendo o portal da empresa cliente, agora sempre dentro da central que a convidou.
+
+**Técnico**
+- Migration `202610110005_rastreio_convites`:
+  - `Pedido.trackingToken` (único, 43 caracteres aleatórios, gerado na criação; pedidos antigos ganham token na primeira vez em `POST /api/pedidos/[id]/rastreio-publico`);
+  - modelo `Convite` (papel, `tokenHash` SHA-256, e-mail opcional, `expiresAt`, `usadoEm`).
+- Rotas públicas, todas sob `/api/publico/*` (o `public-api.ts` libera só GET/POST) e com rate limit por IP:
+  - `GET /api/publico/rastreio/[token]` e `.../comprovante`;
+  - `GET/POST /api/publico/convites/[token]` (aceite atômico com `updateMany` condicional);
+  - `POST /api/publico/centrais`.
+- Rotas autenticadas:
+  - `GET/POST /api/convites` e `DELETE /api/convites/[id]` (gestão);
+  - `GET /api/plataforma/organizacoes` e `PATCH /api/plataforma/organizacoes/[id]` (superadmin: status e plano).
+- `POST /api/clientes` e `POST /api/motoboys` deixaram de ser públicos e viraram cadastro direto pela gestão da central. `organizacaoPadrao` foi removido.
+- Libs novas:
+  - `src/lib/contas.ts`: `vincularConta` reaproveita conta existente conferindo a senha, com mensagem única que não revela se o e-mail existe; também tem os perfis por central e `gerarSlug`;
+  - `src/lib/tokens.ts`;
+  - `src/lib/rastreio-publico.ts`.
+- UI:
+  - páginas `/r/[token]`, `/convite/[token]` e `/registro` ("criar minha central");
+  - `/dashboard/convites` e `/dashboard/plataforma`;
+  - componente `CompartilharRastreio`;
+  - aviso de central pendente ou suspensa no painel.
+- Testes:
+  - `convites-centrais.test.ts`: conta nova, e-mail preso, conta existente com senha certa e errada, aceites concorrentes, revogação, despachante, central pendente → ativação, privacidade do rastreio;
+  - isolamento cobrindo as 10 rotas novas.
+
+  Total: 132 testes.
+
 ### Etapa 2 — Preço por central e limites do plano (2026-10-11)
 
 **Na prática**

@@ -30,12 +30,12 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
   const mod = await import(`@/app/api/${rota}/route`) as Record<string, Handler>
   const handler = mod[metodo]
   if (!handler) throw new Error(`${rota} não exporta ${metodo}`)
-  const caminho = `/api/${rota.replace('[id]', opts.id ?? 'x')}${opts.query ? `?${opts.query}` : ''}`
+  const caminho = `/api/${rota.replace('[id]', opts.id ?? 'x').replace('[token]', opts.id ?? 'x')}${opts.query ? `?${opts.query}` : ''}`
   const req = new NextRequest(`http://localhost${caminho}`, {
     method: metodo,
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body), headers: { 'Content-Type': 'application/json' } } : {}),
   })
-  return handler(req, { params: Promise.resolve({ id: opts.id ?? 'x' }) })
+  return handler(req, { params: Promise.resolve({ id: opts.id ?? 'x', token: opts.id ?? 'x' }) })
 }
 
 ;(url ? describe : describe.skip)('MySQL: isolamento entre centrais', () => {
@@ -43,7 +43,8 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
   let orgA: string, orgB: string
   let donoA: OrgUser, clienteA: OrgUser, motoboyA: OrgUser
   let clienteB: OrgUser, motoboyB: OrgUser
-  const b = { pedido: '', pedidoEntregue: '', endereco: '', pagamento: '', avaliacao: '', mensagem: '' }
+  const b = { pedido: '', pedidoEntregue: '', endereco: '', pagamento: '', avaliacao: '', mensagem: '', convite: '' }
+  const TOKEN_B = 'tokenPublicoDaCentralB_0123456789abcdefABCDEF'
   const SEGREDO_B = 'Segredo da Central B'
 
   // Nenhuma resposta pode conter identificadores ou textos da central B
@@ -76,7 +77,7 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
     b.endereco = endereco.id
     const base = { organizationId: orgB, clienteId: clienteB.clienteId!, enderecoOrigemId: endereco.id, enderecoDestinoId: endereco.id,
       tipoServico: 'EXPRESSA' as const, distanciaKm: 2, duracaoEstimada: 10, valorBase: 10, multiplicador: 1, valorTotal: 10, observacoes: SEGREDO_B }
-    const pedido = await db.pedido.create({ data: { ...base, status: 'EM_ENTREGA', motoboyId: motoboyB.motoboyId,
+    const pedido = await db.pedido.create({ data: { ...base, status: 'EM_ENTREGA', motoboyId: motoboyB.motoboyId, trackingToken: TOKEN_B,
       fotoComprovante: '/api/pedidos/x/comprovante/arquivo?f=x.jpg',
       pagamento: { create: { organizationId: orgB, clienteId: clienteB.clienteId!, valor: 10, metodo: 'DINHEIRO', status: 'PENDENTE' } } },
       include: { pagamento: true } })
@@ -90,6 +91,8 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
     await db.transacaoMotoboy.create({ data: { organizationId: orgB, motoboyId: motoboyB.motoboyId!, pedidoId: entregue.id,
       tipo: 'CREDITO', valor: 10, descricao: SEGREDO_B, status: 'CONCLUIDO' } })
 
+    b.convite = (await db.convite.create({ data: { organizationId: orgB, papel: 'DRIVER', tokenHash: 'b'.repeat(64), nome: SEGREDO_B,
+      expiresAt: new Date(Date.now() + 86_400_000), criadoPorId: clienteB.id } })).id
     await db.pricingBairro.create({ data: { organizationId: orgB, bairro: 'segredo b', nome: SEGREDO_B, valor: 77 } })
     await db.usageCounter.create({ data: { organizationId: orgB, mes: '2099-01', entregas: 4242 } })
 
@@ -137,6 +140,48 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       const body = await (await chamar('organizacao/uso', 'GET')).json()
       expect(JSON.stringify(body)).not.toContain('4242')
       semDadosDeB(body)
+    },
+    'convites': async () => {
+      logarComo(donoA)
+      semDadosDeB(await (await chamar('convites', 'GET')).json())
+      const criado = await (await chamar('convites', 'POST', { body: { papel: 'DRIVER' } })).json()
+      expect((await db.convite.findUniqueOrThrow({ where: { id: criado.data.id } })).organizationId).toBe(orgA)
+    },
+    'convites/[id]': async () => {
+      logarComo(donoA)
+      await negado(await chamar('convites/[id]', 'DELETE', { id: b.convite }))
+      expect((await db.convite.findUniqueOrThrow({ where: { id: b.convite } })).expiresAt.getTime()).toBeGreaterThan(Date.now())
+    },
+    'pedidos/[id]/rastreio-publico': async () => {
+      logarComo(donoA)
+      await negado(await chamar('pedidos/[id]/rastreio-publico', 'POST', { id: b.pedido }))
+    },
+    'plataforma/organizacoes': async () => {
+      logarComo(donoA)
+      expect((await chamar('plataforma/organizacoes', 'GET')).status).toBe(403)
+    },
+    'plataforma/organizacoes/[id]': async () => {
+      logarComo(donoA)
+      expect((await chamar('plataforma/organizacoes/[id]', 'PATCH', { id: orgB, body: { status: 'SUSPENSA' } })).status).toBe(403)
+      expect((await db.organization.findUniqueOrThrow({ where: { id: orgB } })).status).toBe('ATIVA')
+    },
+    'publico/centrais': async () => { /* cria uma central nova; coberto em convites-centrais.test.ts */ },
+    'publico/convites/[token]': async () => {
+      sessao.atual = null
+      expect((await chamar('publico/convites/[token]', 'GET', { id: 'b'.repeat(43) })).status).toBe(404)
+    },
+    'publico/rastreio/[token]': async () => {
+      // Quem tem o link vê o andamento, mas nada de telefone, documento, valor ou endereço completo
+      sessao.atual = null
+      const res = await chamar('publico/rastreio/[token]', 'GET', { id: TOKEN_B })
+      expect(res.status).toBe(200)
+      const texto = JSON.stringify(await res.json())
+      for (const proibido of [SEGREDO_B, 'telefone', 'valorTotal', 'cpfCnpj', 'email', clienteB.clienteId!, orgB]) expect(texto).not.toContain(proibido)
+    },
+    'publico/rastreio/[token]/comprovante': async () => {
+      sessao.atual = null
+      // Pedido ainda em entrega: a foto só aparece depois de entregue
+      expect((await chamar('publico/rastreio/[token]/comprovante', 'GET', { id: TOKEN_B })).status).toBe(404)
     },
     'dashboard': async () => {
       logarComo(donoA)

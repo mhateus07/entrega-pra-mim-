@@ -204,3 +204,28 @@ export type CreateAvaliacaoInput = z.infer<typeof createAvaliacaoSchema>
 export type CalcularRotaInput = z.infer<typeof calcularRotaSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type UpdateLocalizacaoInput = z.infer<typeof updateLocalizacaoSchema>
+
+// "Criar minha central": cadastro público que gera a organização e o dono
+export const criarCentralSchema = z.object({
+  nomeCentral: z.string().trim().min(3, 'Informe o nome da central').max(80),
+  nome: z.string().trim().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100),
+  email: z.string().email('Email inválido'),
+  telefone: z.string().regex(/^\d{10,12}$/, 'Telefone inválido').optional(),
+  senha: senhaSchema,
+})
+
+// Convite gerado pela central (o link é enviado por WhatsApp ou copiado)
+export const criarConviteSchema = z.object({
+  papel: z.enum(['CLIENT', 'DRIVER', 'DISPATCHER']),
+  email: z.string().email('Email inválido').optional(),
+  nome: z.string().trim().max(100).optional(),
+  validadeDias: z.number().int().min(1).max(30).default(7),
+})
+
+// Aceite de convite de despachante (cliente e motoboy usam os schemas de cadastro)
+export const aceitarConviteDespachanteSchema = z.object({
+  email: z.string().email('Email inválido'),
+  senha: senhaSchema,
+  nome: z.string().trim().min(2).max(100),
+  telefone: z.string().regex(/^\d{10,12}$/, 'Telefone inválido').optional(),
+})

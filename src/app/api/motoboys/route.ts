@@ -4,15 +4,13 @@ import { Prisma } from '@prisma/client'
 import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
 import { createMotoboySchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireOrgAccess, isGestor, organizacaoPadrao, serverError, applyRateLimit } from '@/lib/auth-helpers'
+import { requireOrgAccess, requireGestor, isGestor, serverError, applyRateLimit } from '@/lib/auth-helpers'
+import { vincularConta, criarPerfilMotoboy } from '@/lib/contas'
 import { registrarAuditoria } from '@/lib/audit'
 import { verificarLimiteMotoboys } from '@/lib/uso'
 
-// Mesma resposta para qualquer duplicidade: não revela qual dado já existe
-const CADASTRO_INDISPONIVEL = 'Não foi possível concluir o cadastro: e-mail, CNH ou placa já em uso. Se você já tem conta, faça login.'
 
 // GET /api/motoboys - Listar motoboys (autenticado)
 export async function GET(request: NextRequest) {
@@ -90,133 +88,43 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/motoboys - Cadastro público de motoboy (rate limited - registro)
-// O cadastro nasce PENDENTE_APROVACAO: o motoboy consegue entrar, mas só fica
-// online, recebe pedidos e envia localização depois da aprovação de um admin.
+// POST /api/motoboys - A central cadastra um motoboy diretamente (gestão).
+// Nasce PENDENTE_APROVACAO como no convite; o caminho normal é /api/convites.
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit para registro (10 req/min)
-    const rateLimit = await applyRateLimit(request, 'auth')
+    const auth = await requireGestor()
+    if (!auth.authenticated) return auth.response
+    const rateLimit = await applyRateLimit(request, 'sensitive', auth.user.id)
     if (!rateLimit.success) return rateLimit.response
 
-    const body = await request.json()
-
-    const validation = createMotoboySchema.safeParse(body)
+    const validation = createMotoboySchema.safeParse(await request.json().catch(() => null))
     if (!validation.success) {
-      return jsonResponse(
-        {
-          success: false,
-          error: 'Dados inválidos',
-          details: validation.error.issues,
-        },
-        { status: 400 }
-      )
+      return jsonResponse({ success: false, error: 'Dados inválidos', details: validation.error.issues }, { status: 400 })
     }
-
     const data = validation.data
-
-    // Até a Etapa 3 (convites), o cadastro público entra na central padrão da instalação
-    const org = await organizacaoPadrao()
-    if (!org) return serverError('Cadastro indisponível')
+    const organizationId = auth.user.organizationId
     // Pendentes também ocupam vaga do plano
-    await verificarLimiteMotoboys(org.id, true)
+    await verificarLimiteMotoboys(organizationId, true)
 
-    // Verificar se email já existe
-    const existingUser = await prisma.user.findUnique({
-      where: { email: data.email },
-    })
-
-    if (existingUser) {
-      return jsonResponse(
-        { success: false, error: CADASTRO_INDISPONIVEL },
-        { status: 400 }
-      )
-    }
-
-    // Verificar se CNH já existe
-    const existingCNH = await prisma.motoboy.findUnique({
-      where: { organizationId_cnh: { organizationId: org.id, cnh: data.cnh } },
-    })
-
-    if (existingCNH) {
-      return jsonResponse(
-        { success: false, error: CADASTRO_INDISPONIVEL },
-        { status: 400 }
-      )
-    }
-
-    // Verificar se placa já existe
-    const existingPlaca = await prisma.motoboy.findUnique({
-      where: { organizationId_veiculoPlaca: { organizationId: org.id, veiculoPlaca: data.veiculoPlaca.toUpperCase() } },
-    })
-
-    if (existingPlaca) {
-      return jsonResponse(
-        { success: false, error: CADASTRO_INDISPONIVEL },
-        { status: 400 }
-      )
-    }
-
-    // Hash da senha
-    const senhaHash = await bcrypt.hash(data.senha, 10)
-
-    // Criar usuário e motoboy em transação
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          email: data.email,
-          senha: senhaHash,
-          nome: data.nome,
-          telefone: data.telefone,
-          role: 'MOTOBOY',
-          memberships: { create: { organizationId: org.id, papel: 'DRIVER' } },
-        },
-      })
-
-      const motoboy = await tx.motoboy.create({
-        data: {
-          organizationId: org.id,
-          userId: user.id,
-          cnh: data.cnh,
-          veiculoTipo: data.veiculoTipo,
-          veiculoMarca: data.veiculoMarca,
-          veiculoModelo: data.veiculoModelo,
-          veiculoPlaca: data.veiculoPlaca.toUpperCase(),
-          aprovacao: 'PENDENTE_APROVACAO',
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              nome: true,
-              email: true,
-              telefone: true,
-            },
-          },
-        },
-      })
-
-      return motoboy
+    const motoboy = await prisma.$transaction(async (tx) => {
+      const { userId } = await vincularConta(tx, organizationId, 'DRIVER', data)
+      return criarPerfilMotoboy(tx, organizationId, userId, data)
     })
 
     await registrarAuditoria({
-      acao: 'motoboy.cadastro', entidade: 'Motoboy', entidadeId: result.id,
-      userId: result.userId, organizationId: org.id, request,
+      acao: 'motoboy.cadastro', entidade: 'Motoboy', entidadeId: motoboy.id,
+      userId: auth.user.id, organizationId, request,
     })
 
-    const response: ApiResponse<typeof result> = {
+    const response: ApiResponse<typeof motoboy> = {
       success: true,
-      data: result,
-      message: 'Cadastro recebido. Você poderá receber pedidos assim que um administrador aprovar.',
+      data: motoboy,
+      message: 'Motoboy cadastrado. Aprove o cadastro para ele começar a receber pedidos.',
     }
-
     return jsonResponse(response, { status: 201 })
   } catch (error) {
     if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
     console.error('Erro ao criar motoboy:', error)
-    return jsonResponse(
-      { success: false, error: 'Erro ao criar motoboy' },
-      { status: 500 }
-    )
+    return serverError('Erro ao criar motoboy')
   }
 }

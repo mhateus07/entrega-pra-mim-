@@ -207,14 +207,6 @@ export async function requireEnderecoAccess(endereco: { clienteId: string }): Pr
   return requireClienteOwnership(endereco.clienteId)
 }
 
-/** Organização da instalação usada pelos cadastros públicos até a Etapa 3 (convites). */
-export async function organizacaoPadrao() {
-  return prisma.organization.findUnique({
-    where: { slug: process.env.DEFAULT_ORGANIZATION_SLUG || 'central-principal' },
-    select: { id: true },
-  })
-}
-
 // =============================================================================
 // Rate Limiting
 // =============================================================================

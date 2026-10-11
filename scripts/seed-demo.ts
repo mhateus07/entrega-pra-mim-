@@ -2,6 +2,7 @@ import { Prisma, PrismaClient, StatusPedido, TipoServico, MetodoPagamento, Statu
 import type { Cliente, Endereco, Motoboy } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { dividirPagamento, money } from '../src/lib/money'
+import { gerarToken } from '../src/lib/tokens'
 import { MULTIPLICADORES, PRECO_POR_KM, estimarTempo } from '../src/lib/pricing'
 
 // Popula uma instância de DEMONSTRAÇÃO com dados fictícios (Juiz de Fora/MG).
@@ -181,7 +182,7 @@ async function main() {
     const cartao = metodo.startsWith('CARTAO')
 
     const pedido = await db.pedido.create({ data: {
-      organizationId: ORG, clienteId: cliente.id, motoboyId: motoboy?.id ?? null, enderecoOrigemId: origem.id, enderecoDestinoId: destino.id,
+      organizationId: ORG, trackingToken: gerarToken(), clienteId: cliente.id, motoboyId: motoboy?.id ?? null, enderecoOrigemId: origem.id, enderecoDestinoId: destino.id,
       tipoServico, status, descricaoItem: pick(ITENS[tipoServico]), pesoAproximado: Number(between(0.2, 8).toFixed(1)),
       observacoes: rand() < 0.3 ? pick(['Interfone 102', 'Deixar na portaria', 'Ligar ao chegar', 'Frágil, cuidado']) : null,
       distanciaKm: km, duracaoEstimada: estimarTempo(km), valorBase, multiplicador, valorTotal,

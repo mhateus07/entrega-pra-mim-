@@ -24,6 +24,12 @@ export type AcaoAuditoria =
   | 'comprovante.enviado'
   | 'comprovante.acessado'
   | 'organizacao.troca'
+  | 'organizacao.criada'
+  | 'organizacao.alterada'
+  | 'convite.criado'
+  | 'convite.aceito'
+  | 'convite.revogado'
+  | 'rastreio.link'
 
 export interface EntradaAuditoria {
   acao: AcaoAuditoria

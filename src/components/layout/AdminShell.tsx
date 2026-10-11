@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
-import { LayoutDashboard, Package, Bike, Users, Tags, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { cn } from '@/utils/cn'
@@ -16,7 +16,10 @@ const nav = [
   { href: '/dashboard/motoboys', label: 'Entregadores', icon: Bike },
   { href: '/dashboard/clientes', label: 'Clientes', icon: Users },
   { href: '/dashboard/precos', label: 'Preços', icon: Tags },
+  { href: '/dashboard/convites', label: 'Convites', icon: Send },
 ]
+// Só para a equipe da plataforma (superadmin)
+const navPlataforma = { href: '/dashboard/plataforma', label: 'Centrais', icon: Building2, exact: false }
 
 function initials(name?: string | null) {
   if (!name) return '·'
@@ -26,9 +29,11 @@ function initials(name?: string | null) {
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const itens = session?.user?.superadmin ? [...nav, navPlataforma] : nav
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Navegação principal">
-      {nav.map((item) => {
+      {itens.map((item) => {
         const active = item.exact ? pathname === item.href : pathname.startsWith(item.href)
         const Icon = item.icon
         return (
@@ -71,6 +76,24 @@ function UserBlock() {
       >
         <LogOut className="h-4 w-4" />
       </button>
+    </div>
+  )
+}
+
+// Central pendente ou suspensa: o dono entra, mas vê o aviso no lugar da operação
+function ConteudoDaCentral({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession()
+  const status = session?.user?.orgStatus
+  if (!session?.user || session.user.superadmin || !status || status === 'ATIVA') return <>{children}</>
+  return (
+    <div className="mx-auto max-w-lg rounded-xl border border-line bg-surface p-6 text-center shadow-xs">
+      <Clock className="mx-auto h-8 w-8 text-fg-3" aria-hidden="true" />
+      <h1 className="mt-3 text-lg font-semibold text-fg">{status === 'PENDENTE' ? 'Sua central está aguardando ativação' : 'Esta central está suspensa'}</h1>
+      <p className="mt-2 text-sm text-fg-2">
+        {status === 'PENDENTE'
+          ? 'Recebemos seu cadastro. Nossa equipe vai entrar em contato pelo WhatsApp para ativar o acesso e ajudar na implantação.'
+          : 'Fale com a equipe do Entrega Pra Mim para reativar o acesso.'}
+      </p>
     </div>
   )
 }
@@ -130,7 +153,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><ConteudoDaCentral>{children}</ConteudoDaCentral></main>
     </div>
   )
 }
