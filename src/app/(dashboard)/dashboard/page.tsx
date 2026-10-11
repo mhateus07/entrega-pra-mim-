@@ -84,7 +84,7 @@ function PipelineStep({ label, value, tone }: { label: string; value: number; to
 }
 
 export default function DashboardPage() {
-  const { status } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [periodo, setPeriodo] = useState<Periodo>('30')
   const [data, setData] = useState<DashboardData | null>(null)
@@ -180,9 +180,12 @@ export default function DashboardPage() {
               <CardHeader className="flex-row items-start justify-between">
                 <div>
                   <CardTitle>Desempenho diário</CardTitle>
-                  <CardDescription>
-                    Receita aprovada para a plataforma: <span className="font-medium text-fg-2">{fmt.moeda(data.kpis.receitaPlataforma.atual)}</span>
-                  </CardDescription>
+                  {/* Receita da plataforma só interessa à equipe da plataforma, não ao dono da central */}
+                  {session?.user?.superadmin && (
+                    <CardDescription>
+                      Receita aprovada para a plataforma: <span className="font-medium text-fg-2">{fmt.moeda(data.kpis.receitaPlataforma.atual)}</span>
+                    </CardDescription>
+                  )}
                 </div>
               </CardHeader>
               <TrendChart
