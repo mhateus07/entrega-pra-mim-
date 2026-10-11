@@ -88,7 +88,8 @@ export async function comIdempotencia(
 
   // Limpeza oportunista de chaves vencidas, sem bloquear a resposta
   if (Math.random() < 0.01) {
-    prisma.idempotencyKey.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - VALIDADE_MS) } } })
+    Promise.resolve()
+      .then(() => prisma.idempotencyKey.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - VALIDADE_MS) } } }))
       .catch(error => console.warn('Idempotência: falha na limpeza', error))
   }
 
