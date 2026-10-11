@@ -34,8 +34,10 @@ services:
       DATABASE_URL: mysql://entrega:${DB_PASSWORD}@db:3306/entrega_pra_mim
       REDIS_URL: redis://redis:6379
       COMPROVANTE_DIR: /app/storage/comprovantes
+      LOGO_DIR: /app/storage/logos
     volumes:
       - comprovantes:/app/storage/comprovantes
+      - logos:/app/storage/logos
     depends_on:
       db:
         condition: service_healthy
@@ -67,3 +69,4 @@ networks:
 volumes:
   mysql:
   comprovantes:
+  logos:

@@ -10,6 +10,7 @@
 import prisma from './prisma'
 import { calcularDistanciaHaversine } from './google-maps'
 import { TOKEN_VALIDO } from './tokens'
+import { nomeArquivoLogoSeguro } from './marca'
 
 const VELOCIDADE_MEDIA_KMH = 20
 
@@ -67,7 +68,7 @@ export function montarRastreioPublico(pedido: NonNullable<Awaited<ReturnType<typ
       slug: pedido.organization.slug,
       // Logo e cor só no plano Marca própria (Etapa 5); nos outros aparece a marca do EPM
       corPrimaria: marcaPropria ? settings?.corPrimaria ?? null : null,
-      logoUrl: marcaPropria && settings?.logoArquivo ? `/api/publico/organizacoes/${pedido.organization.slug}/logo` : null,
+      logoUrl: marcaPropria && nomeArquivoLogoSeguro(settings?.logoArquivo) ? `/api/publico/organizacoes/${pedido.organization.slug}/logo` : null,
     },
     atualizadoEm: new Date().toISOString(),
   }

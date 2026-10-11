@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
-import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Calculator, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Calculator, Palette, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { cn } from '@/utils/cn'
@@ -18,6 +18,7 @@ const nav = [
   { href: '/dashboard/fechamento', label: 'Fechamento', icon: Calculator },
   { href: '/dashboard/precos', label: 'Preços', icon: Tags },
   { href: '/dashboard/convites', label: 'Convites', icon: Send },
+  { href: '/dashboard/marca', label: 'Marca', icon: Palette },
 ]
 // Só para a equipe da plataforma (superadmin)
 const navPlataforma = { href: '/dashboard/plataforma', label: 'Centrais', icon: Building2, exact: false }

@@ -8,6 +8,36 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Etapa 5 — Marca da central (white-label básico) (2026-10-11)
+
+**Na prática**
+- Em **Painel → Marca**, o dono de uma central no plano **Marca própria** envia o logo e define o nome de exibição e a cor principal.
+- A marca aparece:
+  - no **link de rastreio** que o cliente final recebe;
+  - na **tela de login da central** (`/o/nome-da-central/login`);
+  - no **app instalado no celular** (PWA), com nome, cor e ícone da central.
+- Nos planos Essencial e Central aparece a marca do Entrega Pra Mim. A tela explica que o recurso é do plano Marca própria.
+- Toda central ganha um **link de acesso próprio** (copiável na tela de Marca). Quem entra por ele cai direto naquela central.
+- O despachante vê a configuração de marca, mas só o dono altera.
+
+**Técnico**
+- Sem migration: os campos `nomeExibicao`, `logoArquivo` e `corPrimaria` de `OrganizationSettings` já existiam.
+- `src/lib/marca.ts`: `marcaPermitida(plano)`, `marcaPublica(slug)` e validação de nome de arquivo. Logo e cor só são expostos no plano `MARCA_PROPRIA`.
+- Rotas:
+  - `GET/PUT /api/organizacao/marca` (PUT: dono e plano Marca própria; cor `#RRGGBB`);
+  - `POST/DELETE /api/organizacao/marca/logo` (multipart; JPG/PNG/WebP reconhecidos pelos bytes, como no comprovante; SVG recusado; até 1 MB; `LOGO_DIR`);
+  - `GET /api/publico/organizacoes/[slug]` e `.../logo`;
+  - `GET /o/[slug]/manifest.webmanifest`;
+  - página `/o/[slug]/login`, que após o login troca a sessão para aquela central.
+- O rastreio público lê logo e cor pela mesma regra de plano.
+- Deploy: volume `logos` em `docker-compose.yml` (`LOGO_DIR=/app/storage/logos`) e diretório criado no `Dockerfile`.
+- UI: `/dashboard/marca` (item "Marca" no menu), com prévia do rastreio.
+- Testes:
+  - `marca.test.ts`: plano, permissão do dono, cor inválida, SVG e arquivo grande recusados, logo servido, marca do EPM fora do plano, manifest por central;
+  - isolamento cobrindo as 4 rotas novas.
+
+  Total: 149 testes.
+
 ### Etapa 4 — Fechamento do dia/mês (2026-10-11)
 
 **Na prática**

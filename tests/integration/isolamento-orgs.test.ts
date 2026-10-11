@@ -30,12 +30,12 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
   const mod = await import(`@/app/api/${rota}/route`) as Record<string, Handler>
   const handler = mod[metodo]
   if (!handler) throw new Error(`${rota} não exporta ${metodo}`)
-  const caminho = `/api/${rota.replace('[id]', opts.id ?? 'x').replace('[token]', opts.id ?? 'x')}${opts.query ? `?${opts.query}` : ''}`
+  const caminho = `/api/${rota.replace('[id]', opts.id ?? 'x').replace('[token]', opts.id ?? 'x').replace('[slug]', opts.id ?? 'x')}${opts.query ? `?${opts.query}` : ''}`
   const req = new NextRequest(`http://localhost${caminho}`, {
     method: metodo,
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body), headers: { 'Content-Type': 'application/json' } } : {}),
   })
-  return handler(req, { params: Promise.resolve({ id: opts.id ?? 'x', token: opts.id ?? 'x' }) })
+  return handler(req, { params: Promise.resolve({ id: opts.id ?? 'x', token: opts.id ?? 'x', slug: opts.id ?? 'x' }) })
 }
 
 ;(url ? describe : describe.skip)('MySQL: isolamento entre centrais', () => {
@@ -197,6 +197,26 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
         semDadosDeB(await res.json())
       }
     },
+    'organizacao/marca': async () => {
+      logarComo(donoA)
+      await listaOk(await chamar('organizacao/marca', 'GET'))
+      expect((await chamar('organizacao/marca', 'PUT', { body: { nomeExibicao: 'A', corPrimaria: '#000000' } })).status).toBe(200)
+      expect((await db.organizationSettings.findUniqueOrThrow({ where: { organizationId: orgB } })).corPrimaria).toBeNull()
+    },
+    'organizacao/marca/logo': async () => {
+      logarComo(donoA)
+      await db.organizationSettings.update({ where: { organizationId: orgB }, data: { logoArquivo: 'logo-da-b.png' } })
+      expect((await chamar('organizacao/marca/logo', 'DELETE')).status).toBe(200)
+      expect((await db.organizationSettings.findUniqueOrThrow({ where: { organizationId: orgB } })).logoArquivo).toBe('logo-da-b.png')
+    },
+    'publico/organizacoes/[slug]': async () => {
+      // Marca pública por slug (nome, cor, logo): nada de dados de operação
+      sessao.atual = null
+      const slugB = (await db.organization.findUniqueOrThrow({ where: { id: orgB } })).slug
+      const texto = JSON.stringify(await (await chamar('publico/organizacoes/[slug]', 'GET', { id: slugB })).json())
+      for (const proibido of [SEGREDO_B, clienteB.clienteId!, motoboyB.motoboyId!, 'email', 'telefone']) expect(texto).not.toContain(proibido)
+    },
+    'publico/organizacoes/[slug]/logo': async () => { /* imagem pública da central; coberto em marca.test.ts */ },
     'dashboard': async () => {
       logarComo(donoA)
       const res = await chamar('dashboard', 'GET')

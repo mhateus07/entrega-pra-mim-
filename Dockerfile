@@ -21,7 +21,7 @@ RUN npx prisma generate \
 FROM base AS runtime
 ENV NODE_ENV=production PORT=3000 NEXT_TELEMETRY_DISABLED=1
 COPY --from=build --chown=node:node /app /app
-RUN mkdir -p /app/storage/comprovantes && chown -R node:node /app/storage
+RUN mkdir -p /app/storage/comprovantes /app/storage/logos && chown -R node:node /app/storage
 USER node
 EXPOSE 3000
 # Liveness: só confirma que o processo responde; banco/Redis ficam em /api/health/ready

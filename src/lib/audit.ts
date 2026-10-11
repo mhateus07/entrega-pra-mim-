@@ -30,6 +30,7 @@ export type AcaoAuditoria =
   | 'convite.aceito'
   | 'convite.revogado'
   | 'rastreio.link'
+  | 'marca.alterada'
 
 export interface EntradaAuditoria {
   acao: AcaoAuditoria
