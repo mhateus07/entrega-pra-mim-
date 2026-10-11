@@ -106,14 +106,14 @@ function RegistroForm() {
       const data = await response.json()
 
       if (!data.success) {
-        setError(data.error || 'Erro ao criar conta')
+        setError(data.details?.[0]?.message || data.error || 'Erro ao criar conta')
         return
       }
 
       setSuccess(true)
       setTimeout(() => {
         router.push('/login')
-      }, 2000)
+      }, tipo === 'motoboy' ? 5000 : 2000)
     } catch {
       setError('Erro ao criar conta')
     } finally {
@@ -128,6 +128,11 @@ function RegistroForm() {
           <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-fg">Conta criada</h1>
+        {tipo === 'motoboy' && (
+          <p className="mt-1.5 text-sm text-fg-2">
+            Seu cadastro passa por aprovação da operação. Você já pode entrar, mas só recebe pedidos depois de aprovado.
+          </p>
+        )}
         <p className="mt-1.5 text-sm text-fg-3">Redirecionando para o login…</p>
       </AuthLayout>
     )
@@ -241,8 +246,8 @@ function RegistroForm() {
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} helperText="Mínimo de 6 caracteres" minLength={6} autoComplete="new-password" required />
-          <Input label="Confirmar senha" type="password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} minLength={6} autoComplete="new-password" required />
+          <Input label="Senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} helperText="Mínimo de 8 caracteres" minLength={8} maxLength={72} autoComplete="new-password" required />
+          <Input label="Confirmar senha" type="password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} minLength={8} maxLength={72} autoComplete="new-password" required />
         </div>
 
         <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>

@@ -15,6 +15,20 @@
 - PIX/cartões são simulados somente em desenvolvimento/testes. Em produção a interface oferece dinheiro e a API rejeita novas cobranças eletrônicas com 503.
 - O saldo representa registros internos de ganhos, não transferência bancária. A regra de repasse e cobrança da comissão de entregas em dinheiro precisa ser definida junto à integração financeira.
 
+## Segurança operacional (P0, out/2026)
+
+- Cadastro de motoboy nasce `PENDENTE_APROVACAO`. Sem aprovação, o motoboy não fica DISPONIVEL, não vê pedidos SOLICITADO de terceiros, não aceita pedido e não envia localização. Admin aprova, reprova ou suspende em `PATCH /api/motoboys/[id]/aprovacao`; reprovar/suspender exige motivo e é recusado se houver entrega em andamento. A migration `202610100001` marca como APROVADO todos os motoboys já existentes.
+- `GET /api/motoboys/[id]/localizacao` só responde ao próprio motoboy, ao admin e ao cliente com pedido ACEITO/EM_COLETA/EM_ENTREGA com aquele motoboy.
+- Criação de pedido e de pagamento aceita `Idempotency-Key`; a resposta fica guardada em `idempotency_keys` por 24h. Dados de cartão não entram no hash nem na resposta guardada.
+- `audit_logs` recebe as ações sensíveis (login, aprovação, status de pedido, pagamento, comprovante). Só inserção, melhor esforço.
+- Rate limit por usuário em chat, upload, localização e polling; upload recusa `Content-Length` acima de 5 MB antes de ler o corpo.
+- `src/instrumentation.ts` chama `assertEnv()` no boot; em produção, variável obrigatória ausente ou `NEXTAUTH_SECRET` com menos de 32 caracteres encerra o processo.
+- `GET /api/avaliacoes`: cliente vê só avaliações dos próprios pedidos, motoboy só as recebidas; a resposta traz apenas nota, comentário e nomes. Antes, qualquer conta devolvia todas as avaliações com CNH, placa e GPS dos motoboys.
+- Respostas de pedido não incluem CPF/CNPJ do cliente; e-mail só para admin; telefone do cliente só para o motoboy atribuído.
+- Cadastro público responde com a mesma mensagem para e-mail, documento ou placa duplicados.
+- Dependências: next 16.4.0 e next-auth 4.24.15 (corrigem, entre outros, o 500 com `Authorization: Bearer` malformado). `eslint-plugin-react-hooks` fixado em 7.0.1 via `overrides`; o alerta restante do `braces` é só de desenvolvimento (ESLint) e ainda não tem correção publicada.
+- `/api/health/live` (HEALTHCHECK do Docker) e `/api/health/ready` (banco, Redis, storage) são públicos e não expõem mensagens de erro.
+
 ## Validação local
 
 1. `npm ci` e `npx prisma generate`.

@@ -76,6 +76,7 @@ async function main() {
       veiculoModelo: 'CG 160',
       veiculoPlaca: 'ABC1D23',
       status: 'DISPONIVEL',
+      aprovacao: 'APROVADO',
       avaliacaoMedia: 4.8,
       totalEntregas: 127,
       updatedAt: new Date(),

@@ -33,8 +33,21 @@ export function validateEnv(): EnvValidationResult {
 
   // Verificar se NEXTAUTH_SECRET é seguro
   const secret = process.env.NEXTAUTH_SECRET
-  if (secret && (secret.length < 32 || secret.includes('development') || secret.includes('secret'))) {
+  const production = process.env.NODE_ENV === 'production'
+  if (secret && production && secret.length < 32) {
+    // Segredo curto permite forjar sessões: bloqueia o boot em produção
+    missing.push('NEXTAUTH_SECRET (mínimo de 32 caracteres em produção)')
+  } else if (secret && (secret.length < 32 || secret.includes('development') || secret.includes('secret'))) {
     warnings.push('NEXTAUTH_SECRET parece ser fraco. Use: openssl rand -base64 32')
+  }
+
+  if (production) {
+    if (!process.env.REDIS_URL) {
+      warnings.push('REDIS_URL ausente: rate limit fica por processo e não é compartilhado entre instâncias')
+    }
+    if (process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.startsWith('https://')) {
+      warnings.push('NEXTAUTH_URL deveria usar https em produção')
+    }
   }
 
   // Verificar se DATABASE_URL tem credenciais padrão

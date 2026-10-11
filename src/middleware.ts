@@ -31,7 +31,7 @@ const pageMiddleware = withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: ({ token }) => !!token?.id,
     },
   }
 )
@@ -43,7 +43,7 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
   if (path.startsWith('/api')) {
     if (isPublicApi(req.method, path)) return NextResponse.next()
     const token = await getToken({ req })
-    if (!token) {
+    if (!token?.id) {
       return NextResponse.json({ success: false, error: 'Autenticação necessária' }, { status: 401 })
     }
     return NextResponse.next()

@@ -3,60 +3,54 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createAvaliacaoSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireClienteOwnership, serverError, badRequest, notFound } from '@/lib/auth-helpers'
+import { Prisma } from '@prisma/client'
+import { parsePagination, paginationMeta } from '@/lib/pagination'
+import { requireAuth, requireClienteOwnership, serverError, badRequest, notFound, forbidden } from '@/lib/auth-helpers'
 
-// GET /api/avaliacoes - Listar avaliações (autenticado)
+// Campos públicos de uma avaliação: nada de CNH, placa, localização ou dados do pedido
+const avaliacaoSelect = {
+  id: true, pedidoId: true, motoboyId: true, nota: true, comentario: true, createdAt: true,
+  pedido: { select: { id: true, tipoServico: true, createdAt: true, cliente: { select: { user: { select: { nome: true } } } } } },
+  motoboy: { select: { id: true, user: { select: { nome: true } } } },
+} satisfies Prisma.AvaliacaoSelect
+
+// GET /api/avaliacoes - Listar avaliações
+// Cliente vê as avaliações dos próprios pedidos; motoboy, as que recebeu; admin, todas.
 export async function GET(request: NextRequest) {
   try {
-    // Requer autenticação
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
+    const paging = parsePagination(searchParams)
     const motoboyId = searchParams.get('motoboyId')
+    const { user } = auth
 
-    const where: Record<string, unknown> = {}
-
-    if (motoboyId) {
-      where.motoboyId = motoboyId
+    const where: Prisma.AvaliacaoWhereInput = {}
+    if (user.role === 'ADMIN') {
+      if (motoboyId) where.motoboyId = motoboyId
+    } else if (user.role === 'MOTOBOY' && user.motoboyId) {
+      where.motoboyId = user.motoboyId
+    } else if (user.role === 'CLIENTE' && user.clienteId) {
+      where.pedido = { clienteId: user.clienteId }
+      if (motoboyId) where.motoboyId = motoboyId
+    } else {
+      return forbidden('Acesso não permitido')
     }
 
-    // Motoboy só vê suas próprias avaliações
-    if (auth.user.role === 'MOTOBOY' && auth.user.motoboyId) {
-      where.motoboyId = auth.user.motoboyId
-    }
+    const [avaliacoes, total] = await Promise.all([
+      prisma.avaliacao.findMany({
+        where, select: avaliacaoSelect, skip: paging.skip, take: paging.take,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+      prisma.avaliacao.count({ where }),
+    ])
 
-    const avaliacoes = await prisma.avaliacao.findMany({
-      where,
-      include: {
-        pedido: {
-          include: {
-            cliente: {
-              include: {
-                user: {
-                  select: { nome: true },
-                },
-              },
-            },
-          },
-        },
-        motoboy: {
-          include: {
-            user: {
-              select: { nome: true },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    const response: ApiResponse<typeof avaliacoes> = {
+    return jsonResponse({
       success: true,
       data: avaliacoes,
-    }
-
-    return jsonResponse(response)
+      pagination: paginationMeta(paging.page, paging.pageSize, total),
+    })
   } catch (error) {
     console.error('Erro ao listar avaliações:', error)
     return serverError('Erro ao listar avaliações')
@@ -109,16 +103,7 @@ export async function POST(request: NextRequest) {
         nota: data.nota,
         comentario: data.comentario,
       },
-      include: {
-        pedido: true,
-        motoboy: {
-          include: {
-            user: {
-              select: { nome: true },
-            },
-          },
-        },
-      },
+      select: avaliacaoSelect,
     })
 
     // Recalcular média do motoboy

@@ -7,6 +7,8 @@ import { requireAuth, requirePedidoAccess, notFound, serverError, badRequest } f
 
 import { alterarStatusPedido } from '@/lib/pedido-status'
 import { OperacaoError } from '@/lib/operacao-error'
+import { registrarAuditoria } from '@/lib/audit'
+import { clientePedidoSelect } from '@/lib/pedido-select'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -21,11 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       where: { id },
       include: {
         cliente: {
-          include: {
-            user: {
-              select: { nome: true, email: true, telefone: true },
-            },
-          },
+          select: { ...clientePedidoSelect, user: { select: { nome: true, telefone: true, email: true } } },
         },
         motoboy: {
           select: {
@@ -63,9 +61,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const auth = await requirePedidoAccess(pedido)
     if (!auth.authenticated) return auth.response
 
-    const response: ApiResponse<typeof pedido> = {
+    // E-mail do cliente só para o admin
+    const data = auth.user.role === 'ADMIN'
+      ? pedido
+      : { ...pedido, cliente: { ...pedido.cliente, user: { nome: pedido.cliente.user.nome, telefone: pedido.cliente.user.telefone } } }
+    const response: ApiResponse<typeof data> = {
       success: true,
-      data: pedido,
+      data,
     }
 
     return jsonResponse(response)
@@ -84,6 +86,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!validation.success) return badRequest('Dados inválidos')
     const { id } = await params
     const updated = await alterarStatusPedido(id, auth.user, validation.data)
+    await registrarAuditoria({
+      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+      dados: { para: updated.status, ...(updated.motoboyId ? { motoboyId: updated.motoboyId } : {}) },
+    })
     return jsonResponse({ success: true, data: updated, message: 'Pedido atualizado com sucesso' })
   } catch (error) {
     if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })
@@ -103,6 +109,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!validation.success) return badRequest('Dados inválidos')
     const { id } = await params
     const updated = await alterarStatusPedido(id, auth.user, validation.data)
+    await registrarAuditoria({
+      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+      dados: { para: 'CANCELADO', motivo: updated.motivoCancelamento },
+    })
     return jsonResponse({ success: true, data: updated, message: 'Pedido cancelado com sucesso' })
   } catch (error) {
     if (error instanceof OperacaoError) return jsonResponse({ success: false, error: error.message }, { status: error.status })

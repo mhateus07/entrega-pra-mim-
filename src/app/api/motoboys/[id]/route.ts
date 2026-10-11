@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma'
 import { updateMotoboySchema, updateDisponibilidadeSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
 import { OperacaoError } from '@/lib/operacao-error'
-import { requireMotoboyOwnership, requireAdmin, notFound, serverError } from '@/lib/auth-helpers'
+import { requireMotoboyOwnership, requireAdmin, notFound, serverError, forbidden } from '@/lib/auth-helpers'
+import { registrarAuditoria } from '@/lib/audit'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -35,13 +36,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           take: 10,
           orderBy: { createdAt: 'desc' },
           include: {
-            cliente: {
-              include: {
-                user: {
-                  select: { nome: true },
-                },
-              },
-            },
+            cliente: { select: { id: true, user: { select: { nome: true } } } },
           },
         },
         avaliacoes: {
@@ -158,6 +153,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (data.status === 'EM_ENTREGA') {
       return jsonResponse({ success: false, error: 'O status em entrega é definido ao aceitar um pedido' }, { status: 400 })
     }
+    if (data.status === 'DISPONIVEL' && motoboy.aprovacao !== 'APROVADO') {
+      return forbidden('Seu cadastro ainda não foi aprovado para receber pedidos')
+    }
 
     // Se está atualizando a placa, verificar se não existe
     if (data.veiculoPlaca) {
@@ -264,6 +262,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Deletar em cascata (usuário -> motoboy -> disponibilidades)
     await prisma.user.delete({
       where: { id: motoboy.userId },
+    })
+    await registrarAuditoria({
+      acao: 'motoboy.excluido', entidade: 'Motoboy', entidadeId: id, userId: auth.user.id, request,
+      dados: { motoboyUserId: motoboy.userId },
     })
 
     return jsonResponse({

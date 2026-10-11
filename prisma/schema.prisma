@@ -20,6 +20,14 @@ enum StatusMotoboy {
   OFFLINE
 }
 
+// Cadastro de motoboy só recebe pedidos depois de aprovado por um admin
+enum AprovacaoMotoboy {
+  PENDENTE_APROVACAO
+  APROVADO
+  REPROVADO
+  SUSPENSO
+}
+
 enum TipoServico {
   EXPRESSA
   AGENDADA
@@ -131,6 +139,9 @@ model Motoboy {
   veiculoModelo   String
   veiculoPlaca    String        @unique
   status          StatusMotoboy @default(OFFLINE)
+  aprovacao       AprovacaoMotoboy @default(PENDENTE_APROVACAO)
+  aprovacaoEm     DateTime?
+  motivoAprovacao String?
   latitudeAtual   Float?
   longitudeAtual  Float?
   avaliacaoMedia  Float         @default(5.0)
@@ -147,6 +158,7 @@ model Motoboy {
   transacoes       TransacaoMotoboy[]
 
   @@index([status, createdAt, id])
+  @@index([aprovacao, createdAt, id])
   @@map("motoboys")
 }
 
@@ -358,4 +370,39 @@ model TransacaoMotoboy {
   @@index([pedidoId])
   @@index([motoboyId, createdAt, id])
   @@map("transacoes_motoboy")
+}
+
+// Resposta guardada por (usuário, escopo, chave) para que a repetição de um
+// POST com o mesmo Idempotency-Key não duplique pedido ou pagamento.
+model IdempotencyKey {
+  id          String   @id @default(cuid())
+  userId      String
+  escopo      String   @db.VarChar(100)
+  chave       String   @db.VarChar(255)
+  requestHash String   @db.VarChar(64)
+  statusCode  Int?     // null enquanto a requisição original está em processamento
+  resposta    String?  @db.LongText
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, escopo, chave])
+  @@index([createdAt])
+  @@map("idempotency_keys")
+}
+
+// Trilha de ações sensíveis (login, status, pagamento, aprovação, comprovante).
+// Somente inserção: nenhuma rota altera ou apaga registros.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  acao       String   @db.VarChar(100)
+  entidade   String   @db.VarChar(50)
+  entidadeId String?
+  dados      Json?
+  ip         String?  @db.VarChar(64)
+  createdAt  DateTime @default(now())
+
+  @@index([entidade, entidadeId, createdAt])
+  @@index([userId, createdAt])
+  @@index([acao, createdAt])
+  @@map("audit_logs")
 }

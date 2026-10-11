@@ -20,6 +20,7 @@ declare module 'next-auth' {
     role: string
     motoboyId: string | null
     clienteId: string | null
+    verificadoEm?: number
   }
 }
 

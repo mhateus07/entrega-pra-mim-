@@ -4,6 +4,7 @@ import type { UpdatePedidoStatusInput } from './validations'
 import { podeAlterarPedido } from './pedido-permissions'
 import { comPedidoBloqueado, liberarCreditoEntrega } from './pedido-transaction'
 import { OperacaoError } from './operacao-error'
+import { clientePedidoSelect } from './pedido-select'
 import { ELECTRONIC_PAYMENTS_AVAILABLE } from './payment-policy'
 
 const transicoes: Record<StatusPedido, StatusPedido[]> = {
@@ -27,7 +28,7 @@ export async function alterarStatusPedido(id: string, user: AuthenticatedUser, d
       if (!motoboyId) throw new OperacaoError('motoboyId é obrigatório para aceitar pedido', 400)
       // A reserva condicional serializa também dois pedidos disputando um motoboy.
       const reserva = await tx.motoboy.updateMany({
-        where: { id: motoboyId, status: 'DISPONIVEL' }, data: { status: 'EM_ENTREGA' },
+        where: { id: motoboyId, status: 'DISPONIVEL', aprovacao: 'APROVADO' }, data: { status: 'EM_ENTREGA' },
       })
       if (reserva.count !== 1) throw new OperacaoError('Motoboy não está disponível')
       const ativo = await tx.pedido.findFirst({
@@ -61,7 +62,7 @@ export async function alterarStatusPedido(id: string, user: AuthenticatedUser, d
     const updated = await tx.pedido.update({
       where: { id }, data: update,
       include: {
-        cliente: { include: { user: { select: { nome: true, telefone: true } } } },
+        cliente: { select: clientePedidoSelect },
         motoboy: { select: { id: true, avaliacaoMedia: true, user: { select: { nome: true, telefone: true } } } },
         enderecoOrigem: true, enderecoDestino: true,
       },

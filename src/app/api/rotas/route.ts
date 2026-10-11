@@ -4,7 +4,7 @@ import { calcularRotaSchema } from '@/lib/validations'
 import { calcularRota, calcularDistanciaHaversine } from '@/lib/google-maps'
 import { calcularPrecoCompleto, estimarTempo, validarDistancia } from '@/lib/pricing'
 import { ApiResponse, RotaCalculada } from '@/types'
-import { requireAuth, applyRateLimit } from '@/lib/auth-helpers'
+import { requireAuth, applyMapsRateLimit } from '@/lib/auth-helpers'
 
 // POST /api/rotas - Calcular rota e preço
 export async function POST(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     // Cada chamada consome cota paga do Google Maps
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
-    const rateLimit = await applyRateLimit(request, 'polling')
+    const rateLimit = await applyMapsRateLimit(auth.user.id)
     if (!rateLimit.success) return rateLimit.response
 
     const body = await request.json()

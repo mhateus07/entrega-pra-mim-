@@ -141,7 +141,7 @@ async function main() {
     const motoboy = await db.motoboy.create({ data: {
       userId: user.id, cnh: String(70000000000 + i * 1234567), veiculoTipo: 'Moto', veiculoMarca: m.marca, veiculoModelo: m.modelo,
       veiculoPlaca: `HM${String.fromCharCode(65 + i)}${i}${String.fromCharCode(66 + i)}${10 + i * 7}`.slice(0, 7),
-      status: m.status as StatusMotoboy, latitudeAtual: lat, longitudeAtual: lng,
+      status: m.status as StatusMotoboy, aprovacao: 'APROVADO', latitudeAtual: lat, longitudeAtual: lng,
       ultimaAtividade: m.status === 'OFFLINE' ? new Date(agora.getTime() - int(2, 20) * 3600000) : agora,
     } })
     await db.disponibilidade.createMany({ data: DIAS.map(diaSemana => ({

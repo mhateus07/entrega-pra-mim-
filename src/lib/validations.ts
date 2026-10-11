@@ -6,10 +6,22 @@ const cepRegex = /^\d{8}$/
 const cnhRegex = /^\d{11}$/
 const placaRegex = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i
 
+// Senha: 8 a 72 caracteres (limite do bcrypt), sem sequências e repetições óbvias
+const SENHAS_COMUNS = new Set([
+  '12345678', '123456789', '1234567890', '87654321', '11111111', '00000000',
+  'password', 'senha123', 'senha1234', 'qwerty123', 'abcd1234', 'mudar123', 'entrega123',
+])
+export const senhaSchema = z.string()
+  .min(8, 'Senha deve ter no mínimo 8 caracteres')
+  .max(72, 'Senha deve ter no máximo 72 caracteres')
+  .refine(s => !SENHAS_COMUNS.has(s.toLowerCase()) && !/^(.)\1+$/.test(s), {
+    message: 'Senha muito fácil de adivinhar. Use uma combinação menos óbvia.',
+  })
+
 // Schema de usuário
 export const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  senha: senhaSchema,
   nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
   telefone: z.string().regex(telefoneRegex, 'Telefone inválido').optional(),
   role: z.enum(['ADMIN', 'CLIENTE', 'MOTOBOY']).default('CLIENTE'),
@@ -18,7 +30,7 @@ export const createUserSchema = z.object({
 // Schema de motoboy
 export const createMotoboySchema = z.object({
   email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  senha: senhaSchema,
   nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
   telefone: z.string().regex(telefoneRegex, 'Telefone inválido'),
   cnh: z.string().regex(cnhRegex, 'CNH inválida'),
@@ -61,7 +73,7 @@ export const updateDisponibilidadeSchema = z.array(disponibilidadeSchema)
 // Schema de cliente
 export const createClienteSchema = z.object({
   email: z.string().email('Email inválido'),
-  senha: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  senha: senhaSchema,
   nome: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
   telefone: z.string().regex(telefoneRegex, 'Telefone inválido').optional(),
   cpfCnpj: z.string().optional(),

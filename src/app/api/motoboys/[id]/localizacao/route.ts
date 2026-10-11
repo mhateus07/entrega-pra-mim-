@@ -1,7 +1,9 @@
 import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireMotoboyOwnership, requireAuth, notFound, badRequest, serverError } from '@/lib/auth-helpers'
+import { requireMotoboyOwnership, requireAuth, requirePedidoAccess, applyRateLimit, notFound, badRequest, forbidden, serverError } from '@/lib/auth-helpers'
+
+const STATUS_COM_RASTREAMENTO = ['ACEITO', 'EM_COLETA', 'EM_ENTREGA'] as const
 
 // POST /api/motoboys/[id]/localizacao - Atualizar localização (apenas o próprio motoboy)
 export async function POST(
@@ -15,30 +17,30 @@ export async function POST(
     const auth = await requireMotoboyOwnership(id)
     if (!auth.authenticated) return auth.response
 
-    const body = await request.json()
-    const { latitude, longitude } = body
+    const rateLimit = await applyRateLimit(request, 'localizacao', auth.user.id)
+    if (!rateLimit.success) return rateLimit.response
 
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    const body = await request.json().catch(() => null)
+    const { latitude, longitude } = body ?? {}
+
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
+      Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
       return badRequest('Latitude e longitude são obrigatórios')
     }
 
-    const motoboy = await prisma.motoboy.update({
-      where: { id },
+    const atualizado = await prisma.motoboy.updateMany({
+      where: { id, aprovacao: 'APROVADO' },
       data: {
         latitudeAtual: latitude,
         longitudeAtual: longitude,
         ultimaAtividade: new Date(),
       },
     })
+    if (atualizado.count !== 1) return forbidden('Cadastro de motoboy não aprovado')
 
     return jsonResponse({
       success: true,
-      data: {
-        id: motoboy.id,
-        latitude: motoboy.latitudeAtual,
-        longitude: motoboy.longitudeAtual,
-        ultimaAtividade: motoboy.ultimaAtividade,
-      },
+      data: { id, latitude, longitude, ultimaAtividade: new Date() },
     })
   } catch (error) {
     console.error('Erro ao atualizar localização:', error)
@@ -46,7 +48,9 @@ export async function POST(
   }
 }
 
-// GET /api/motoboys/[id]/localizacao - Obter localização (autenticado)
+// GET /api/motoboys/[id]/localizacao - Obter localização
+// Permitido ao próprio motoboy, ao admin e ao cliente com entrega em andamento
+// com este motoboy. Qualquer outro usuário logado recebe 403.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -54,9 +58,24 @@ export async function GET(
   try {
     const { id } = await params
 
-    // Requer autenticação para ver localização de motoboy
     const auth = await requireAuth()
     if (!auth.authenticated) return auth.response
+
+    const rateLimit = await applyRateLimit(request, 'polling', auth.user.id)
+    if (!rateLimit.success) return rateLimit.response
+
+    const { user } = auth
+    if (user.role !== 'ADMIN' && user.motoboyId !== id) {
+      const pedido = user.role === 'CLIENTE' && user.clienteId
+        ? await prisma.pedido.findFirst({
+          where: { motoboyId: id, clienteId: user.clienteId, status: { in: [...STATUS_COM_RASTREAMENTO] } },
+          select: { clienteId: true, motoboyId: true },
+        })
+        : null
+      if (!pedido) return forbidden('Você não tem permissão para ver esta localização')
+      const acesso = await requirePedidoAccess(pedido)
+      if (!acesso.authenticated) return acesso.response
+    }
 
     const motoboy = await prisma.motoboy.findUnique({
       where: { id },

@@ -33,7 +33,7 @@ echo ">>> Gerando Prisma Client..."
 npx prisma generate
 
 echo ">>> Aplicando migrações do banco..."
-npx prisma db push
+npx prisma migrate deploy
 
 echo ">>> Fazendo build da aplicação..."
 npm run build

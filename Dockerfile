@@ -24,5 +24,8 @@ COPY --from=build --chown=node:node /app /app
 RUN mkdir -p /app/storage/comprovantes && chown -R node:node /app/storage
 USER node
 EXPOSE 3000
+# Liveness: só confirma que o processo responde; banco/Redis ficam em /api/health/ready
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 # Aplica migrações pendentes antes de subir (idempotente)
 CMD ["sh", "-c", "npx prisma migrate deploy && npx next start -H 0.0.0.0 -p 3000"]

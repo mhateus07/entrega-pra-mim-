@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { z } from 'zod'
+import { applyRateLimit } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -17,12 +18,15 @@ const mensagemSchema = z.object({
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
     }
+
+    const rateLimit = await applyRateLimit(request, 'polling', session.user.id)
+    if (!rateLimit.success) return rateLimit.response
 
     const { id } = await params
 
@@ -87,12 +91,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
       )
     }
+
+    const rateLimit = await applyRateLimit(request, 'chat', session.user.id)
+    if (!rateLimit.success) return rateLimit.response
 
     const { id } = await params
     const body = await request.json()

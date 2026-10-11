@@ -8,6 +8,10 @@ import bcrypt from 'bcryptjs'
 import { createMotoboySchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
 import { requireAuth, serverError, applyRateLimit } from '@/lib/auth-helpers'
+import { registrarAuditoria } from '@/lib/audit'
+
+// Mesma resposta para qualquer duplicidade: não revela qual dado já existe
+const CADASTRO_INDISPONIVEL = 'Não foi possível concluir o cadastro: e-mail, CNH ou placa já em uso. Se você já tem conta, faça login.'
 
 // GET /api/motoboys - Listar motoboys (autenticado)
 export async function GET(request: NextRequest) {
@@ -20,8 +24,13 @@ export async function GET(request: NextRequest) {
     const paging = parsePagination(searchParams)
     const status = enumFilter(searchParams.get('status'), ['DISPONIVEL', 'EM_ENTREGA', 'OFFLINE'] as const)
     const avaliacaoMinima = searchParams.get('avaliacaoMinima')
+    const aprovacao = enumFilter(searchParams.get('aprovacao'), ['PENDENTE_APROVACAO', 'APROVADO', 'REPROVADO', 'SUSPENSO'] as const)
 
-    const where: Prisma.MotoboyWhereInput = {}
+    // Para não-admins, limitar informações retornadas
+    const isAdmin = auth.user.role === 'ADMIN'
+
+    // Fora do admin, só aparecem motoboys aprovados
+    const where: Prisma.MotoboyWhereInput = isAdmin ? (aprovacao ? { aprovacao } : {}) : { aprovacao: 'APROVADO' }
 
     if (status) {
       where.status = status
@@ -34,14 +43,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Para não-admins, limitar informações retornadas
-    const isAdmin = auth.user.role === 'ADMIN'
-
     const motoboys = await prisma.motoboy.findMany({
       where, skip: paging.skip, take: paging.take,
       select: {
         id: true, status: true, veiculoTipo: true, avaliacaoMedia: true, totalEntregas: true,
         ...(isAdmin ? {
+          aprovacao: true, aprovacaoEm: true, motivoAprovacao: true,
           userId: true, cnh: true, veiculoMarca: true, veiculoModelo: true, veiculoPlaca: true,
           latitudeAtual: true, longitudeAtual: true, ultimaAtividade: true, createdAt: true, updatedAt: true,
         } : {}),
@@ -58,8 +65,12 @@ export async function GET(request: NextRequest) {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     })
 
-    const counts = await prisma.motoboy.groupBy({ by: ['status'], _count: { _all: true } })
-    const summary = Object.fromEntries(counts.map(g => [g.status, g._count._all]))
+    const counts = await prisma.motoboy.groupBy({
+      by: ['status'], _count: { _all: true }, ...(isAdmin ? {} : { where: { aprovacao: 'APROVADO' } }),
+    })
+    const summary: Record<string, number> = Object.fromEntries(counts.map(g => [g.status, g._count._all]))
+    // Admin recebe também a fila de cadastros aguardando aprovação
+    if (isAdmin) summary.PENDENTE_APROVACAO = await prisma.motoboy.count({ where: { aprovacao: 'PENDENTE_APROVACAO' } })
     const total = await prisma.motoboy.count({ where })
     const response = {
       summary,
@@ -76,7 +87,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/motoboys - Criar motoboy (rate limited - registro)
+// POST /api/motoboys - Cadastro público de motoboy (rate limited - registro)
+// O cadastro nasce PENDENTE_APROVACAO: o motoboy consegue entrar, mas só fica
+// online, recebe pedidos e envia localização depois da aprovação de um admin.
 export async function POST(request: NextRequest) {
   try {
     // Rate limit para registro (10 req/min)
@@ -106,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return jsonResponse(
-        { success: false, error: 'Email já cadastrado' },
+        { success: false, error: CADASTRO_INDISPONIVEL },
         { status: 400 }
       )
     }
@@ -118,7 +131,7 @@ export async function POST(request: NextRequest) {
 
     if (existingCNH) {
       return jsonResponse(
-        { success: false, error: 'CNH já cadastrada' },
+        { success: false, error: CADASTRO_INDISPONIVEL },
         { status: 400 }
       )
     }
@@ -130,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     if (existingPlaca) {
       return jsonResponse(
-        { success: false, error: 'Placa já cadastrada' },
+        { success: false, error: CADASTRO_INDISPONIVEL },
         { status: 400 }
       )
     }
@@ -159,6 +172,7 @@ $transaction(async (tx: any) => {
           veiculoMarca: data.veiculoMarca,
           veiculoModelo: data.veiculoModelo,
           veiculoPlaca: data.veiculoPlaca.toUpperCase(),
+          aprovacao: 'PENDENTE_APROVACAO',
         },
         include: {
           user: {
@@ -175,10 +189,15 @@ $transaction(async (tx: any) => {
       return motoboy
     })
 
+    await registrarAuditoria({
+      acao: 'motoboy.cadastro', entidade: 'Motoboy', entidadeId: result.id,
+      userId: result.userId, request,
+    })
+
     const response: ApiResponse<typeof result> = {
       success: true,
       data: result,
-      message: 'Motoboy cadastrado com sucesso',
+      message: 'Cadastro recebido. Você poderá receber pedidos assim que um administrador aprovar.',
     }
 
     return jsonResponse(response, { status: 201 })
