@@ -8,6 +8,40 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Etapa 2 — Preço por central e limites do plano (2026-10-11)
+
+**Na prática**
+- Cada central monta a própria tabela de preço em **Painel → Preços**: valor por km, corrida mínima, acréscimo por tipo de serviço e preço fixo por bairro de destino. A tela também simula o preço de uma corrida.
+- Só o dono da central altera a tabela. O despachante pode consultar.
+- O preço é calculado quando o pedido é criado e fica congelado nele: mudar a tabela depois não altera pedidos já feitos.
+- O sistema respeita o plano contratado:
+
+  | Plano | Motoboys ativos | Entregas por mês |
+  |---|---|---|
+  | Essencial | 5 | 600 |
+  | Central | 20 | 2.500 |
+  | Marca própria | 50 | 6.000 |
+
+- Passou do limite de entregas, o pedido continua sendo aceito e a entrega conta como excedente (R$ 0,10 cada). O dono vê um aviso no painel. Acima de 120% do limite, novos pedidos são bloqueados com uma mensagem clara.
+- O painel mostra o plano, as entregas do mês e os motoboys ativos em relação ao limite.
+- A tela de nova entrega do cliente mostra o preço por km da tabela da central dele.
+- Rotas e endereços repetidos saem de um cache, sem nova chamada paga ao Google Maps. Cada chamada real é contada por central.
+
+**Técnico**
+- Modelos: `PricingRule` (1 por org: `precoPorKm`, `valorMinimo`, `multAgendada | multDocumentos | multExpressa`), `PricingBairro` (bairro normalizado, único por org) e `UsageCounter` (org + mês `AAAA-MM` no fuso da central; `entregas`, `chamadasMaps`).
+- Migration `202610110004_precos_uso`: cria as tabelas, copia a tabela global antiga (R$ 3/km; 1,0/1,2/1,5) para cada central existente e preenche o histórico de entregas por mês.
+- `src/lib/pricing.ts`: `calcularPrecoComRegra` (bairro fixo → valor base; multiplicador; mínimo) e `normalizarBairro`. `calcularPreco` continua com a regra padrão, para a landing. `src/lib/pricing-org.ts` carrega a regra da central.
+- `src/lib/planos.ts` (limites e `situacaoEntregas`) e `src/lib/uso.ts` (`registrarEntrega` na mesma transação da criação do pedido; `verificarLimiteMotoboys` no cadastro e na aprovação; `registrarChamadaMaps`; `lerUso`).
+- `src/lib/cache.ts`: Redis com alternativa em memória. `google-maps.ts` faz cache de rota (24 h) e geocodificação (30 dias) e conta chamadas por `organizationId`.
+- Rotas novas: `GET/PUT /api/organizacao/precos` (PUT só OWNER) e `GET /api/organizacao/uso`. `POST /api/pedidos` e `POST /api/rotas` usam a tabela da central, e a resposta do pedido pode trazer `aviso`.
+- UI: `/dashboard/precos`, `PlanoUsoCard` no painel e item "Preços" no menu.
+- Testes:
+  - unitários de preço, planos e cache do Maps;
+  - integração com bairro fixo, aviso e bloqueio do limite, preço congelado após a tabela mudar e o status avançar, limite de motoboys e permissão do dono;
+  - isolamento cobrindo as rotas novas.
+
+  Total: 116 testes.
+
 ### Etapa 1 — Fundação multi-tenant (2026-10-11)
 
 **Na prática**

@@ -104,18 +104,21 @@ model Organization {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  settings   OrganizationSettings?
-  membros    OrganizationMember[]
-  motoboys   Motoboy[]
-  clientes   Cliente[]
-  enderecos  Endereco[]
-  pedidos    Pedido[]
-  pagamentos Pagamento[]
-  avaliacoes Avaliacao[]
-  mensagens  Mensagem[]
-  saldos     SaldoMotoboy[]
-  transacoes TransacaoMotoboy[]
-  auditLogs  AuditLog[]
+  settings    OrganizationSettings?
+  membros     OrganizationMember[]
+  motoboys    Motoboy[]
+  clientes    Cliente[]
+  enderecos   Endereco[]
+  pedidos     Pedido[]
+  pagamentos  Pagamento[]
+  avaliacoes  Avaliacao[]
+  mensagens   Mensagem[]
+  saldos      SaldoMotoboy[]
+  transacoes  TransacaoMotoboy[]
+  auditLogs   AuditLog[]
+  pricingRule PricingRule?
+  bairros     PricingBairro[]
+  uso         UsageCounter[]
 
   @@map("organizations")
 }
@@ -542,4 +545,50 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([acao, createdAt])
   @@map("audit_logs")
+}
+
+// Tabela de preço da central. O preço calculado é congelado no pedido
+// (valorBase, multiplicador, valorTotal) e nunca recalculado depois.
+model PricingRule {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  precoPorKm     Decimal  @default(3) @db.Decimal(10, 2)
+  valorMinimo    Decimal  @default(0) @db.Decimal(10, 2)
+  multAgendada   Decimal  @default(1) @db.Decimal(5, 2)
+  multDocumentos Decimal  @default(1.2) @db.Decimal(5, 2)
+  multExpressa   Decimal  @default(1.5) @db.Decimal(5, 2)
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("pricing_rules")
+}
+
+// Preço fixo por bairro de destino: substitui o cálculo por km e ainda
+// recebe o multiplicador do tipo de serviço.
+model PricingBairro {
+  id             String  @id @default(cuid())
+  organizationId String
+  bairro         String // normalizado: minúsculo, sem acento
+  nome           String // como a central digitou
+  valor          Decimal @db.Decimal(10, 2)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, bairro])
+  @@map("pricing_bairros")
+}
+
+// Consumo mensal da central (limites do plano e custo do Google Maps)
+model UsageCounter {
+  id             String @id @default(cuid())
+  organizationId String
+  mes            String @db.Char(7) // AAAA-MM no fuso da central
+  entregas       Int    @default(0)
+  chamadasMaps   Int    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, mes])
+  @@map("usage_counters")
 }

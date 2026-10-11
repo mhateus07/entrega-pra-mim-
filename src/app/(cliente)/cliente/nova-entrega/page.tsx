@@ -54,18 +54,31 @@ interface PagamentoResult {
 
 type Step = 'form' | 'payment' | 'pix' | 'success'
 
-const tiposServico = (['AGENDADA', 'DOCUMENTOS', 'EXPRESSA'] as const).map((value) => ({
-  value,
-  nome: LABELS_TIPO_SERVICO[value],
-  descricao: DESCRICOES_SERVICO[value],
-  preco: formatarMoeda(PRECO_POR_KM * MULTIPLICADORES[value]),
-}))
+type TabelaPreco = { precoPorKm: number; multiplicadores: Record<TipoServico, number> }
+
+// Preço por km de cada serviço pela tabela da central (padrão enquanto carrega)
+function tiposServico(tabela: TabelaPreco | null) {
+  return (['AGENDADA', 'DOCUMENTOS', 'EXPRESSA'] as const).map((value) => ({
+    value,
+    nome: LABELS_TIPO_SERVICO[value],
+    descricao: DESCRICOES_SERVICO[value],
+    preco: formatarMoeda((tabela?.precoPorKm ?? PRECO_POR_KM) * (tabela?.multiplicadores[value] ?? MULTIPLICADORES[value])),
+  }))
+}
 
 export default function NovaEntregaPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
   const [enderecos, setEnderecos] = useState<Endereco[]>([])
+  const [tabelaPreco, setTabelaPreco] = useState<TabelaPreco | null>(null)
+
+  useEffect(() => {
+    fetch('/api/organizacao/precos')
+      .then((r) => r.json())
+      .then((body) => { if (body.success) setTabelaPreco(body.data) })
+      .catch(() => {})
+  }, [])
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -461,7 +474,7 @@ export default function NovaEntregaPage() {
       <div className="rounded-xl border border-line bg-surface p-5 shadow-xs">
         <h2 className="text-[15px] font-semibold text-fg">Resumo</h2>
         <div className="mt-4 divide-y divide-line text-sm">
-          <DataRow label="Serviço">{tiposServico.find((t) => t.value === tipoServico)?.nome}</DataRow>
+          <DataRow label="Serviço">{tiposServico(tabelaPreco).find((t) => t.value === tipoServico)?.nome}</DataRow>
           <DataRow label="Distância">{rotaCalculada ? formatarDistancia(rotaCalculada.distanciaKm) : '—'}</DataRow>
           <DataRow label="Tempo estimado">{rotaCalculada ? formatarTempo(rotaCalculada.duracaoMinutos) : '—'}</DataRow>
         </div>
@@ -539,7 +552,7 @@ export default function NovaEntregaPage() {
             <Card>
               <CardHeader><CardTitle>Tipo de serviço</CardTitle></CardHeader>
               <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Tipo de serviço">
-                {tiposServico.map((t) => {
+                {tiposServico(tabelaPreco).map((t) => {
                   const ativo = tipoServico === t.value
                   return (
                     <button

@@ -94,7 +94,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         cidade: data.cidade || endereco.cidade,
         estado: data.estado || endereco.estado,
         cep: data.cep || endereco.cep,
-      })
+      }, { organizationId: auth.user.organizationId })
 
       if (geocode) {
         latitude = geocode.latitude

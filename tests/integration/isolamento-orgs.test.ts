@@ -90,6 +90,9 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
     await db.transacaoMotoboy.create({ data: { organizationId: orgB, motoboyId: motoboyB.motoboyId!, pedidoId: entregue.id,
       tipo: 'CREDITO', valor: 10, descricao: SEGREDO_B, status: 'CONCLUIDO' } })
 
+    await db.pricingBairro.create({ data: { organizationId: orgB, bairro: 'segredo b', nome: SEGREDO_B, valor: 77 } })
+    await db.usageCounter.create({ data: { organizationId: orgB, mes: '2099-01', entregas: 4242 } })
+
     // Dados da central A, para as listagens terem conteúdo
     const enderecoA = await db.endereco.create({ data: { organizationId: orgA, clienteId: clienteA.clienteId!, cep: '36000000',
       logradouro: 'Rua A', numero: '1', bairro: 'Centro', cidade: 'Juiz de Fora', estado: 'MG' } })
@@ -121,6 +124,19 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       // Não lê dados de central, mas exige uma central ativa
       logarComo(donoA, { semOrg: true })
       expect((await chamar('rotas', 'POST', { body: {} })).status).toBe(403)
+    },
+    'organizacao/precos': async () => {
+      logarComo(donoA)
+      semDadosDeB(await (await chamar('organizacao/precos', 'GET')).json())
+      const tabela = { precoPorKm: 1, valorMinimo: 0, multiplicadores: { AGENDADA: 1, DOCUMENTOS: 1, EXPRESSA: 1 }, bairros: [] }
+      expect((await chamar('organizacao/precos', 'PUT', { body: tabela })).status).toBe(200)
+      expect(await db.pricingBairro.count({ where: { organizationId: orgB } })).toBe(1)
+    },
+    'organizacao/uso': async () => {
+      logarComo(donoA)
+      const body = await (await chamar('organizacao/uso', 'GET')).json()
+      expect(JSON.stringify(body)).not.toContain('4242')
+      semDadosDeB(body)
     },
     'dashboard': async () => {
       logarComo(donoA)

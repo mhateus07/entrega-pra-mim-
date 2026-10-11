@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next-auth', () => ({ getServerSession: mocks.session, default: vi.fn() }))
 vi.mock('@/lib/prisma', () => {
   const db = {
-    motoboy: { findUnique: mocks.motoboyFind, findFirst: mocks.motoboyFind, updateMany: mocks.motoboyUpdateMany, update: mocks.motoboyUpdate },
+    organization: { findUniqueOrThrow: async () => ({ plano: 'MARCA_PROPRIA', settings: null }) },
+    motoboy: { count: async () => 0, findUnique: mocks.motoboyFind, findFirst: mocks.motoboyFind, updateMany: mocks.motoboyUpdateMany, update: mocks.motoboyUpdate },
     pedido: { findFirst: mocks.pedidoFindFirst },
     idempotencyKey: { create: mocks.idemCreate, findUnique: mocks.idemFind, update: mocks.idemUpdate, deleteMany: mocks.idemDeleteMany },
     auditLog: { create: mocks.auditCreate },

@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma'
 import { requireGestor, notFound, badRequest, serverError } from '@/lib/auth-helpers'
 import { registrarAuditoria } from '@/lib/audit'
 import { OperacaoError } from '@/lib/operacao-error'
+import { verificarLimiteMotoboys } from '@/lib/uso'
 
 const aprovacaoSchema = z.object({
   aprovacao: z.enum(['APROVADO', 'REPROVADO', 'SUSPENSO']),
@@ -26,6 +27,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const motoboy = await prisma.motoboy.findFirst({ where: { id, organizationId: auth.user.organizationId }, select: { aprovacao: true } })
     if (!motoboy) return notFound('Motoboy não encontrado')
+    if (aprovacao === 'APROVADO' && motoboy.aprovacao !== 'APROVADO') {
+      await verificarLimiteMotoboys(auth.user.organizationId, false)
+    }
 
     const updated = await prisma.$transaction(async tx => {
       if (aprovacao !== 'APROVADO') {

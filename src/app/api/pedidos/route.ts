@@ -6,7 +6,9 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { createPedidoSchema } from '@/lib/validations'
 import { calcularRota } from '@/lib/google-maps'
-import { calcularPrecoCompleto, estimarTempo } from '@/lib/pricing'
+import { calcularPrecoComRegra, estimarTempo } from '@/lib/pricing'
+import { carregarRegraPreco } from '@/lib/pricing-org'
+import { registrarEntrega } from '@/lib/uso'
 import { encontrarMelhorMotoboy } from '@/lib/alocacao'
 import { ApiResponse } from '@/types'
 import { requireOrgAccess, serverError, forbidden, applyMapsRateLimit, isGestor, type OrgUser } from '@/lib/auth-helpers'
@@ -205,7 +207,8 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
     if (!limite.success) return limite.response
     const rota = await calcularRota(
       { latitude: enderecoOrigem.latitude, longitude: enderecoOrigem.longitude },
-      { latitude: enderecoDestino.latitude, longitude: enderecoDestino.longitude }
+      { latitude: enderecoDestino.latitude, longitude: enderecoDestino.longitude },
+      { organizationId: user.organizationId }
     )
 
     let distanciaKm: number
@@ -222,11 +225,15 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
       duracaoMinutos = estimarTempo(distanciaKm)
     }
 
-    // Calcular preço
-    const preco = calcularPrecoCompleto(distanciaKm, duracaoMinutos, data.tipoServico)
+    // Preço pela tabela da central; fica congelado no pedido e nunca é recalculado
+    const regra = await carregarRegraPreco(user.organizationId)
+    const preco = { ...calcularPrecoComRegra(regra, distanciaKm, data.tipoServico, enderecoDestino.bairro), tempoEstimado: duracaoMinutos }
 
-    // Criar pedido
-    const pedido = await prisma.pedido.create({
+    // Criar pedido e contar a entrega no mês do plano, na mesma transação
+    let avisoPlano: string | null = null
+    const pedido = await prisma.$transaction(async (tx) => {
+      avisoPlano = await registrarEntrega(tx, user.organizationId)
+      return tx.pedido.create({
       data: {
         organizationId: user.organizationId,
         clienteId: data.clienteId,
@@ -249,6 +256,7 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
         enderecoOrigem: true,
         enderecoDestino: true,
       },
+      })
     })
 
     await registrarAuditoria({
@@ -275,6 +283,7 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
           success: true,
           data: { ...pedido, motoboyRecomendado: melhorMotoboy.motoboyId },
           message: 'Pedido criado com sucesso. Motoboy será notificado.',
+          ...(avisoPlano ? { aviso: avisoPlano } : {}),
         }
         return jsonResponse(response, { status: 201 })
       }
@@ -284,6 +293,7 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
       success: true,
       data: pedido,
       message: 'Pedido criado com sucesso',
+      ...(avisoPlano ? { aviso: avisoPlano } : {}),
     }
 
     return jsonResponse(response, { status: 201 })

@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         cidade: data.cidade,
         estado: data.estado,
         cep: data.cep,
-      })
+      }, { organizationId: auth.user.organizationId })
 
       if (geocode) {
         latitude = geocode.latitude

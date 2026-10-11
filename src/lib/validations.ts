@@ -160,6 +160,21 @@ export const calcularRotaSchema = z.object({
   destinoLatitude: z.number().min(-90).max(90),
   destinoLongitude: z.number().min(-180).max(180),
   tipoServico: z.enum(['EXPRESSA', 'AGENDADA', 'DOCUMENTOS']),
+  // Para aplicar o preço fixo por bairro da central
+  bairroDestino: z.string().max(100).optional(),
+})
+
+// Tabela de preço da central
+const valorMonetario = z.number().min(0).max(100000)
+const multiplicador = z.number().min(0.1).max(10)
+export const tabelaPrecoSchema = z.object({
+  precoPorKm: valorMonetario,
+  valorMinimo: valorMonetario,
+  multiplicadores: z.object({ AGENDADA: multiplicador, DOCUMENTOS: multiplicador, EXPRESSA: multiplicador }),
+  bairros: z.array(z.object({
+    nome: z.string().trim().min(2, 'Informe o nome do bairro').max(100),
+    valor: valorMonetario,
+  })).max(500),
 })
 
 // Schema de login

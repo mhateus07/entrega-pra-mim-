@@ -15,7 +15,8 @@ interface RateLimitEntry {
 
 let redisClient: Redis | null | undefined
 
-function getRedis(): Redis | null {
+/** Cliente Redis compartilhado (null sem REDIS_URL). Também usado pelo cache de cotação. */
+export function getRedis(): Redis | null {
   if (redisClient === undefined) {
     const url = process.env.REDIS_URL
     redisClient = url ? new Redis(url, { maxRetriesPerRequest: 1, enableOfflineQueue: false }) : null

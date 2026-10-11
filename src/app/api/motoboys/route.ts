@@ -9,6 +9,7 @@ import { createMotoboySchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
 import { requireOrgAccess, isGestor, organizacaoPadrao, serverError, applyRateLimit } from '@/lib/auth-helpers'
 import { registrarAuditoria } from '@/lib/audit'
+import { verificarLimiteMotoboys } from '@/lib/uso'
 
 // Mesma resposta para qualquer duplicidade: não revela qual dado já existe
 const CADASTRO_INDISPONIVEL = 'Não foi possível concluir o cadastro: e-mail, CNH ou placa já em uso. Se você já tem conta, faça login.'
@@ -117,6 +118,8 @@ export async function POST(request: NextRequest) {
     // Até a Etapa 3 (convites), o cadastro público entra na central padrão da instalação
     const org = await organizacaoPadrao()
     if (!org) return serverError('Cadastro indisponível')
+    // Pendentes também ocupam vaga do plano
+    await verificarLimiteMotoboys(org.id, true)
 
     // Verificar se email já existe
     const existingUser = await prisma.user.findUnique({

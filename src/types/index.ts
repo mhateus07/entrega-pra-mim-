@@ -48,6 +48,8 @@ export interface ApiResponse<T = unknown> {
   data?: T
   error?: string
   message?: string
+  // Aviso não bloqueante (ex.: central acima do limite de entregas do plano)
+  aviso?: string
 }
 
 // Types para criação de usuário
