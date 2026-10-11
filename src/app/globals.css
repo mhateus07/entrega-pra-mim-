@@ -47,6 +47,21 @@
   --rota: #1f63c1;
   --asfalto: #141413;
 
+  /* Mapa ilustrado (hero): terreno, quadras, prédios, ruas, rio e parque */
+  --mapa-terra: #e7e5de;
+  --mapa-quadra: #efede7;
+  --mapa-predio: #e2dfd7;
+  --mapa-predio-2: #dbd8cf;
+  --mapa-rua: #ffffff;
+  --mapa-avenida: #fbf3ea;
+  --mapa-faixa: #e9c9b0;
+  --mapa-agua: #cfdbe6;
+  --mapa-agua-2: #c2d1df;
+  --mapa-parque: #d8e4cf;
+  --mapa-arvore: #bcd1ad;
+  --mapa-texto: #8b887f;
+  --mapa-frota: #52514e;
+
   /* Gráficos */
   --chart-1: #2a78d6;
   --chart-2: #eb6834;
@@ -103,6 +118,20 @@
   --faixa: #4a4c4d;
   --rota: #6aa5ef;
   --asfalto: #0e0e0d;
+
+  --mapa-terra: #161615;
+  --mapa-quadra: #1c1c1b;
+  --mapa-predio: #232322;
+  --mapa-predio-2: #282826;
+  --mapa-rua: #2c2c2a;
+  --mapa-avenida: #363431;
+  --mapa-faixa: #5a4030;
+  --mapa-agua: #13202c;
+  --mapa-agua-2: #172838;
+  --mapa-parque: #18241b;
+  --mapa-arvore: #1f3324;
+  --mapa-texto: #6c6a63;
+  --mapa-frota: #a8a69c;
 
   --chart-1: #3987e5;
   --chart-2: #d95926;
@@ -325,6 +354,51 @@ body {
   100% { transform: scale(2.4); opacity: 0; }
 }
 
+/* Mapa carregando: cada quadra aparece com atraso pela distância ao centro */
+.mapa-quadra {
+  animation: quadra 0.5s var(--curva-firme) var(--atraso-quadra, 0s) both;
+}
+
+@keyframes quadra {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Câmera do mapa: aproxima, segue a moto e afasta */
+.mapa-camera {
+  transform-origin: 0 0;
+}
+
+/* Radar procurando motoboy em volta da coleta */
+.radar {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: radar 1.6s ease-out infinite;
+}
+
+@keyframes radar {
+  0% { transform: scale(0.2); opacity: 0.6; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* Título do hero: cada linha sobe de dentro de uma máscara */
+.linha-mascara {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+  margin-bottom: -0.06em;
+}
+
+.linha-mascara > span {
+  display: block;
+  transform: translateY(105%);
+  animation: linha-sobe 0.9s var(--curva-firme) var(--atraso, 0s) forwards;
+}
+
+@keyframes linha-sobe {
+  to { transform: none; }
+}
+
 /* Carimbo de "Entregue": cai em cima e assenta */
 .carimbo {
   animation: carimbar 0.42s var(--curva-pouso) both;
@@ -459,5 +533,7 @@ textarea:focus-visible {
   .rota-traco { stroke-dashoffset: 0; }
   .pouso, .regua { transform: none; }
   .chega { opacity: 1; transform: none; }
+  .linha-mascara > span { transform: none; }
+  .mapa-quadra { opacity: 1; }
   .faixa-colete[data-reflexo]::after { display: none; }
 }

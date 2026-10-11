@@ -82,10 +82,17 @@ export default function HomePage() {
           <div>
             <p className="chega rotulo text-fg-3">Sistema para centrais de motofrete</p>
             <h1 className="titulo-display mt-5 text-[52px] sm:text-[76px] lg:text-[84px]">
-              <span className="chega block" style={{ '--atraso': '0.08s' } as React.CSSProperties}>Despacha.</span>
-              <span className="chega block" style={{ '--atraso': '0.2s' } as React.CSSProperties}>Rastreia.</span>
-              <span className="chega block text-brand-mark" style={{ '--atraso': '0.32s' } as React.CSSProperties}>Fecha o dia.</span>
+              <span className="linha-mascara"><span style={{ '--atraso': '0.1s' } as React.CSSProperties}>Despacha.</span></span>
+              <span className="linha-mascara"><span style={{ '--atraso': '0.22s' } as React.CSSProperties}>Rastreia.</span></span>
+              <span className="linha-mascara"><span className="text-brand-mark" style={{ '--atraso': '0.34s' } as React.CSSProperties}>Fecha o dia.</span></span>
             </h1>
+            {/* A rota da marca se desenha sob a assinatura: coleta → entregue */}
+            <svg viewBox="0 0 420 34" className="mt-3 h-6 w-[min(100%,420px)] overflow-visible sm:h-8" aria-hidden="true" data-visivel="true"
+              style={{ '--duracao-rota': '1.1s', '--atraso-rota': '0.75s', '--atraso-pouso': '1.75s' } as React.CSSProperties}>
+              <path d="M14 22 H170 L194 8 H392" pathLength={1} className="rota-traco" fill="none" stroke="var(--fg)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="14" cy="22" r="8" fill="var(--page)" stroke="var(--fg)" strokeWidth="4.5" className="chega" style={{ '--atraso': '0.7s' } as React.CSSProperties} />
+              <circle cx="402" cy="8" r="9" fill="var(--brand-mark)" className="pouso" />
+            </svg>
             <p className="chega mt-7 max-w-lg text-lg leading-relaxed text-fg-2" style={{ '--atraso': '0.45s' } as React.CSSProperties}>
               Sua central num sistema só, com a sua marca e preço fixo. <span className="font-semibold text-fg">Sem comissão por corrida.</span> A frota e os clientes continuam sendo seus.
             </p>

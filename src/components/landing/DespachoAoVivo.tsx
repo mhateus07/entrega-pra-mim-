@@ -1,20 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/utils/cn'
 import ContagemOferta from '@/components/brand/ContagemOferta'
+import { BASE_MOTOBOY, COLETA, CidadeBase, DESTINO, Frota, JANELA, ROTA, ROTA_ATE_COLETA, camera } from './MapaCidade'
 
-// Uma corrida de verdade, do início ao fim, em loop: é o que a central vê no painel.
-// Rota pelas ruas do mapa estilizado: anel = coleta (Centro), ponto = entrega (São Mateus).
-const ROTA = 'M44 196 H150 V128 H262 V56 H330'
+// Uma corrida de verdade, do início ao fim, em loop — é o que a central vê no painel.
+// A câmera abre na cidade, procura o motoboy, aproxima na coleta, segue a moto e afasta.
 const FASES = [
+  { id: 'busca', ms: 2200 },
   { id: 'oferta', ms: 2600 },
-  { id: 'aceito', ms: 1500 },
-  { id: 'coletado', ms: 1300 },
-  { id: 'entrega', ms: 3400 },
-  { id: 'entregue', ms: 3000 },
+  { id: 'aceito', ms: 1900 },
+  { id: 'coletado', ms: 1200 },
+  { id: 'entrega', ms: 4800 },
+  { id: 'entregue', ms: 3200 },
 ] as const
 type Fase = (typeof FASES)[number]['id']
+const DURACAO_ENTREGA = 4.6
 
 const LINHA_DO_TEMPO: { fase: Fase; texto: string; hora: string }[] = [
   { fase: 'aceito', texto: 'Diego aceitou', hora: '14:02' },
@@ -24,37 +26,83 @@ const LINHA_DO_TEMPO: { fase: Fase; texto: string; hora: string }[] = [
 ]
 
 const STATUS: Record<Fase, { texto: string; cls: string }> = {
+  busca: { texto: 'Procurando motoboy', cls: 'bg-warning-soft text-warning' },
   oferta: { texto: 'Oferecido a Diego', cls: 'bg-warning-soft text-warning' },
-  aceito: { texto: 'Aceito', cls: 'bg-info-soft text-info' },
+  aceito: { texto: 'Indo para a coleta', cls: 'bg-info-soft text-info' },
   coletado: { texto: 'Coletado', cls: 'bg-info-soft text-info' },
   entrega: { texto: 'Em entrega', cls: 'bg-brand-soft text-brand' },
   entregue: { texto: 'Entregue', cls: 'bg-success-soft text-success' },
 }
 
-function MapaRuas() {
-  // Quarteirões no tom do papel, ruas brancas (como o mockup do rastreio)
-  const colunas = [0, 70, 120, 180, 230, 290, 340]
-  const linhas = [0, 70, 110, 150, 210]
+// Câmera fixa por fase; na entrega ela segue a moto quadro a quadro
+const ZOOM_SEGUIR = 1.05
+const CAMERA: Record<Fase, ReturnType<typeof camera>> = {
+  busca: camera(null, 0),
+  oferta: camera({ x: COLETA.x + 40, y: (COLETA.y + BASE_MOTOBOY.y) / 2 }, 0.95),
+  aceito: camera({ x: COLETA.x + 40, y: (COLETA.y + BASE_MOTOBOY.y) / 2 }, 0.95),
+  coletado: camera(COLETA, ZOOM_SEGUIR),
+  entrega: camera(COLETA, ZOOM_SEGUIR),
+  entregue: camera({ x: DESTINO.x - 50, y: DESTINO.y - 40 }, 1.1),
+}
+
+const suave = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+
+/** Posição ao longo de um <path> durante `ms`, animada com requestAnimationFrame. */
+function usePercurso(ref: React.RefObject<SVGPathElement | null>, ativo: boolean, ms: number) {
+  const [estado, setEstado] = useState<{ p: number; x: number; y: number } | null>(null)
+  useEffect(() => {
+    const path = ref.current
+    if (!ativo || !path) return
+    const total = path.getTotalLength()
+    let quadro = 0
+    const inicio = performance.now()
+    const passo = (agora: number) => {
+      const p = suave(Math.min(1, (agora - inicio) / ms))
+      const pt = path.getPointAtLength(p * total)
+      setEstado({ p, x: pt.x, y: pt.y })
+      if (p < 1) quadro = requestAnimationFrame(passo)
+    }
+    quadro = requestAnimationFrame(passo)
+    return () => { cancelAnimationFrame(quadro); setEstado(null) }
+  }, [ref, ativo, ms])
+  return estado
+}
+
+function Moto({ destaque, eta }: { destaque?: boolean; eta?: number | null }) {
   return (
-    <g>
-      <rect width="380" height="240" fill="var(--surface)" />
-      {linhas.slice(0, -1).map((y, i) => colunas.slice(0, -1).map((x, j) => (
-        <rect key={`${i}-${j}`} x={x + 8} y={y + 8} width={colunas[j + 1] - x - 16} height={linhas[i + 1] - y - 16} rx="3" fill="var(--surface-2)" />
-      )))}
+    <>
+      <circle r="13" fill="var(--brand-mark)" className="gps-pulso" />
+      <circle r="8.5" fill={destaque ? 'var(--brand-mark)' : 'var(--mapa-frota)'} stroke="#fff" strokeWidth="3.5" />
+      {eta != null && (
+        <g transform="translate(14 -26)">
+          <rect width="48" height="20" rx="6" fill="#141413" />
+          <text x="24" y="14" textAnchor="middle" fill="#fff" fontSize="11" fontWeight="600" style={{ fontFamily: 'var(--font-plex-mono), monospace' }}>{eta} min</text>
+        </g>
+      )}
+    </>
+  )
+}
+
+function Etiqueta({ x, y, texto, escura }: { x: number; y: number; texto: string; escura?: boolean }) {
+  const largura = texto.length * 6.2 + 16
+  return (
+    <g transform={`translate(${x - largura / 2} ${y})`}>
+      <rect width={largura} height="19" rx="5" fill={escura ? '#141413' : 'var(--surface)'} stroke={escura ? 'none' : 'var(--border-strong)'} />
+      <text x={largura / 2} y="13" textAnchor="middle" fontSize="10" fontWeight="700" fill={escura ? '#fff' : 'var(--fg)'}>{texto}</text>
     </g>
   )
 }
 
 export default function DespachoAoVivo() {
-  const [indice, setIndice] = useState(3)
+  const [indice, setIndice] = useState(4)
   const [volta, setVolta] = useState(0)
   const [segundos, setSegundos] = useState(90)
   const [animar, setAnimar] = useState(false)
 
   useEffect(() => {
-    // Sem animação para quem pediu menos movimento: fica no "em entrega"
+    // Sem animação para quem pediu menos movimento: fica no "em entrega", parado
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const inicio = setTimeout(() => { setAnimar(true); setIndice(0) }, 400)
+    const inicio = setTimeout(() => { setAnimar(true); setIndice(0) }, 900)
     return () => clearTimeout(inicio)
   }, [])
 
@@ -66,18 +114,38 @@ export default function DespachoAoVivo() {
     return () => clearTimeout(timer)
   }, [animar, indice])
 
-  // Contagem da oferta correndo enquanto ninguém aceitou
-  useEffect(() => {
-    if (!animar || FASES[indice].id !== 'oferta') return
-    const timer = setInterval(() => setSegundos((s) => Math.max(0, s - 1)), 600)
-    return () => clearInterval(timer)
-  }, [animar, indice])
-
   const fase = FASES[indice].id
+
+  // Contagem da oferta e minutos restantes da entrega
+  useEffect(() => {
+    if (!animar) return
+    if (fase === 'oferta') {
+      const t = setInterval(() => setSegundos((s) => Math.max(0, s - 1)), 450)
+      return () => clearInterval(t)
+    }
+  }, [animar, fase])
+
   const ordem = (f: Fase) => FASES.findIndex((x) => x.id === f)
+  const passou = (f: Fase) => indice >= ordem(f)
   const andando = fase === 'entrega'
   const chegou = fase === 'entregue'
-  const progresso = chegou ? 1 : andando ? 1 : 0
+
+  const rotaRef = useRef<SVGPathElement>(null)
+  const ateColetaRef = useRef<SVGPathElement>(null)
+  const indo = usePercurso(ateColetaRef, animar && fase === 'aceito', 1600)
+  const entregando = usePercurso(rotaRef, animar && andando, DURACAO_ENTREGA * 1000)
+
+  // Onde o Diego está agora
+  const diego = andando
+    ? (entregando ?? (animar ? COLETA : { x: 300, y: 260 }))
+    : fase === 'aceito' ? (indo ?? BASE_MOTOBOY)
+      : passou('coletado') ? COLETA : BASE_MOTOBOY
+  const progresso = chegou ? 1 : andando ? (entregando?.p ?? (animar ? 0 : 0.55)) : 0
+  const eta = Math.max(1, Math.ceil(9 * (1 - progresso)))
+
+  const seguindo = andando && entregando
+  const cam = seguindo ? camera(entregando, ZOOM_SEGUIR) : CAMERA[animar ? fase : 'entrega']
+  const transicaoCamera = seguindo ? 'none' : 'transform 1.2s cubic-bezier(0.65, 0, 0.25, 1)'
 
   return (
     <div className="relative">
@@ -93,39 +161,64 @@ export default function DespachoAoVivo() {
           <span className="font-mono text-xs text-fg-3">6 online</span>
         </div>
 
-        {/* Mapa com a rota */}
-        <div className="relative aspect-[380/240] bg-surface-2">
-          <svg key={volta} viewBox="0 0 380 240" className="absolute inset-0 h-full w-full" aria-hidden="true">
-            <MapaRuas />
-            <path d={ROTA} fill="none" stroke="var(--border-strong)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="0.5 12" />
-            <path
-              d={ROTA} pathLength={1} fill="none" stroke="var(--brand-mark)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"
-              strokeDasharray="1" strokeDashoffset={1 - progresso}
-              style={{ transition: andando ? 'stroke-dashoffset 3.2s cubic-bezier(0.45, 0, 0.2, 1)' : 'none' }}
-            />
-            <circle cx="44" cy="196" r="10" fill="var(--surface)" stroke="var(--fg)" strokeWidth="6" />
-            <circle cx="330" cy="56" r="13" fill={chegou ? 'var(--brand-mark)' : 'var(--fg)'} style={{ transition: 'fill 0.2s' }} />
-            {chegou && <path d="M323 56 l5 5 l9 -10" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="carimbo-check" />}
-            {/* Moto: parada na coleta até sair; depois percorre as ruas até a entrega */}
-            {ordem(fase) >= ordem('aceito') && !chegou && (
-              <g key={`moto-${fase}`}>
-                <g transform={andando ? undefined : 'translate(44 196)'}>
-                  {andando && (
-                    <animateMotion dur="3.2s" fill="freeze" path={ROTA} calcMode="spline" keyPoints="0;1" keyTimes="0;1" keySplines="0.45 0 0.2 1" />
-                  )}
-                  <circle r="9" fill="var(--brand-mark)" className="gps-pulso" />
-                  <circle r="8" fill="var(--brand-mark)" stroke="#fff" strokeWidth="3.5" />
-                </g>
-              </g>
-            )}
-          </svg>
+        {/* Mapa da cidade com câmera */}
+        <div className="relative aspect-[380/240] overflow-hidden bg-[var(--mapa-terra)]">
+          <svg viewBox={`0 0 ${JANELA.w} ${JANELA.h}`} className="absolute inset-0 h-full w-full" aria-hidden="true">
+            <g className="mapa-camera" style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.s})`, transition: transicaoCamera }}>
+              <CidadeBase animarCarga />
+              <Frota animar={animar} />
 
-          {chegou && (
-            <div className="carimbo absolute right-[6%] top-[38%] rotate-[-7deg] rounded-md border-[3px] border-success px-2.5 py-1 text-success">
-              <p className="rotulo leading-none">Entregue</p>
-              <p className="font-mono text-[11px] leading-tight">14:21 · com foto</p>
-            </div>
-          )}
+              {/* Rota planejada (pontilhada) e o trecho já percorrido */}
+              {passou('oferta') && (
+                <path d={ROTA} fill="none" stroke="var(--fg-3)" strokeOpacity="0.55" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="0.5 11" />
+              )}
+              <path ref={rotaRef} d={ROTA} fill="none" stroke="none" />
+              <path ref={ateColetaRef} d={ROTA_ATE_COLETA} fill="none" stroke="none" />
+              <path
+                d={ROTA} pathLength={1} fill="none" stroke="var(--brand-mark)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"
+                strokeDasharray="1" strokeDashoffset={1 - progresso}
+              />
+
+              {/* Oferta: linha do motoboy escolhido até a coleta */}
+              {fase === 'oferta' && (
+                <path d={ROTA_ATE_COLETA} fill="none" stroke="var(--brand-mark)" strokeWidth="2.5" strokeDasharray="5 5" />
+              )}
+
+              {/* Radar procurando motoboy em volta da coleta */}
+              {fase === 'busca' && animar && (
+                <g>
+                  <circle cx={COLETA.x} cy={COLETA.y} r="120" fill="none" stroke="var(--brand-mark)" strokeWidth="2" className="radar" />
+                  <circle cx={COLETA.x} cy={COLETA.y} r="120" fill="none" stroke="var(--brand-mark)" strokeWidth="2" className="radar" style={{ animationDelay: '0.8s' }} />
+                </g>
+              )}
+
+              {/* Coleta e entrega */}
+              <circle cx={COLETA.x} cy={COLETA.y} r="9" fill="var(--surface)" stroke="var(--fg)" strokeWidth="5" />
+              {!passou('entrega') && <Etiqueta x={COLETA.x} y={COLETA.y - 34} texto="Farmácia Central" />}
+              <circle cx={DESTINO.x} cy={DESTINO.y} r="11" fill={chegou ? 'var(--brand-mark)' : 'var(--fg)'} style={{ transition: 'fill 0.25s' }} />
+              {chegou
+                ? <path key={`check-${volta}`} d={`M${DESTINO.x - 5} ${DESTINO.y} l4 4 l7 -8`} fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="carimbo-check" />
+                : <Etiqueta x={DESTINO.x} y={DESTINO.y - 36} texto="Destino" escura />}
+
+              {/* Diego: posição calculada a cada quadro (até a coleta e depois pela rota) */}
+              {!chegou && (
+                <g transform={`translate(${diego.x} ${diego.y})`}>
+                  <Moto destaque={passou('oferta')} eta={andando ? eta : null} />
+                </g>
+              )}
+
+              {/* Carimbo de entregue, ao lado do destino */}
+              {chegou && (
+                <g key={`carimbo-${volta}`} transform={`translate(${DESTINO.x - 150} ${DESTINO.y - 78})`}>
+                  <g className="carimbo" style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>
+                    <rect width="118" height="40" rx="6" fill="var(--surface)" fillOpacity="0.92" stroke="var(--success)" strokeWidth="3" />
+                    <text x="12" y="17" fill="var(--success)" fontSize="12" fontWeight="800" letterSpacing="0.1em" style={{ fontStretch: '80%' }}>ENTREGUE</text>
+                    <text x="12" y="31" fill="var(--success)" fontSize="9.5" style={{ fontFamily: 'var(--font-plex-mono), monospace' }}>14:21 · com foto</text>
+                  </g>
+                </g>
+              )}
+            </g>
+          </svg>
         </div>
 
         {/* Corrida */}
@@ -151,7 +244,9 @@ export default function DespachoAoVivo() {
               <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
               {STATUS[fase].texto}
             </span>
-            {fase === 'oferta' ? <ContagemOferta segundos={segundos} /> : (
+            {fase === 'oferta' ? <ContagemOferta segundos={segundos} /> : fase === 'busca' ? (
+              <span className="font-mono text-[12px] text-fg-3">6 motoboys num raio de 3 km</span>
+            ) : (
               <span className="flex items-center gap-2 text-[13px] text-fg-2">
                 Diego <span className="placa scale-90"><b>JF</b><span className="!text-[12px]">RTA-4E21</span></span>
               </span>
@@ -160,7 +255,7 @@ export default function DespachoAoVivo() {
 
           <ol className="space-y-1.5 border-t border-line pt-3 text-[13px]">
             {LINHA_DO_TEMPO.map((l) => {
-              const feito = ordem(fase) >= ordem(l.fase)
+              const feito = passou(l.fase)
               return (
                 <li key={l.fase} className="flex items-center justify-between">
                   <span className={cn('flex items-center gap-2 transition-colors duration-300', feito ? 'text-fg' : 'text-fg-3')}>

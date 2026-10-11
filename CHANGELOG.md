@@ -8,6 +8,33 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Entrada da landing com mapa de cidade (2026-10-11)
+
+**Na prática**
+- O painel ao vivo do topo virou uma cidade de verdade, inspirada no centro de Juiz de Fora:
+  - Av. Barão do Rio Branco, Av. Getúlio Vargas, Rua Halfeld, Parque Halfeld com árvores, Rio Paraibuna com pontes e o bairro São Mateus;
+  - quadras com prédios, que aparecem do centro para fora quando a página abre;
+  - outros motoboys online circulando pelas ruas.
+- A corrida agora tem câmera:
+  - abre mostrando a cidade inteira com o radar procurando motoboy;
+  - aproxima na oferta e no aceite;
+  - segue a moto pela rota com o tempo restante ao lado;
+  - termina no destino com o carimbo de "Entregue".
+- O título entra linha a linha e "Fecha o dia." ganha uma rota desenhada embaixo.
+- Quem pede menos movimento no sistema vê o painel parado, no meio da entrega.
+
+**Técnico**
+- `src/components/landing/MapaCidade.tsx`:
+  - mundo 760×480 visto por uma janela 380×240;
+  - exporta `CidadeBase` (memo), `Frota`, `camera()` e as coordenadas da rota.
+- Prédios e árvores usam um gerador pseudoaleatório só com aritmética inteira (mulberry32), com coordenadas arredondadas. O `Math.sin` dava valores diferentes entre Node e Chrome e quebrava a hidratação.
+- `DespachoAoVivo.tsx`:
+  - a moto e a câmera passaram a usar `requestAnimationFrame` + `getPointAtLength` (hook `usePercurso`);
+  - o motivo: `animateMotion` conta o tempo desde a abertura do documento e, inserido depois, pulava direto para o fim.
+- `globals.css`:
+  - variáveis `--mapa-*` nos temas claro e escuro;
+  - classes `.mapa-quadra`, `.mapa-camera`, `.radar` e `.linha-mascara`, com fallback para movimento reduzido.
+
 ### Identidade visual aplicada no site (2026-10-11)
 
 **Na prática**
