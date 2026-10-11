@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
-import { requireAdmin, serverError } from '@/lib/auth-helpers'
+import { requireGestor, serverError } from '@/lib/auth-helpers'
 import { jsonResponse } from '@/lib/json-response'
 import { LABELS_STATUS_PEDIDO, LABELS_TIPO_SERVICO } from '@/utils/helpers'
 import { LABELS_METODO_PAGAMENTO } from '@/lib/pagamentos'
@@ -20,8 +20,9 @@ function variacao(atual: number, anterior: number) {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin()
+  const auth = await requireGestor()
   if (!auth.authenticated) return auth.response
+  const org = auth.user.organizationId
   try {
     const diasParam = Number(request.nextUrl.searchParams.get('dias'))
     const dias = (PERIODOS as readonly number[]).includes(diasParam) ? diasParam : 30
@@ -35,29 +36,30 @@ export async function GET(request: NextRequest) {
 
     const [criados, entregues, pagamentos, emAndamento, atrasados, frota, pagamentosPendentes, recentes] = await Promise.all([
       prisma.pedido.findMany({
-        where: { createdAt: { gte: inicioAnterior } },
+        where: { organizationId: org, createdAt: { gte: inicioAnterior } },
         select: {
           createdAt: true, status: true, tipoServico: true, valorTotal: true, clienteId: true,
           enderecoDestino: { select: { bairro: true } },
         },
       }),
       prisma.pedido.findMany({
-        where: { status: 'ENTREGUE', entregueEm: { gte: inicioAnterior } },
+        where: { organizationId: org, status: 'ENTREGUE', entregueEm: { gte: inicioAnterior } },
         select: { createdAt: true, entregueEm: true, tipoServico: true, motoboyId: true, valorTotal: true },
       }),
       prisma.pagamento.findMany({
-        where: { status: 'APROVADO', aprovadoEm: { gte: inicioAnterior } },
+        where: { organizationId: org, status: 'APROVADO', aprovadoEm: { gte: inicioAnterior } },
         select: { valor: true, taxaPlataforma: true, metodo: true, aprovadoEm: true, clienteId: true },
       }),
       prisma.pedido.groupBy({
         by: ['status'],
-        where: { status: { in: ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA'] } },
+        where: { organizationId: org, status: { in: ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA'] } },
         _count: { _all: true },
       }),
-      prisma.pedido.count({ where: { status: 'SOLICITADO', createdAt: { lt: limiteAtraso } } }),
-      prisma.motoboy.groupBy({ by: ['status'], _count: { _all: true } }),
-      prisma.pagamento.count({ where: { status: { in: ['PENDENTE', 'PROCESSANDO'] } } }),
+      prisma.pedido.count({ where: { organizationId: org, status: 'SOLICITADO', createdAt: { lt: limiteAtraso } } }),
+      prisma.motoboy.groupBy({ by: ['status'], where: { organizationId: org }, _count: { _all: true } }),
+      prisma.pagamento.count({ where: { organizationId: org, status: { in: ['PENDENTE', 'PROCESSANDO'] } } }),
       prisma.pedido.findMany({
+        where: { organizationId: org },
         take: 8,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: {
@@ -174,11 +176,11 @@ export async function GET(request: NextRequest) {
     const topClientesIds = [...porCliente.entries()].sort((a, b) => b[1].valor - a[1].valor).slice(0, 5)
     const [motoboys, clientes] = await Promise.all([
       prisma.motoboy.findMany({
-        where: { id: { in: topEntregadoresIds.map(([id]) => id) } },
+        where: { organizationId: org, id: { in: topEntregadoresIds.map(([id]) => id) } },
         select: { id: true, avaliacaoMedia: true, status: true, user: { select: { nome: true } } },
       }),
       prisma.cliente.findMany({
-        where: { id: { in: topClientesIds.map(([id]) => id) } },
+        where: { organizationId: org, id: { in: topClientesIds.map(([id]) => id) } },
         select: { id: true, razaoSocial: true, user: { select: { nome: true } } },
       }),
     ])

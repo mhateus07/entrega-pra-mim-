@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updatePedidoStatusSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireAuth, requirePedidoAccess, notFound, serverError, badRequest } from '@/lib/auth-helpers'
+import { requireOrgAccess, requirePedidoAccess, isGestor, notFound, serverError, badRequest } from '@/lib/auth-helpers'
 
 import { alterarStatusPedido } from '@/lib/pedido-status'
 import { OperacaoError } from '@/lib/operacao-error'
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!auth.authenticated) return auth.response
 
     // E-mail do cliente só para o admin
-    const data = auth.user.role === 'ADMIN'
+    const data = isGestor(auth.user)
       ? pedido
       : { ...pedido, cliente: { ...pedido.cliente, user: { nome: pedido.cliente.user.nome, telefone: pedido.cliente.user.telefone } } }
     const response: ApiResponse<typeof data> = {
@@ -80,14 +80,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 // PATCH e DELETE compartilham autorização, transação e regras de cancelamento.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
     const validation = updatePedidoStatusSchema.safeParse(await request.json().catch(() => null))
     if (!validation.success) return badRequest('Dados inválidos')
     const { id } = await params
     const updated = await alterarStatusPedido(id, auth.user, validation.data)
     await registrarAuditoria({
-      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request,
       dados: { para: updated.status, ...(updated.motoboyId ? { motoboyId: updated.motoboyId } : {}) },
     })
     return jsonResponse({ success: true, data: updated, message: 'Pedido atualizado com sucesso' })
@@ -100,7 +100,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
     const body = await request.json().catch(() => ({}))
     const validation = updatePedidoStatusSchema.safeParse({
@@ -110,7 +110,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { id } = await params
     const updated = await alterarStatusPedido(id, auth.user, validation.data)
     await registrarAuditoria({
-      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+      acao: 'pedido.status', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request,
       dados: { para: 'CANCELADO', motivo: updated.motivoCancelamento },
     })
     return jsonResponse({ success: true, data: updated, message: 'Pedido cancelado com sucesso' })

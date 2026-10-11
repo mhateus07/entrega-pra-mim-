@@ -57,12 +57,12 @@ export async function liberarCreditoEntrega(tx: Prisma.TransactionClient, pedido
   }
 
   await tx.transacaoMotoboy.create({
-    data: { motoboyId: pedido.motoboyId, pedidoId, tipo: 'CREDITO', valor,
+    data: { organizationId: pedido.organizationId, motoboyId: pedido.motoboyId, pedidoId, tipo: 'CREDITO', valor,
       descricao: `Entrega #${pedidoId.slice(0, 8)}`, status: 'CONCLUIDO' },
   })
   await tx.saldoMotoboy.upsert({
     where: { motoboyId: pedido.motoboyId },
-    create: { motoboyId: pedido.motoboyId, saldoDisponivel: valor, totalRecebido: valor },
+    create: { organizationId: pedido.organizationId, motoboyId: pedido.motoboyId, saldoDisponivel: valor, totalRecebido: valor },
     update: { saldoDisponivel: { increment: valor }, totalRecebido: { increment: valor } },
   })
 }

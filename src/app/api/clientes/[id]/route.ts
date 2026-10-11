@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
 import { updateClienteSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireClienteOwnership, notFound, serverError, requireAdmin } from '@/lib/auth-helpers'
+import { requireClienteOwnership, notFound, serverError, requireOwner } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -102,6 +102,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (data.cpfCnpj && data.cpfCnpj !== cliente.cpfCnpj) {
       const existingDoc = await prisma.cliente.findFirst({
         where: {
+          organizationId: auth.user.organizationId,
           cpfCnpj: data.cpfCnpj,
           NOT: { id },
         },
@@ -125,8 +126,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (data.tipoPessoa) updateClienteData.tipoPessoa = data.tipoPessoa
     if (data.razaoSocial !== undefined) updateClienteData.razaoSocial = data.razaoSocial
 
-    const result = await prisma.// eslint-disable-next-line @typescript-eslint/no-explicit-any
-$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx) => {
       if (Object.keys(updateUserData).length > 0) {
         await tx.user.update({
           where: { id: cliente.userId },
@@ -164,31 +164,41 @@ $transaction(async (tx: any) => {
   }
 }
 
-// DELETE /api/clientes/[id] - Deletar cliente (apenas admin)
+// DELETE /api/clientes/[id] - Remover cliente da central (apenas o dono)
+// Remove o perfil e o vínculo nesta central; a conta só é apagada se o usuário
+// não pertencer a nenhuma outra central.
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params
 
-    // Apenas admin pode deletar clientes
-    const auth = await requireAdmin()
+    const auth = await requireOwner()
     if (!auth.authenticated) return auth.response
 
-    const cliente = await prisma.cliente.findUnique({
-      where: { id },
+    const cliente = await prisma.cliente.findFirst({
+      where: { id, organizationId: auth.user.organizationId },
+      select: { id: true, userId: true, _count: { select: { pedidos: true } } },
     })
 
     if (!cliente) {
       return notFound('Cliente não encontrado')
     }
+    if (cliente._count.pedidos > 0) {
+      return jsonResponse(
+        { success: false, error: 'Cliente com pedidos registrados não pode ser removido' },
+        { status: 409 }
+      )
+    }
 
-    // Deletar em cascata (usuário -> cliente -> endereços)
-    await prisma.user.delete({
-      where: { id: cliente.userId },
+    await prisma.$transaction(async (tx) => {
+      await tx.cliente.delete({ where: { id } })
+      await tx.organizationMember.deleteMany({ where: { organizationId: auth.user.organizationId, userId: cliente.userId } })
+      const restantes = await tx.organizationMember.count({ where: { userId: cliente.userId } })
+      if (restantes === 0) await tx.user.delete({ where: { id: cliente.userId } })
     })
 
     return jsonResponse({
       success: true,
-      message: 'Cliente deletado com sucesso',
+      message: 'Cliente removido da central',
     })
   } catch (error) {
     console.error('Erro ao deletar cliente:', error)

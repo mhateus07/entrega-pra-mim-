@@ -7,7 +7,7 @@ import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { createMotoboySchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireAuth, serverError, applyRateLimit } from '@/lib/auth-helpers'
+import { requireOrgAccess, isGestor, organizacaoPadrao, serverError, applyRateLimit } from '@/lib/auth-helpers'
 import { registrarAuditoria } from '@/lib/audit'
 
 // Mesma resposta para qualquer duplicidade: não revela qual dado já existe
@@ -16,8 +16,7 @@ const CADASTRO_INDISPONIVEL = 'Não foi possível concluir o cadastro: e-mail, C
 // GET /api/motoboys - Listar motoboys (autenticado)
 export async function GET(request: NextRequest) {
   try {
-    // Requer autenticação para listar motoboys
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
@@ -27,10 +26,13 @@ export async function GET(request: NextRequest) {
     const aprovacao = enumFilter(searchParams.get('aprovacao'), ['PENDENTE_APROVACAO', 'APROVADO', 'REPROVADO', 'SUSPENSO'] as const)
 
     // Para não-admins, limitar informações retornadas
-    const isAdmin = auth.user.role === 'ADMIN'
+    const isAdmin = isGestor(auth.user)
+    const organizationId = auth.user.organizationId
 
-    // Fora do admin, só aparecem motoboys aprovados
-    const where: Prisma.MotoboyWhereInput = isAdmin ? (aprovacao ? { aprovacao } : {}) : { aprovacao: 'APROVADO' }
+    // Fora da gestão da central, só aparecem motoboys aprovados
+    const where: Prisma.MotoboyWhereInput = isAdmin
+      ? { organizationId, ...(aprovacao ? { aprovacao } : {}) }
+      : { organizationId, aprovacao: 'APROVADO' }
 
     if (status) {
       where.status = status
@@ -66,11 +68,11 @@ export async function GET(request: NextRequest) {
     })
 
     const counts = await prisma.motoboy.groupBy({
-      by: ['status'], _count: { _all: true }, ...(isAdmin ? {} : { where: { aprovacao: 'APROVADO' } }),
+      by: ['status'], _count: { _all: true }, where: isAdmin ? { organizationId } : { organizationId, aprovacao: 'APROVADO' },
     })
     const summary: Record<string, number> = Object.fromEntries(counts.map(g => [g.status, g._count._all]))
     // Admin recebe também a fila de cadastros aguardando aprovação
-    if (isAdmin) summary.PENDENTE_APROVACAO = await prisma.motoboy.count({ where: { aprovacao: 'PENDENTE_APROVACAO' } })
+    if (isAdmin) summary.PENDENTE_APROVACAO = await prisma.motoboy.count({ where: { organizationId, aprovacao: 'PENDENTE_APROVACAO' } })
     const total = await prisma.motoboy.count({ where })
     const response = {
       summary,
@@ -112,6 +114,10 @@ export async function POST(request: NextRequest) {
 
     const data = validation.data
 
+    // Até a Etapa 3 (convites), o cadastro público entra na central padrão da instalação
+    const org = await organizacaoPadrao()
+    if (!org) return serverError('Cadastro indisponível')
+
     // Verificar se email já existe
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
@@ -126,7 +132,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar se CNH já existe
     const existingCNH = await prisma.motoboy.findUnique({
-      where: { cnh: data.cnh },
+      where: { organizationId_cnh: { organizationId: org.id, cnh: data.cnh } },
     })
 
     if (existingCNH) {
@@ -138,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar se placa já existe
     const existingPlaca = await prisma.motoboy.findUnique({
-      where: { veiculoPlaca: data.veiculoPlaca.toUpperCase() },
+      where: { organizationId_veiculoPlaca: { organizationId: org.id, veiculoPlaca: data.veiculoPlaca.toUpperCase() } },
     })
 
     if (existingPlaca) {
@@ -152,8 +158,7 @@ export async function POST(request: NextRequest) {
     const senhaHash = await bcrypt.hash(data.senha, 10)
 
     // Criar usuário e motoboy em transação
-    const result = await prisma.// eslint-disable-next-line @typescript-eslint/no-explicit-any
-$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           email: data.email,
@@ -161,11 +166,13 @@ $transaction(async (tx: any) => {
           nome: data.nome,
           telefone: data.telefone,
           role: 'MOTOBOY',
+          memberships: { create: { organizationId: org.id, papel: 'DRIVER' } },
         },
       })
 
       const motoboy = await tx.motoboy.create({
         data: {
+          organizationId: org.id,
           userId: user.id,
           cnh: data.cnh,
           veiculoTipo: data.veiculoTipo,
@@ -191,7 +198,7 @@ $transaction(async (tx: any) => {
 
     await registrarAuditoria({
       acao: 'motoboy.cadastro', entidade: 'Motoboy', entidadeId: result.id,
-      userId: result.userId, request,
+      userId: result.userId, organizationId: org.id, request,
     })
 
     const response: ApiResponse<typeof result> = {

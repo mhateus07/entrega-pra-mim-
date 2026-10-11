@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PrismaClient } from '@prisma/client'
-import type { AuthenticatedUser } from '@/lib/auth-helpers'
-import { randomUUID } from 'node:crypto'
+import type { OrgUser } from '@/lib/auth-helpers'
+import { criarOrg, criarUsuario, removerOrg } from './fixtures'
 
 // Os testes criam somente fixtures próprias, nunca limpam tabelas existentes.
 const testUrl = process.env.TEST_DATABASE_URL
@@ -16,13 +16,13 @@ suite('MySQL: transações, autorização e concorrência', () => {
   let pagar: typeof import('@/lib/payment-operations').executarAcaoPagamento
   let bloquear: typeof import('@/lib/pedido-transaction').comPedidoBloqueado
   let liberar: typeof import('@/lib/pedido-transaction').liberarCreditoEntrega
-  let cliente: AuthenticatedUser
-  let driver: AuthenticatedUser
-  let otherDriver: AuthenticatedUser
+  let orgId: string
+  let cliente: OrgUser
+  let driver: OrgUser
+  let otherDriver: OrgUser
   let origemId: string
   let destinoId: string
   const pedidos: string[] = []
-  const users: string[] = []
 
   beforeAll(async () => {
     process.env.DATABASE_URL = testUrl!
@@ -33,25 +33,13 @@ suite('MySQL: transações, autorização e concorrência', () => {
     const transactions = await import('@/lib/pedido-transaction')
     bloquear = transactions.comPedidoBloqueado
     liberar = transactions.liberarCreditoEntrega
-    const user = await db.user.create({ data: {
-      nome: 'Teste cliente', email: `${randomUUID()}@test.local`, senha: 'fixture', role: 'CLIENTE', cliente: { create: {} },
-    }, include: { cliente: true } })
-    users.push(user.id)
-    cliente = { id: user.id, email: user.email, role: 'CLIENTE', clienteId: user.cliente!.id, motoboyId: null }
-    const drivers = []
-    for (let i = 0; i < 2; i++) {
-      const user = await db.user.create({ data: {
-        nome: 'Teste motoboy', email: `${randomUUID()}@test.local`, senha: 'fixture', role: 'MOTOBOY',
-        motoboy: { create: { cnh: randomUUID(), veiculoTipo: 'Moto', veiculoMarca: 'Teste',
-          veiculoModelo: 'Teste', veiculoPlaca: randomUUID(), status: 'DISPONIVEL', aprovacao: 'APROVADO' } },
-      }, include: { motoboy: true } })
-      users.push(user.id)
-      drivers.push({ id: user.id, email: user.email, role: 'MOTOBOY' as const, clienteId: null, motoboyId: user.motoboy!.id })
-    }
-    ;[driver, otherDriver] = drivers
+    orgId = (await criarOrg(db)).id
+    cliente = await criarUsuario(db, orgId, 'CLIENT')
+    driver = await criarUsuario(db, orgId, 'DRIVER')
+    otherDriver = await criarUsuario(db, orgId, 'DRIVER')
     const enderecos = []
     for (let i = 0; i < 2; i++) {
-      enderecos.push(await db.endereco.create({ data: { clienteId: cliente.clienteId!, cep: '36000000',
+      enderecos.push(await db.endereco.create({ data: { organizationId: orgId, clienteId: cliente.clienteId!, cep: '36000000',
         logradouro: 'Rua teste', numero: '1', bairro: 'Centro', cidade: 'Juiz de Fora', estado: 'MG' } }))
     }
     origemId = enderecos[0].id
@@ -60,11 +48,11 @@ suite('MySQL: transações, autorização e concorrência', () => {
 
   async function pedido(status: 'SOLICITADO' | 'EM_ENTREGA' | 'ENTREGUE' = 'ENTREGUE', aprovado = false) {
     const record = await db.pedido.create({ data: {
-      clienteId: cliente.clienteId!, motoboyId: status === 'SOLICITADO' ? null : driver.motoboyId,
+      organizationId: orgId, clienteId: cliente.clienteId!, motoboyId: status === 'SOLICITADO' ? null : driver.motoboyId,
       enderecoOrigemId: origemId, enderecoDestinoId: destinoId, status, tipoServico: 'EXPRESSA',
       distanciaKm: 2, duracaoEstimada: 10, valorBase: 100, multiplicador: 1, valorTotal: 100,
       fotoComprovante: '/uploads/comprovantes/fixture.jpg',
-      pagamento: { create: { clienteId: cliente.clienteId!, valor: 100, taxaPlataforma: 15,
+      pagamento: { create: { organizationId: orgId, clienteId: cliente.clienteId!, valor: 100, taxaPlataforma: 15,
         valorMotoboy: 85, metodo: 'DINHEIRO', status: aprovado ? 'APROVADO' : 'PENDENTE' } },
     }, include: { pagamento: true } })
     pedidos.push(record.id)
@@ -133,10 +121,10 @@ suite('MySQL: transações, autorização e concorrência', () => {
 
   it('libera crédito legado pendente sem somar novamente ao total recebido', async () => {
     const p = await pedido('EM_ENTREGA', true)
-    await db.transacaoMotoboy.create({ data: { pedidoId: p.id, motoboyId: driver.motoboyId!,
+    await db.transacaoMotoboy.create({ data: { organizationId: orgId, pedidoId: p.id, motoboyId: driver.motoboyId!,
       tipo: 'CREDITO', status: 'PENDENTE', valor: 85, descricao: 'Crédito legado de teste' } })
     await db.saldoMotoboy.upsert({ where: { motoboyId: driver.motoboyId! },
-      create: { motoboyId: driver.motoboyId!, saldoPendente: 85, totalRecebido: 85 },
+      create: { organizationId: orgId, motoboyId: driver.motoboyId!, saldoPendente: 85, totalRecebido: 85 },
       update: { saldoPendente: { increment: 85 }, totalRecebido: { increment: 85 } } })
     const antes = await db.saldoMotoboy.findUniqueOrThrow({ where: { motoboyId: driver.motoboyId! } })
     await alterar(p.id, driver, { status: 'ENTREGUE' })
@@ -193,11 +181,7 @@ suite('MySQL: transações, autorização e concorrência', () => {
 
   afterAll(async () => {
     if (!db) return
-    await db.transacaoMotoboy.deleteMany({ where: { pedidoId: { in: pedidos } } })
-    await db.pagamento.deleteMany({ where: { pedidoId: { in: pedidos } } })
-    await db.pedido.deleteMany({ where: { id: { in: pedidos } } })
-    if (cliente) await db.endereco.deleteMany({ where: { clienteId: cliente.clienteId! } })
-    await db.user.deleteMany({ where: { id: { in: users } } })
+    if (orgId) await removerOrg(db, orgId)
     await db.$disconnect()
   })
 })

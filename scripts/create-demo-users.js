@@ -6,6 +6,12 @@ const prisma = new PrismaClient();
 async function main() {
   // Senha padrão para todos os usuários demo
   const senhaHash = await bcrypt.hash('Demo@123', 10);
+  // Dados da central da instalação (criada pela migration de backfill)
+  const org = await prisma.organization.upsert({
+    where: { slug: 'central-principal' }, update: {},
+    create: { nome: 'Central Principal', slug: 'central-principal', plano: 'MARCA_PROPRIA', status: 'ATIVA', settings: { create: {} } },
+  })
+  const membro = (papel) => ({ memberships: { create: { organizationId: org.id, papel } } })
 
   // Criar Admin
   const admin = await prisma.user.upsert({
@@ -17,7 +23,8 @@ async function main() {
       senha: senhaHash,
       nome: 'Administrador Demo',
       telefone: '11999990000',
-      role: 'ADMIN',
+      role: 'SUPERADMIN',
+      ...membro('OWNER'),
       updatedAt: new Date(),
     },
   });
@@ -34,14 +41,16 @@ async function main() {
       nome: 'Cliente Demonstração',
       telefone: '11999991111',
       role: 'CLIENTE',
+      ...membro('CLIENT'),
       updatedAt: new Date(),
     },
   });
 
   await prisma.cliente.upsert({
-    where: { userId: clienteUser.id },
+    where: { organizationId_userId: { organizationId: org.id, userId: clienteUser.id } },
     update: {},
     create: {
+      organizationId: org.id,
       userId: clienteUser.id,
       cpfCnpj: '12345678900',
       tipoPessoa: 'PF',
@@ -61,14 +70,16 @@ async function main() {
       nome: 'João Motoboy',
       telefone: '11999992222',
       role: 'MOTOBOY',
+      ...membro('DRIVER'),
       updatedAt: new Date(),
     },
   });
 
   const motoboy = await prisma.motoboy.upsert({
-    where: { userId: motoboyUser.id },
+    where: { organizationId_userId: { organizationId: org.id, userId: motoboyUser.id } },
     update: {},
     create: {
+      organizationId: org.id,
       userId: motoboyUser.id,
       cnh: '12345678900',
       veiculoTipo: 'Moto',
@@ -88,6 +99,7 @@ async function main() {
     where: { motoboyId: motoboy.id },
     update: {},
     create: {
+      organizationId: org.id,
       motoboyId: motoboy.id,
       saldoDisponivel: 150.00,
       saldoPendente: 45.00,

@@ -7,6 +7,7 @@ import { signOut } from 'next-auth/react'
 import { ArrowLeft, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from './ThemeToggle'
+import OrgSwitcher from '@/components/org/OrgSwitcher'
 import { cn } from '@/utils/cn'
 
 interface HeaderProps {
@@ -79,6 +80,7 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
         </div>
 
         <div className="hidden items-center gap-1 md:flex">
+          <OrgSwitcher className="mr-2" />
           <ThemeToggle />
           {userName && <span className="ml-2 max-w-[160px] truncate text-sm text-fg-2">{userName}</span>}
           <button
@@ -107,6 +109,7 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
       {menuOpen && (
         <div className="border-t border-line bg-surface px-4 pb-4 pt-2 md:hidden">
           {userName && <p className="px-3 py-2 text-[13px] text-fg-3">Conectado como <span className="font-medium text-fg">{userName}</span></p>}
+          <OrgSwitcher className="px-3 pb-2" />
           <nav className="flex flex-col gap-0.5">
             {navLinks.map((link) => (
               <Link

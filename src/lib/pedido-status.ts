@@ -1,5 +1,5 @@
 import type { Prisma, StatusPedido } from '@prisma/client'
-import type { AuthenticatedUser } from './auth-helpers'
+import type { OrgUser } from './auth-helpers'
 import type { UpdatePedidoStatusInput } from './validations'
 import { podeAlterarPedido } from './pedido-permissions'
 import { comPedidoBloqueado, liberarCreditoEntrega } from './pedido-transaction'
@@ -13,9 +13,11 @@ const transicoes: Record<StatusPedido, StatusPedido[]> = {
   ENTREGUE: [], CANCELADO: [],
 }
 
-export async function alterarStatusPedido(id: string, user: AuthenticatedUser, data: UpdatePedidoStatusInput) {
+export async function alterarStatusPedido(id: string, user: OrgUser, data: UpdatePedidoStatusInput) {
   return comPedidoBloqueado(id, async tx => {
     const pedido = await tx.pedido.findUniqueOrThrow({ where: { id }, include: { pagamento: true } })
+    // Pedido de outra central: responde como inexistente
+    if (pedido.organizationId !== user.organizationId) throw new OperacaoError('Pedido não encontrado', 404)
     if (!podeAlterarPedido(user, pedido, data.status, data.motoboyId)) {
       throw new OperacaoError('Você não tem permissão para executar esta ação', 403)
     }
@@ -24,11 +26,11 @@ export async function alterarStatusPedido(id: string, user: AuthenticatedUser, d
     }
     const update: Prisma.PedidoUncheckedUpdateInput = { status: data.status }
     if (data.status === 'ACEITO') {
-      const motoboyId = user.role === 'MOTOBOY' ? user.motoboyId : data.motoboyId
+      const motoboyId = user.orgRole === 'DRIVER' ? user.motoboyId : data.motoboyId
       if (!motoboyId) throw new OperacaoError('motoboyId é obrigatório para aceitar pedido', 400)
       // A reserva condicional serializa também dois pedidos disputando um motoboy.
       const reserva = await tx.motoboy.updateMany({
-        where: { id: motoboyId, status: 'DISPONIVEL', aprovacao: 'APROVADO' }, data: { status: 'EM_ENTREGA' },
+        where: { id: motoboyId, organizationId: user.organizationId, status: 'DISPONIVEL', aprovacao: 'APROVADO' }, data: { status: 'EM_ENTREGA' },
       })
       if (reserva.count !== 1) throw new OperacaoError('Motoboy não está disponível')
       const ativo = await tx.pedido.findFirst({

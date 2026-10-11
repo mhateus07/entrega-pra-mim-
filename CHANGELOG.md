@@ -6,6 +6,32 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [Não lançado] — SaaS multi-tenant para centrais de motofrete
+
+### Etapa 1 — Fundação multi-tenant (2026-10-11)
+
+**Na prática**
+- Várias centrais usam o mesmo sistema, e nenhuma vê os dados da outra: pedidos, motoboys, clientes, endereços, pagamentos, avaliações, chat e comprovantes ficam presos à central.
+- A instalação atual virou a "Central Principal". Todos os dados existentes foram para ela e tudo continua funcionando.
+- Quem pertence a mais de uma central escolhe a central ativa no topo da tela. O papel muda conforme a central: dono, despachante, cliente ou entregador.
+- O antigo administrador virou **superadmin** da plataforma (equipe Impulsio). Ele pode entrar em qualquer central para dar suporte e continua como dono da Central Principal.
+- A plataforma deixou de tirar 15% da corrida. A taxa agora é uma configuração por central, com padrão 0. Pagamentos antigos mantêm os valores já gravados.
+- Remover um motoboy ou cliente tira essa pessoa só da central atual. A conta só é apagada se ela não estiver em nenhuma outra central.
+
+**Técnico**
+- Modelos novos: `Organization` (slug único, `plano`, `status`), `OrganizationMember` (papel `OWNER | DISPATCHER | CLIENT | DRIVER`, único por org+usuário) e `OrganizationSettings` (marca, `taxaPlataforma` padrão 0, `repasseMotoboy` padrão 0,70, fuso).
+- `organizationId` em `Motoboy`, `Cliente`, `Endereco`, `Pedido`, `Pagamento`, `Avaliacao`, `Mensagem`, `SaldoMotoboy`, `TransacaoMotoboy` e `AuditLog` (opcional neste último), com índices `(organizationId, ...)`.
+- Unicidade por central: `Motoboy (org, userId | cnh | veiculoPlaca)` e `Cliente (org, userId | cpfCnpj)`. `User.email` continua global.
+- `UserRole`: `ADMIN` → `SUPERADMIN`.
+- Migrations: `202610110001_org_expand` (colunas opcionais), `202610110002_org_backfill` (Central Principal, memberships e preenchimento), `202610110003_org_contract` (NOT NULL e troca de uniques). Validadas sobre dados no formato antigo e em banco vazio.
+- Sessão: `activeOrganizationId`, `orgRole`, `orgStatus` e `motoboyId`/`clienteId` resolvidos na central ativa (`src/lib/org-context.ts`). A troca usa `update()` do NextAuth, com membership validada no banco. A revalidação acontece a cada 5 min.
+- `auth-helpers.ts`: `requireOrgAccess(papéis?)`, `requireGestor`, `requireOwner`, `requireSuperadmin`. Os helpers de posse (`requirePedidoAccess`, `requireClienteOwnership`, `requireMotoboyOwnership`) respondem 404 para recurso de outra central. `pedido-permissions.ts` e `pedido-status.ts` passam a usar o papel na org.
+- Todas as rotas de `src/app/api` filtram por `organizationId`. Chat e comprovante deixaram de comparar `userId` direto. Rota nova: `GET /api/organizacoes`. Componente `OrgSwitcher` no painel e no cabeçalho. O middleware de páginas roteia pelo papel na org.
+- `dividirPagamento(total, taxa)` usa a taxa da central (padrão 0).
+- Cadastro público continua entrando na central padrão (`DEFAULT_ORGANIZATION_SLUG`) até a Etapa 3.
+- Scripts (`create-admin`, `seed-demo`, `seed-preview`, `create-demo-users`) adaptados. `create-admin` aceita `ORG_SLUG` para dar o papel de OWNER.
+- Testes: `tests/integration/isolamento-orgs.test.ts` cria duas centrais e prova, em todas as rotas, que a A não lê, lista, altera nem baixa dados da B. A suíte falha se surgir rota sem caso. Também cobre fixtures multi-tenant e taxa 0 por padrão. Total: 103 testes.
+
 ## [1.4.0] - 2026-01-30
 
 ### Fase 4: Sistema de Pagamentos

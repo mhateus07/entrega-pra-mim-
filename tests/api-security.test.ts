@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
-import type { AuthenticatedUser } from '@/lib/auth-helpers'
+import type { OrgUser } from '@/lib/auth-helpers'
 
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(), role: vi.fn(), paymentFind: vi.fn(), clientFind: vi.fn(), addressFind: vi.fn(),
   driverList: vi.fn(), driverCount: vi.fn(), driverGroups: vi.fn(), paymentList: vi.fn(), orderCreate: vi.fn(),
 }))
 vi.mock('@/lib/auth-helpers', () => ({
-  requireAuth: mocks.auth, requireRole: mocks.role,
+  requireAuth: mocks.auth, requireOrgAccess: mocks.role,
+  isGestor: (u: { orgRole: string }) => u.orgRole === 'OWNER' || u.orgRole === 'DISPATCHER',
+  applyMapsRateLimit: () => ({ success: true }),
   applyRateLimit: () => ({ success: true }),
   forbidden: (error: string) => NextResponse.json({ success: false, error }, { status: 403 }),
   notFound: (error: string) => NextResponse.json({ success: false, error }, { status: 404 }),
@@ -15,20 +17,21 @@ vi.mock('@/lib/auth-helpers', () => ({
   serverError: (error: string) => NextResponse.json({ success: false, error }, { status: 500 }),
 }))
 vi.mock('@/lib/prisma', () => ({ default: {
-  pagamento: { findUnique: mocks.paymentFind, findMany: mocks.paymentList },
-  cliente: { findUnique: mocks.clientFind }, endereco: { findUnique: mocks.addressFind },
+  pagamento: { findUnique: mocks.paymentFind, findFirst: mocks.paymentFind, findMany: mocks.paymentList },
+  cliente: { findUnique: mocks.clientFind, findFirst: mocks.clientFind }, endereco: { findUnique: mocks.addressFind },
   motoboy: { findMany: mocks.driverList, count: mocks.driverCount, groupBy: mocks.driverGroups }, pedido: { create: mocks.orderCreate },
 } }))
-const cliente: AuthenticatedUser = { id: 'u1', role: 'CLIENTE', clienteId: 'cjld2cjxh0000qzrmn831i7rn', motoboyId: null, email: 'c@test.local' }
+const cliente: OrgUser = { id: 'u1', orgRole: 'CLIENT', organizationId: 'org1', superadmin: false, clienteId: 'cjld2cjxh0000qzrmn831i7rn', motoboyId: null, email: 'c@test.local' }
 
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.driverCount.mockResolvedValue(0)
   mocks.driverGroups.mockResolvedValue([])
   mocks.auth.mockResolvedValue({ authenticated: true, user: cliente })
-  mocks.role.mockImplementation(async (roles: string[]) => {
+  mocks.role.mockImplementation(async (roles?: string[]) => {
     const auth = await mocks.auth()
-    return auth.authenticated && roles.includes(auth.user.role) ? auth : {
+    if (!auth.authenticated) return auth
+    return !roles || roles.includes(auth.user.orgRole) ? auth : {
       authenticated: false, response: NextResponse.json({ success: false }, { status: 403 }),
     }
   })
@@ -44,7 +47,7 @@ describe('rotas de pagamentos e pedidos', () => {
     expect((await GET(request, { params: Promise.resolve({ id: 'p1' }) })).status).toBe(403)
     mocks.paymentFind.mockResolvedValue({ id: 'p1', clienteId: cliente.clienteId })
     expect((await GET(request, { params: Promise.resolve({ id: 'p1' }) })).status).toBe(200)
-    mocks.auth.mockResolvedValue({ authenticated: true, user: { ...cliente, role: 'ADMIN' } })
+    mocks.auth.mockResolvedValue({ authenticated: true, user: { ...cliente, orgRole: 'OWNER' } })
     mocks.paymentFind.mockResolvedValue({ id: 'p1', clienteId: 'outro-cliente' })
     expect((await GET(request, { params: Promise.resolve({ id: 'p1' }) })).status).toBe(200)
   })
@@ -71,7 +74,7 @@ describe('rotas de pagamentos e pedidos', () => {
   })
   it('motoboy não pode criar pedidos para um cliente', async () => {
     const { POST } = await import('@/app/api/pedidos/route')
-    mocks.auth.mockResolvedValue({ authenticated: true, user: { ...cliente, role: 'MOTOBOY' } })
+    mocks.auth.mockResolvedValue({ authenticated: true, user: { ...cliente, orgRole: 'DRIVER' } })
     expect((await POST(new NextRequest('http://localhost/api/pedidos', { method: 'POST' }))).status).toBe(403)
     expect(mocks.orderCreate).not.toHaveBeenCalled()
   })

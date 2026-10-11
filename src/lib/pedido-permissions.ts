@@ -1,17 +1,20 @@
 import type { StatusPedido } from '@prisma/client'
-import type { AuthenticatedUser } from './auth-helpers'
+import { isGestor, type OrgUser } from './auth-helpers'
+
+// Regras por operação, sempre para um pedido já confirmado como da mesma
+// organização do usuário (ver requirePedidoAccess / alterarStatusPedido).
 
 export function podeAlterarPedido(
-  user: AuthenticatedUser,
+  user: OrgUser,
   pedido: { clienteId: string; motoboyId: string | null; status: StatusPedido },
   status: StatusPedido,
   motoboyId?: string,
 ): boolean {
-  if (user.role === 'ADMIN') return true
-  if (user.role === 'CLIENTE') {
+  if (isGestor(user)) return true
+  if (user.orgRole === 'CLIENT') {
     return !!user.clienteId && user.clienteId === pedido.clienteId && status === 'CANCELADO'
   }
-  if (user.role !== 'MOTOBOY' || !user.motoboyId) return false
+  if (user.orgRole !== 'DRIVER' || !user.motoboyId) return false
   if (status === 'ACEITO') {
     return pedido.status === 'SOLICITADO' && pedido.motoboyId === null &&
       (!motoboyId || motoboyId === user.motoboyId)
@@ -20,17 +23,17 @@ export function podeAlterarPedido(
 }
 
 export function podeGerenciarPagamento(
-  user: AuthenticatedUser,
+  user: OrgUser,
   pagamento: { clienteId: string },
 ): boolean {
-  return user.role === 'ADMIN' || (user.role === 'CLIENTE' &&
+  return isGestor(user) || (user.orgRole === 'CLIENT' &&
     !!user.clienteId && user.clienteId === pagamento.clienteId)
 }
 
 export function podeConfirmarDinheiro(
-  user: AuthenticatedUser,
+  user: OrgUser,
   motoboyId: string | null,
 ): boolean {
-  return user.role === 'ADMIN' || (user.role === 'MOTOBOY' &&
+  return isGestor(user) || (user.orgRole === 'DRIVER' &&
     !!user.motoboyId && user.motoboyId === motoboyId)
 }

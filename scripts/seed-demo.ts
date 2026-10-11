@@ -99,6 +99,7 @@ async function limparBanco() {
   await db.cliente.deleteMany()
   await db.session.deleteMany()
   await db.account.deleteMany()
+  await db.organizationMember.deleteMany()
   await db.user.deleteMany()
 }
 
@@ -107,23 +108,33 @@ async function main() {
   const senha = await bcrypt.hash(senhaDemo, 10)
   const agora = new Date()
 
-  await db.user.create({ data: { email: `admin@${DOMINIO}`, senha, nome: 'Administrador Demo', telefone: '32999990001', role: 'ADMIN' } })
+  // Todos os dados demo pertencem à central da instalação (criada pela migration de backfill)
+  const org = await db.organization.upsert({
+    where: { slug: process.env.DEMO_ORG_SLUG || 'central-principal' },
+    update: {},
+    create: { nome: 'Central Principal', slug: process.env.DEMO_ORG_SLUG || 'central-principal', plano: 'MARCA_PROPRIA', status: 'ATIVA',
+      settings: { create: {} } },
+  })
+  const ORG = org.id
+  const membro = (papel: 'OWNER' | 'CLIENT' | 'DRIVER') => ({ memberships: { create: { organizationId: ORG, papel } } })
+
+  await db.user.create({ data: { email: `admin@${DOMINIO}`, senha, nome: 'Administrador Demo', telefone: '32999990001', role: 'SUPERADMIN', ...membro('OWNER') } })
 
   const clientes: ClienteSeed[] = []
   for (const [i, c] of CLIENTES.entries()) {
     const user = await db.user.create({ data: {
-      email: c.email, senha, nome: c.nome, telefone: `3298${String(1000000 + i * 7919).slice(-7)}`, role: 'CLIENTE',
+      email: c.email, senha, nome: c.nome, telefone: `3298${String(1000000 + i * 7919).slice(-7)}`, role: 'CLIENTE', ...membro('CLIENT'),
       createdAt: new Date(agora.getTime() - int(95, 180) * 86400000),
     } })
     const cliente = await db.cliente.create({ data: {
-      userId: user.id, tipoPessoa: c.tipo, razaoSocial: 'razao' in c ? c.razao : null,
+      organizationId: ORG, userId: user.id, tipoPessoa: c.tipo, razaoSocial: 'razao' in c ? c.razao : null,
       cpfCnpj: c.tipo === 'PJ' ? `${String(10000000 + i * 104729).slice(-8)}0001${String(10 + i)}` : `${String(100000000 + i * 15485863).slice(-9)}${String(10 + i)}`,
     } })
     const enderecos: Endereco[] = []
     for (let e = 0; e < 4; e++) {
       const [bairro, logradouro, lat, lng] = BAIRROS[(i * 3 + e * 5) % BAIRROS.length]
       enderecos.push(await db.endereco.create({ data: {
-        clienteId: cliente.id, apelido: ['Sede', 'Casa', 'Trabalho', 'Filial'][e], cep: `360${String(10 + ((i + e) % 89)).padStart(2, '0')}000`,
+        organizationId: ORG, clienteId: cliente.id, apelido: ['Sede', 'Casa', 'Trabalho', 'Filial'][e], cep: `360${String(10 + ((i + e) % 89)).padStart(2, '0')}000`,
         logradouro, numero: String(int(20, 1800)), bairro, cidade: 'Juiz de Fora', estado: 'MG',
         latitude: lat + between(-0.003, 0.003), longitude: lng + between(-0.003, 0.003), favorito: e === 0,
       } }))
@@ -134,12 +145,12 @@ async function main() {
   const motoboys: MotoboySeed[] = []
   for (const [i, m] of MOTOBOYS.entries()) {
     const user = await db.user.create({ data: {
-      email: m.email, senha, nome: m.nome, telefone: `3299${String(2000000 + i * 6007).slice(-7)}`, role: 'MOTOBOY',
+      email: m.email, senha, nome: m.nome, telefone: `3299${String(2000000 + i * 6007).slice(-7)}`, role: 'MOTOBOY', ...membro('DRIVER'),
       createdAt: new Date(agora.getTime() - int(100, 200) * 86400000),
     } })
     const [, , lat, lng] = BAIRROS[(i * 2) % BAIRROS.length]
     const motoboy = await db.motoboy.create({ data: {
-      userId: user.id, cnh: String(70000000000 + i * 1234567), veiculoTipo: 'Moto', veiculoMarca: m.marca, veiculoModelo: m.modelo,
+      organizationId: ORG, userId: user.id, cnh: String(70000000000 + i * 1234567), veiculoTipo: 'Moto', veiculoMarca: m.marca, veiculoModelo: m.modelo,
       veiculoPlaca: `HM${String.fromCharCode(65 + i)}${i}${String.fromCharCode(66 + i)}${10 + i * 7}`.slice(0, 7),
       status: m.status as StatusMotoboy, aprovacao: 'APROVADO', latitudeAtual: lat, longitudeAtual: lng,
       ultimaAtividade: m.status === 'OFFLINE' ? new Date(agora.getTime() - int(2, 20) * 3600000) : agora,
@@ -170,7 +181,7 @@ async function main() {
     const cartao = metodo.startsWith('CARTAO')
 
     const pedido = await db.pedido.create({ data: {
-      clienteId: cliente.id, motoboyId: motoboy?.id ?? null, enderecoOrigemId: origem.id, enderecoDestinoId: destino.id,
+      organizationId: ORG, clienteId: cliente.id, motoboyId: motoboy?.id ?? null, enderecoOrigemId: origem.id, enderecoDestinoId: destino.id,
       tipoServico, status, descricaoItem: pick(ITENS[tipoServico]), pesoAproximado: Number(between(0.2, 8).toFixed(1)),
       observacoes: rand() < 0.3 ? pick(['Interfone 102', 'Deixar na portaria', 'Ligar ao chegar', 'Frágil, cuidado']) : null,
       distanciaKm: km, duracaoEstimada: estimarTempo(km), valorBase, multiplicador, valorTotal,
@@ -179,7 +190,7 @@ async function main() {
       motivoCancelamento: canceladoEm ? pick(MOTIVOS_CANCELAMENTO) : null,
       createdAt, updatedAt: entregueEm ?? canceladoEm ?? coletadoEm ?? aceitoEm ?? createdAt,
       pagamento: { create: {
-        clienteId: cliente.id, ...valores, metodo, createdAt,
+        organizationId: ORG, clienteId: cliente.id, ...valores, metodo, createdAt,
         status: status === 'ENTREGUE' ? 'APROVADO' : status === 'CANCELADO' ? 'CANCELADO' : metodo === 'DINHEIRO' ? 'PENDENTE' : 'APROVADO',
         aprovadoEm: status === 'CANCELADO' || (metodo === 'DINHEIRO' && status !== 'ENTREGUE') ? null : entregueEm ?? minutos(createdAt, 1),
         canceladoEm, cartaoUltimos4: cartao ? String(int(1000, 9999)) : null, cartaoBandeira: cartao ? pick(BANDEIRAS) : null,
@@ -191,14 +202,14 @@ async function main() {
       motoboy.entregas++
       motoboy.ganhos = motoboy.ganhos.plus(valores.valorMotoboy)
       await db.transacaoMotoboy.create({ data: {
-        motoboyId: motoboy.id, pedidoId: pedido.id, tipo: 'CREDITO', status: 'CONCLUIDO', valor: valores.valorMotoboy,
+        organizationId: ORG, motoboyId: motoboy.id, pedidoId: pedido.id, tipo: 'CREDITO', status: 'CONCLUIDO', valor: valores.valorMotoboy,
         descricao: `Entrega #${pedido.id.slice(-6).toUpperCase()}`, createdAt: entregueEm!,
       } })
       if (rand() < 0.75) {
         const nota = rand() < 0.7 ? 5 : rand() < 0.8 ? 4 : 3
         motoboy.notas.push(nota)
         await db.avaliacao.create({ data: {
-          pedidoId: pedido.id, motoboyId: motoboy.id, nota, comentario: pick(COMENTARIOS), createdAt: minutos(entregueEm!, int(5, 240)),
+          organizationId: ORG, pedidoId: pedido.id, motoboyId: motoboy.id, nota, comentario: pick(COMENTARIOS), createdAt: minutos(entregueEm!, int(5, 240)),
         } })
       }
     }
@@ -243,9 +254,9 @@ async function main() {
     ultimaAtividade: agora,
   } })
   await db.mensagem.createMany({ data: [
-    { pedidoId: emEntrega.id, remetente: 'MOTOBOY', conteudo: 'Olá! Já coletei seu pedido, estou a caminho.', lida: true, createdAt: hoje(14) },
-    { pedidoId: emEntrega.id, remetente: 'CLIENTE', conteudo: 'Perfeito, obrigado! Pode deixar na portaria.', lida: true, createdAt: hoje(12) },
-    { pedidoId: emEntrega.id, remetente: 'MOTOBOY', conteudo: 'Combinado, chego em uns 10 minutos.', lida: false, createdAt: hoje(3) },
+    { organizationId: ORG, pedidoId: emEntrega.id, remetente: 'MOTOBOY', conteudo: 'Olá! Já coletei seu pedido, estou a caminho.', lida: true, createdAt: hoje(14) },
+    { organizationId: ORG, pedidoId: emEntrega.id, remetente: 'CLIENTE', conteudo: 'Perfeito, obrigado! Pode deixar na portaria.', lida: true, createdAt: hoje(12) },
+    { organizationId: ORG, pedidoId: emEntrega.id, remetente: 'MOTOBOY', conteudo: 'Combinado, chego em uns 10 minutos.', lida: false, createdAt: hoje(3) },
   ] })
 
   // Saques e saldo dos motoboys a partir dos créditos gerados
@@ -256,12 +267,12 @@ async function main() {
         const valor = money(m.ganhos.mul('0.3'))
         sacado = sacado.plus(valor)
         await db.transacaoMotoboy.create({ data: {
-          motoboyId: m.id, tipo: 'SAQUE', status: 'CONCLUIDO', valor, descricao: 'Saque via PIX',
+          organizationId: ORG, motoboyId: m.id, tipo: 'SAQUE', status: 'CONCLUIDO', valor, descricao: 'Saque via PIX',
           createdAt: new Date(agora.getTime() - diasAtras * 86400000),
         } })
       }
     }
-    await db.saldoMotoboy.create({ data: { motoboyId: m.id, saldoDisponivel: m.ganhos.minus(sacado), totalRecebido: m.ganhos } })
+    await db.saldoMotoboy.create({ data: { organizationId: ORG, motoboyId: m.id, saldoDisponivel: m.ganhos.minus(sacado), totalRecebido: m.ganhos } })
     const media = m.notas.length ? m.notas.reduce((a, b) => a + b, 0) / m.notas.length : 5
     await db.motoboy.update({ where: { id: m.id }, data: { totalEntregas: m.entregas, avaliacaoMedia: Number(media.toFixed(2)) } })
   }

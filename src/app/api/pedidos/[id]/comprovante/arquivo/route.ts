@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id } = await params
     const pedido = await prisma.pedido.findUnique({
       where: { id },
-      select: { clienteId: true, motoboyId: true, fotoComprovante: true },
+      select: { organizationId: true, clienteId: true, motoboyId: true, fotoComprovante: true },
     })
     if (!pedido) return notFound('Pedido não encontrado')
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!buffer) return notFound('Comprovante não encontrado')
 
     await registrarAuditoria({
-      acao: 'comprovante.acessado', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, request,
+      acao: 'comprovante.acessado', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request,
     })
 
     const ext = arquivo.fileName.split('.').pop() as ComprovanteExt

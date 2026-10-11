@@ -10,26 +10,31 @@ const mocks = vi.hoisted(() => ({
   pedidoFindFirst: vi.fn(),
   idemCreate: vi.fn(), idemFind: vi.fn(), idemUpdate: vi.fn(), idemDeleteMany: vi.fn(),
   auditCreate: vi.fn(),
-  avaliacaoFind: vi.fn(), avaliacaoCount: vi.fn(), userFind: vi.fn(),
+  avaliacaoFind: vi.fn(), avaliacaoCount: vi.fn(), userFind: vi.fn(), memberFind: vi.fn(), clienteFind: vi.fn(),
 }))
 vi.mock('next-auth', () => ({ getServerSession: mocks.session, default: vi.fn() }))
 vi.mock('@/lib/prisma', () => {
   const db = {
-    motoboy: { findUnique: mocks.motoboyFind, updateMany: mocks.motoboyUpdateMany, update: mocks.motoboyUpdate },
+    motoboy: { findUnique: mocks.motoboyFind, findFirst: mocks.motoboyFind, updateMany: mocks.motoboyUpdateMany, update: mocks.motoboyUpdate },
     pedido: { findFirst: mocks.pedidoFindFirst },
     idempotencyKey: { create: mocks.idemCreate, findUnique: mocks.idemFind, update: mocks.idemUpdate, deleteMany: mocks.idemDeleteMany },
     auditLog: { create: mocks.auditCreate },
     avaliacao: { findMany: mocks.avaliacaoFind, count: mocks.avaliacaoCount },
     user: { findUnique: mocks.userFind },
+    organizationMember: { findMany: mocks.memberFind },
+    cliente: { findUnique: mocks.clienteFind },
     $transaction: (fn: (tx: unknown) => unknown) => fn(db),
   }
   return { default: db }
 })
 
 type Papel = 'ADMIN' | 'CLIENTE' | 'MOTOBOY'
+const PAPEL_ORG = { ADMIN: 'OWNER', CLIENTE: 'CLIENT', MOTOBOY: 'DRIVER' } as const
+// Sessão na central org1 com o papel equivalente ao antigo papel global
 function logar(role: Papel, extra: { clienteId?: string; motoboyId?: string } = {}) {
   mocks.session.mockResolvedValue({ user: {
-    id: `u-${role}-${extra.clienteId ?? extra.motoboyId ?? ''}`, email: 'x@test.local', role,
+    id: `u-${role}-${extra.clienteId ?? extra.motoboyId ?? ''}`, email: 'x@test.local', superadmin: false,
+    activeOrganizationId: 'org1', orgRole: PAPEL_ORG[role], orgStatus: 'ATIVA',
     clienteId: extra.clienteId ?? null, motoboyId: extra.motoboyId ?? null,
   } })
 }
@@ -66,7 +71,7 @@ describe('GET /api/motoboys/[id]/localizacao', () => {
 
   it('permite cliente com entrega em andamento, o próprio motoboy e o admin', async () => {
     logar('CLIENTE', { clienteId: 'c1' })
-    mocks.pedidoFindFirst.mockResolvedValue({ clienteId: 'c1', motoboyId: 'm1' })
+    mocks.pedidoFindFirst.mockResolvedValue({ organizationId: 'org1', clienteId: 'c1', motoboyId: 'm1' })
     expect((await chamar()).status).toBe(200)
     logar('MOTOBOY', { motoboyId: 'm1' })
     expect((await chamar()).status).toBe(200)
@@ -239,13 +244,13 @@ describe('avaliações', () => {
   it('cliente só lista avaliações dos próprios pedidos', async () => {
     logar('CLIENTE', { clienteId: 'c1' })
     expect((await listar()).status).toBe(200)
-    expect(mocks.avaliacaoFind.mock.calls[0][0].where).toEqual({ pedido: { clienteId: 'c1' }, motoboyId: 'm1' })
+    expect(mocks.avaliacaoFind.mock.calls[0][0].where).toEqual({ organizationId: 'org1', pedido: { clienteId: 'c1' }, motoboyId: 'm1' })
   })
 
   it('motoboy ignora o filtro e vê só as próprias', async () => {
     logar('MOTOBOY', { motoboyId: 'm2' })
     await listar()
-    expect(mocks.avaliacaoFind.mock.calls[0][0].where).toEqual({ motoboyId: 'm2' })
+    expect(mocks.avaliacaoFind.mock.calls[0][0].where).toEqual({ organizationId: 'org1', motoboyId: 'm2' })
   })
 
   it('não expõe CNH, placa, localização nem dados internos do pedido', async () => {
@@ -272,14 +277,16 @@ describe('sessão', () => {
   it('relê o usuário após 5 min e invalida quem foi excluído', async () => {
     const { authOptions } = await import('@/lib/auth')
     const jwt = authOptions.callbacks!.jwt!
-    const antigo = { id: 'u1', role: 'MOTOBOY', motoboyId: 'm1', clienteId: null, verificadoEm: Date.now() - 6 * 60 * 1000 }
+    const antigo = { id: 'u1', superadmin: false, activeOrganizationId: 'org1', orgRole: 'DRIVER', orgStatus: 'ATIVA', motoboyId: 'm1', clienteId: null, verificadoEm: Date.now() - 6 * 60 * 1000 }
+    mocks.memberFind.mockResolvedValue([{ organizationId: 'org1', papel: 'DRIVER', organization: { status: 'ATIVA' } }])
+    mocks.clienteFind.mockResolvedValue(null)
 
     mocks.userFind.mockResolvedValue(null)
     expect(await jwt({ token: { ...antigo } } as never)).toEqual({})
 
-    mocks.userFind.mockResolvedValue({ role: 'MOTOBOY', motoboy: { id: 'm1' }, cliente: null })
+    mocks.userFind.mockResolvedValue({ role: 'MOTOBOY' })
     const renovado = await jwt({ token: { ...antigo } } as never)
-    expect(renovado).toMatchObject({ id: 'u1', motoboyId: 'm1' })
+    expect(renovado).toMatchObject({ id: 'u1', activeOrganizationId: 'org1', orgRole: 'DRIVER', motoboyId: 'm1' })
     expect(Number(renovado.verificadoEm)).toBeGreaterThan(antigo.verificadoEm)
 
     mocks.userFind.mockClear()

@@ -9,7 +9,7 @@ import { calcularRota } from '@/lib/google-maps'
 import { calcularPrecoCompleto, estimarTempo } from '@/lib/pricing'
 import { encontrarMelhorMotoboy } from '@/lib/alocacao'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireRole, serverError, forbidden, applyMapsRateLimit, type AuthenticatedUser } from '@/lib/auth-helpers'
+import { requireOrgAccess, serverError, forbidden, applyMapsRateLimit, isGestor, type OrgUser } from '@/lib/auth-helpers'
 import { comIdempotencia } from '@/lib/idempotency'
 import { clientePedidoSelect } from '@/lib/pedido-select'
 import { registrarAuditoria } from '@/lib/audit'
@@ -17,8 +17,7 @@ import { registrarAuditoria } from '@/lib/audit'
 // GET /api/pedidos - Listar pedidos (filtrado por papel do usuário)
 export async function GET(request: NextRequest) {
   try {
-    // Requer autenticação
-    const auth = await requireAuth()
+    const auth = await requireOrgAccess()
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
@@ -30,14 +29,15 @@ export async function GET(request: NextRequest) {
     const dataInicio = searchParams.get('dataInicio')
     const dataFim = searchParams.get('dataFim')
 
-    const where: Prisma.PedidoWhereInput = {}
+    // Sempre dentro da central ativa
+    const where: Prisma.PedidoWhereInput = { organizationId: auth.user.organizationId }
 
     // Filtrar por papel do usuário (segurança)
-    if (auth.user.role === 'CLIENTE') {
+    if (auth.user.orgRole === 'CLIENT') {
       // Cliente só vê seus próprios pedidos
       if (!auth.user.clienteId) return forbidden('Cadastro de cliente não encontrado')
       where.clienteId = auth.user.clienteId
-    } else if (auth.user.role === 'MOTOBOY') {
+    } else if (auth.user.orgRole === 'DRIVER') {
       if (!auth.user.motoboyId) return forbidden('Cadastro de motoboy não encontrado')
       const perfil = await prisma.motoboy.findUnique({
         where: { id: auth.user.motoboyId }, select: { aprovacao: true },
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         ? [{ status: 'SOLICITADO' }, { motoboyId: auth.user.motoboyId }]
         : [{ motoboyId: auth.user.motoboyId }]
     }
-    // Admin vê todos os pedidos
+    // Gestão da central vê todos os pedidos dela
 
     const grupo = enumFilter(searchParams.get('grupo'), ['ativos', 'finalizados'] as const)
     if (grupo) where.status = { in: grupo === 'ativos' ? ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA'] : ['ENTREGUE', 'CANCELADO'] }
@@ -56,10 +56,10 @@ export async function GET(request: NextRequest) {
     if (tipoServico) where.tipoServico = tipoServico
 
     // Clientes não podem filtrar por outros clienteIds
-    if (clienteId && auth.user.role === 'ADMIN') {
+    if (clienteId && isGestor(auth.user)) {
       where.clienteId = clienteId
     }
-    if (motoboyId && (auth.user.role === 'ADMIN' || motoboyId === auth.user.motoboyId)) {
+    if (motoboyId && (isGestor(auth.user) || motoboyId === auth.user.motoboyId)) {
       where.motoboyId = motoboyId
     }
 
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
       pagination: paginationMeta(paging.page, paging.pageSize, total),
       success: true,
       // Antes do aceite, o motoboy vê endereços para decidir, mas não o telefone do cliente
-      data: auth.user.role === 'MOTOBOY'
+      data: auth.user.orgRole === 'DRIVER'
         ? pedidos.map(p => p.motoboyId === auth.user.motoboyId ? p : { ...p, cliente: { ...p.cliente, user: { nome: p.cliente.user.nome, telefone: null } } })
         : pedidos,
     }
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Requer autenticação
-    const auth = await requireRole(['CLIENTE', 'ADMIN'])
+    const auth = await requireOrgAccess(['OWNER', 'DISPATCHER', 'CLIENT'])
     if (!auth.authenticated) return auth.response
 
     const body = await request.json().catch(() => null)
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: unknown) {
+async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
   try {
     const validation = createPedidoSchema.safeParse(body)
     if (!validation.success) {
@@ -146,13 +146,14 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
     const data = validation.data
 
     // Cliente só pode criar pedido para si mesmo
-    if (user.role === 'CLIENTE' && user.clienteId !== data.clienteId) {
+    if (user.orgRole === 'CLIENT' && user.clienteId !== data.clienteId) {
       return forbidden('Você só pode criar pedidos para sua própria conta')
     }
 
     // Verificar se cliente existe
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: data.clienteId },
+    // Cliente precisa ser da central ativa
+    const cliente = await prisma.cliente.findFirst({
+      where: { id: data.clienteId, organizationId: user.organizationId },
     })
 
     if (!cliente) {
@@ -227,6 +228,7 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
     // Criar pedido
     const pedido = await prisma.pedido.create({
       data: {
+        organizationId: user.organizationId,
         clienteId: data.clienteId,
         enderecoOrigemId: data.enderecoOrigemId,
         enderecoDestinoId: data.enderecoDestinoId,
@@ -250,14 +252,14 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
     })
 
     await registrarAuditoria({
-      acao: 'pedido.criado', entidade: 'Pedido', entidadeId: pedido.id, userId: user.id, request,
+      acao: 'pedido.criado', entidade: 'Pedido', entidadeId: pedido.id, userId: user.id, organizationId: user.organizationId, request,
       dados: { tipoServico: pedido.tipoServico, valorTotal: pedido.valorTotal.toString() },
     })
 
     // Para entregas expressas, tentar alocar motoboy automaticamente
     if (data.tipoServico === 'EXPRESSA') {
       const motoboys = await prisma.motoboy.findMany({
-        where: { status: 'DISPONIVEL', aprovacao: 'APROVADO' },
+        where: { organizationId: user.organizationId, status: 'DISPONIVEL', aprovacao: 'APROVADO' },
         include: { disponibilidades: true },
       })
 

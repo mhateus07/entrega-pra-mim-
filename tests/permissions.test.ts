@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import type { AuthenticatedUser } from '@/lib/auth-helpers'
+import type { OrgUser } from '@/lib/auth-helpers'
 import { podeAlterarPedido, podeConfirmarDinheiro, podeGerenciarPagamento } from '@/lib/pedido-permissions'
 
-const cliente: AuthenticatedUser = { id: 'u1', email: 'c@test.local', role: 'CLIENTE', clienteId: 'c1', motoboyId: null }
-const motoboy: AuthenticatedUser = { id: 'u2', email: 'm@test.local', role: 'MOTOBOY', clienteId: null, motoboyId: 'm1' }
+const base = { superadmin: false, organizationId: 'org1' }
+const cliente: OrgUser = { ...base, id: 'u1', email: 'c@test.local', orgRole: 'CLIENT', clienteId: 'c1', motoboyId: null }
+const motoboy: OrgUser = { ...base, id: 'u2', email: 'm@test.local', orgRole: 'DRIVER', clienteId: null, motoboyId: 'm1' }
 const pedido = { clienteId: 'c1', motoboyId: null, status: 'SOLICITADO' as const }
 
 describe('permissões por operação', () => {

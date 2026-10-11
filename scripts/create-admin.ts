@@ -3,7 +3,8 @@ import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
-// Uso: ADMIN_EMAIL=... ADMIN_PASSWORD=... npx tsx scripts/create-admin.ts
+// Uso: ADMIN_EMAIL=... ADMIN_PASSWORD=... [ORG_SLUG=central-principal] npx tsx scripts/create-admin.ts
+// Cria o SUPERADMIN da plataforma. Com ORG_SLUG, também o torna OWNER dessa central.
 // A senha nunca é fixa no código nem impressa no terminal.
 async function main() {
   const email = process.env.ADMIN_EMAIL || 'admin@entregapramim.com'
@@ -25,16 +26,27 @@ async function main() {
       senha: senhaHash,
       nome,
       telefone,
-      role: 'ADMIN',
+      role: 'SUPERADMIN',
     },
     create: {
       email,
       senha: senhaHash,
       nome,
       telefone,
-      role: 'ADMIN',
+      role: 'SUPERADMIN',
     },
   })
+
+  const slug = process.env.ORG_SLUG
+  if (slug) {
+    const org = await prisma.organization.findUnique({ where: { slug } })
+    if (!org) throw new Error(`Organização ${slug} não encontrada`)
+    await prisma.organizationMember.upsert({
+      where: { organizationId_userId: { organizationId: org.id, userId: admin.id } },
+      update: { papel: 'OWNER' },
+      create: { organizationId: org.id, userId: admin.id, papel: 'OWNER' },
+    })
+  }
 
   console.log('='.repeat(50))
   console.log('Usuario administrador criado/atualizado com sucesso!')

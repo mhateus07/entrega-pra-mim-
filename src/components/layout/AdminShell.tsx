@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
+import OrgSwitcher from '@/components/org/OrgSwitcher'
 import { LayoutDashboard, Package, Bike, Users, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
@@ -58,7 +59,7 @@ function UserBlock() {
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium text-fg">{session?.user?.name ?? '—'}</p>
-        <p className="truncate text-xs text-fg-3">Administrador</p>
+        <OrgSwitcher className="mt-0.5" />
       </div>
       <button
         type="button"

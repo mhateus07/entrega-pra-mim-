@@ -7,23 +7,22 @@ import prisma from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { createClienteSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
-import { requireAdmin, serverError, applyRateLimit } from '@/lib/auth-helpers'
+import { requireGestor, organizacaoPadrao, serverError, applyRateLimit } from '@/lib/auth-helpers'
 
 // Mesma resposta para qualquer duplicidade: não revela qual dado já existe
 const CADASTRO_INDISPONIVEL = 'Não foi possível concluir o cadastro: e-mail ou CPF/CNPJ já em uso. Se você já tem conta, faça login.'
 
-// GET /api/clientes - Listar clientes (ADMIN apenas)
+// GET /api/clientes - Listar clientes da central (gestão)
 export async function GET(request: NextRequest) {
   try {
-    // Apenas admin pode listar todos os clientes
-    const auth = await requireAdmin()
+    const auth = await requireGestor()
     if (!auth.authenticated) return auth.response
 
     const searchParams = request.nextUrl.searchParams
     const paging = parsePagination(searchParams)
     const tipoPessoa = enumFilter(searchParams.get('tipoPessoa'), ['PF', 'PJ'] as const)
 
-    const where: Prisma.ClienteWhereInput = {}
+    const where: Prisma.ClienteWhereInput = { organizationId: auth.user.organizationId }
 
     const busca = searchParams.get('q')?.trim().slice(0, 100)
     if (busca) where.user = { OR: [{ nome: { contains: busca } }, { email: { contains: busca } }, { telefone: { contains: busca } }] }
@@ -59,7 +58,7 @@ export async function GET(request: NextRequest) {
     })
 
     const gastos = await prisma.pedido.groupBy({
-      by: ['clienteId'], where: { clienteId: { in: clientes.map(c => c.id) }, status: 'ENTREGUE' }, _sum: { valorTotal: true },
+      by: ['clienteId'], where: { organizationId: auth.user.organizationId, clienteId: { in: clientes.map(c => c.id) }, status: 'ENTREGUE' }, _sum: { valorTotal: true },
     })
     const total = await prisma.cliente.count({ where })
     const response = {
@@ -99,6 +98,10 @@ export async function POST(request: NextRequest) {
 
     const data = validation.data
 
+    // Até a Etapa 3 (convites), o cadastro público entra na central padrão da instalação
+    const org = await organizacaoPadrao()
+    if (!org) return serverError('Cadastro indisponível')
+
     // Verificar se email já existe
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
@@ -114,7 +117,7 @@ export async function POST(request: NextRequest) {
     // Verificar se CPF/CNPJ já existe (se fornecido)
     if (data.cpfCnpj) {
       const existingDoc = await prisma.cliente.findUnique({
-        where: { cpfCnpj: data.cpfCnpj },
+        where: { organizationId_cpfCnpj: { organizationId: org.id, cpfCnpj: data.cpfCnpj } },
       })
 
       if (existingDoc) {
@@ -129,8 +132,7 @@ export async function POST(request: NextRequest) {
     const senhaHash = await bcrypt.hash(data.senha, 10)
 
     // Criar usuário e cliente em transação
-    const result = await prisma.// eslint-disable-next-line @typescript-eslint/no-explicit-any
-$transaction(async (tx: any) => {
+    const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           email: data.email,
@@ -138,11 +140,13 @@ $transaction(async (tx: any) => {
           nome: data.nome,
           telefone: data.telefone,
           role: 'CLIENTE',
+          memberships: { create: { organizationId: org.id, papel: 'CLIENT' } },
         },
       })
 
       const cliente = await tx.cliente.create({
         data: {
+          organizationId: org.id,
           userId: user.id,
           cpfCnpj: data.cpfCnpj,
           tipoPessoa: data.tipoPessoa,

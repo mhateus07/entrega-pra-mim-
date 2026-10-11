@@ -1,5 +1,5 @@
 import type { StatusPagamento } from '@prisma/client'
-import type { AuthenticatedUser } from './auth-helpers'
+import type { OrgUser } from './auth-helpers'
 import { comPedidoBloqueado, liberarCreditoEntrega } from './pedido-transaction'
 import { podeConfirmarDinheiro, podeGerenciarPagamento } from './pedido-permissions'
 import { OperacaoError } from './operacao-error'
@@ -7,14 +7,16 @@ import { ELECTRONIC_PAYMENTS_AVAILABLE } from './payment-policy'
 import { verificarStatusPix, cancelarPagamento } from './pagamentos'
 
 export async function executarAcaoPagamento(
-  pedidoId: string, pagamentoId: string, user: AuthenticatedUser,
+  pedidoId: string, pagamentoId: string, user: OrgUser,
   acao: 'verificar' | 'confirmar_dinheiro' | 'cancelar',
 ) {
   return comPedidoBloqueado(pedidoId, async tx => {
     const pagamento = await tx.pagamento.findUnique({
       where: { id: pagamentoId }, include: { pedido: true },
     })
-    if (!pagamento || pagamento.pedidoId !== pedidoId) throw new OperacaoError('Pagamento não encontrado', 404)
+    if (!pagamento || pagamento.pedidoId !== pedidoId || pagamento.organizationId !== user.organizationId) {
+      throw new OperacaoError('Pagamento não encontrado', 404)
+    }
     const autorizado = acao === 'confirmar_dinheiro'
       ? podeConfirmarDinheiro(user, pagamento.pedido.motoboyId)
       : podeGerenciarPagamento(user, pagamento)

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     if (!auth.authenticated) return auth.response
 
     const enderecos = await prisma.endereco.findMany({
-      where: { clienteId },
+      where: { clienteId, organizationId: auth.user.organizationId },
       orderBy: [{ favorito: 'desc' }, { createdAt: 'desc' }],
     })
 
@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
 
     const endereco = await prisma.endereco.create({
       data: {
+        organizationId: auth.user.organizationId,
         ...data,
         latitude,
         longitude,

@@ -1,8 +1,7 @@
 import { jsonResponse } from '@/lib/json-response'
 import { NextRequest } from 'next/server'
 import prisma from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireMotoboyOwnership } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -11,28 +10,17 @@ interface RouteParams {
 // GET /api/motoboys/[id]/saldo - Buscar saldo do motoboy
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return jsonResponse(
-        { success: false, error: 'Não autorizado' },
-        { status: 401 }
-      )
-    }
-
     const { id } = await params
 
-    // Verificar se é o próprio motoboy ou admin
-    if (session.user.motoboyId !== id && session.user.role !== 'ADMIN') {
-      return jsonResponse(
-        { success: false, error: 'Acesso negado' },
-        { status: 403 }
-      )
-    }
+    // Próprio motoboy ou gestão da central (motoboy da organização ativa)
+    const auth = await requireMotoboyOwnership(id)
+    if (!auth.authenticated) return auth.response
 
     // Buscar ou criar saldo
     const saldo = await prisma.saldoMotoboy.upsert({
       where: { motoboyId: id },
       create: {
+        organizationId: auth.user.organizationId,
         motoboyId: id,
         saldoDisponivel: 0,
         saldoPendente: 0,

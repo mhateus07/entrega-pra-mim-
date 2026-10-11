@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { Alert } from '@/components/ui/Feedback'
 import AuthLayout from '@/components/layout/AuthLayout'
+import { paginaInicial } from '@/utils/area'
 
 const authErrors: Record<string, string> = {
   Configuration: 'Erro de configuração do servidor. Tente novamente mais tarde.',
@@ -62,14 +63,7 @@ function LoginContent() {
         const sessionRes = await fetch('/api/auth/session')
         const session = await sessionRes.json()
 
-        const role = session?.user?.role
-        if (role === 'ADMIN') {
-          router.push('/dashboard')
-        } else if (role === 'MOTOBOY') {
-          router.push('/motoboy')
-        } else {
-          router.push('/cliente')
-        }
+        router.push(paginaInicial(session?.user?.orgRole, session?.user?.superadmin))
         router.refresh()
       }
     } catch {
