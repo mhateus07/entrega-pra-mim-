@@ -8,6 +8,29 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Etapa 7 — Textos e documentação (2026-10-11)
+
+**Na prática**
+- A página inicial agora fala com o **dono da central**: "Sua central despachando, rastreando e fechando o dia num sistema só, com a sua marca, por preço fixo. Sem comissão por corrida."
+- A página mostra:
+  - as dores do WhatsApp;
+  - como funciona em 3 passos;
+  - os recursos;
+  - os **planos com preço fixo**;
+  - um FAQ de dono de central.
+- A calculadora de preço para o consumidor final saiu. O botão principal virou "Criar minha central".
+- O login e a tela lateral de entrada falam de central, e não mais de "solicitar entregas".
+- One-pager e pitch foram reescritos para o modelo SaaS. Saíram os números de TAM/SAM sem fonte, a "taxa de 10–15% por corrida" e a afirmação de "código 100% proprietário", que ainda depende do acerto com o cliente original.
+
+**Técnico**
+- `src/app/page.tsx`: landing nova. Os planos vêm de `src/lib/planos.ts`, então preço e limite mudam num lugar só.
+- `src/components/landing/PriceCalculator.tsx` foi removido (era usado só pela landing).
+- `AuthLayout` e `login` com textos novos.
+- `README.md`: modelo e papéis, funcionalidades, mapa de rotas, modelos, fórmula de preço da central, despacho, instalação (`create-admin` com `ORG_SLUG`, `CRON_SECRET`, seed) e roadmap.
+- `docs/ONE_PAGER.md` e `docs/PITCH_INVESTIDORES.md` foram reescritos a partir de `docs/PLANO_NEGOCIO.md`, com fontes nos concorrentes.
+- `docs/PLANO_EVOLUCAO.md`: aviso de reposicionamento no topo e seção 12 com a nova ordem (Etapas 0–6 ✅ → WhatsApp e domínio próprio → piloto → fase 2: Pix, Pedeli, ETA real, SSE).
+- `docs/CORRECOES_OPERACIONAIS.md`: regra de aceite atualizada para o despacho com oferta.
+
 ### Etapa 6 — Despacho com oferta (2026-10-11)
 
 **Na prática**

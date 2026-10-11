@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { Camera, MapPin, Receipt } from 'lucide-react'
+import { Calculator, MapPin, Radio } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 
 const pontos = [
-  { icon: Receipt, title: 'Preço antes de confirmar', text: 'O valor é calculado pela distância e pelo tipo de serviço.' },
-  { icon: MapPin, title: 'Acompanhamento ao vivo', text: 'Veja a posição do entregador da coleta até a entrega.' },
-  { icon: Camera, title: 'Comprovante de entrega', text: 'Foto registrada no momento da entrega, disponível no pedido.' },
+  { icon: Radio, title: 'Despacho com oferta', text: 'A corrida vai para o motoboy mais perto e passa ao próximo se ele não aceitar.' },
+  { icon: MapPin, title: 'Rastreio com a sua marca', text: 'O cliente final acompanha por link, sem baixar nada.' },
+  { icon: Calculator, title: 'Fechamento em minutos', text: 'Quanto pagar a cada motoboy e quanto cobrar de cada empresa.' },
 ]
 
 export default function AuthLayout({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
@@ -30,9 +30,9 @@ export default function AuthLayout({ children, wide }: { children: React.ReactNo
           <circle cx="360" cy="40" r="14" stroke="currentColor" strokeWidth="2" />
         </svg>
         <div className="relative">
-          <p className="text-sm font-medium text-[#f0712b]">Entregas urbanas sob demanda</p>
+          <p className="text-sm font-medium text-[#f0712b]">Sistema para centrais de motofrete</p>
           <h2 className="mt-3 max-w-sm text-[28px] font-semibold leading-tight tracking-tight">
-            Do pedido ao comprovante, tudo em um só lugar.
+            Despacho, rastreio e fechamento num sistema só.
           </h2>
         </div>
         <ul className="relative space-y-6">

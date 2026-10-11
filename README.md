@@ -1,6 +1,8 @@
 # Entrega Pra Mim
 
-Plataforma completa de entregas com motoboys, desenvolvida com Next.js 16, TypeScript, Tailwind CSS, MySQL e Prisma.
+SaaS multi-tenant para **centrais de motofrete**: cada central (organização) despacha os próprios motoboys, atende as empresas clientes dela e mostra o rastreio com a própria marca. A central paga mensalidade fixa por plano; a plataforma não tira comissão da corrida. Decisão de negócio em [docs/PLANO_NEGOCIO.md](docs/PLANO_NEGOCIO.md).
+
+Next.js 16, TypeScript, Tailwind CSS, MySQL e Prisma.
 
 ---
 
@@ -26,127 +28,32 @@ Plataforma completa de entregas com motoboys, desenvolvida com Next.js 16, TypeS
 
 > **Pagamentos:** PIX e cartão são demonstrações disponíveis apenas em desenvolvimento/testes. Em produção, somente dinheiro está habilitado até a integração de um gateway. Veja as regras, testes e pendências em [Correções operacionais](docs/CORRECOES_OPERACIONAIS.md).
 
-## Funcionalidades Implementadas
+## Modelo e papéis
 
-### Base
+| Papel | Quem é | Onde trabalha |
+| --- | --- | --- |
+| `SUPERADMIN` | Equipe da plataforma (Impulsio) | Entra em qualquer central; ativa, suspende e muda o plano em **Painel → Centrais** |
+| `OWNER` | Dono da central | `/dashboard`: tudo da central, inclusive preços, marca e convite de despachantes |
+| `DISPATCHER` | Despachante/operador | `/dashboard`: despacho, pedidos, motoboys, clientes, convites e fechamento |
+| `CLIENT` | Empresa atendida pela central (farmácia, loja, escritório) | `/cliente`: abre e acompanha pedidos |
+| `DRIVER` | Motoboy da central | `/motoboy`: recebe ofertas, faz a entrega e envia o comprovante |
+| Destinatário | Pessoa sem login | `/r/[token]`: link público de rastreio |
 
-#### Painel do Cliente (`/cliente`)
-- Criar nova entrega com cálculo automático de rota e preço
-- Três tipos de serviço: Expressa, Agendada, Documentos
-- Acompanhar status do pedido
-- Cancelar pedidos (quando permitido)
-- Avaliar entregas após conclusão
-- Histórico de pedidos
+O papel é **por central** (`OrganizationMember`). A mesma pessoa pode estar em mais de uma central e escolhe a ativa no seletor do topo. Toda leitura e escrita de negócio filtra pela central ativa (`requireOrgAccess` em `src/lib/auth-helpers.ts`). O teste `tests/integration/isolamento-orgs.test.ts` prova isso em todas as rotas e falha se surgir rota nova sem caso.
 
-#### Painel do Motoboy (`/motoboy`)
-- Alternar status (Online/Offline)
-- Ver pedidos disponíveis na região
-- Aceitar e gerenciar entregas
-- Fluxo de status: Aceito → Em Coleta → Em Entrega → Entregue
-- Histórico de entregas com estatísticas
-- Ver avaliações recebidas
+## Funcionalidades
 
-#### Painel Administrativo (`/dashboard`)
-- Visão geral com estatísticas
-- Gerenciamento de pedidos (filtros, atribuir motoboy, cancelar)
-- Gerenciamento de motoboys (status, avaliações, veículos)
-- Gerenciamento de clientes (busca, histórico)
+- **Entrada:** `/registro` é "criar minha central" (nasce pendente até o superadmin ativar). Motoboys, empresas e despachantes entram por **convite** (link de uso único com validade, em Painel → Convites). Cada central tem um login próprio com a marca dela: `/o/[slug]/login`.
+- **Pedidos:** a empresa cliente abre pelo portal `/cliente`, ou a central lança. O preço vem da **tabela da central** (km, mínimo, multiplicador por serviço e preço fixo por bairro de destino) e fica congelado no pedido.
+- **Despacho com oferta:** a corrida é oferecida ao melhor motoboy online (proximidade, avaliação e tempo parado), com 90 s para aceitar. Se ele recusa ou o prazo vence, vai para o próximo. Depois de 3 tentativas, cai na fila "sem motoboy" em Painel → Despacho. O motoboy só vê as ofertas feitas para ele.
+- **Entrega:** status em sequência, localização do motoboy, chat cliente–motoboy e comprovante com foto obrigatório para concluir.
+- **Rastreio público:** link `/r/[token]` sem login. Posição do motoboy só durante a entrega; foto do comprovante depois. Nunca mostra telefone, documento, valor nem endereço completo.
+- **Fechamento:** em Painel → Fechamento, por motoboy (corridas, repasse configurável, dinheiro recebido em mãos, saldo do acerto) e por empresa (valor, já pago, a cobrar), com exportação CSV.
+- **Plano e uso:** limites de motoboys e de entregas por mês por plano. Entregas acima do limite são aceitas como excedente, com bloqueio só acima de 120%. Chamadas ao Google Maps são contadas por central.
+- **Marca própria** (plano Marca própria): logo, nome e cor no rastreio, no login da central e no PWA (`/o/[slug]/manifest.webmanifest`).
+- **PWA e tema claro/escuro** para uso no celular.
 
----
-
-### Fase 1: Dashboard + Dark Mode + PWA
-
-#### Gráficos no Dashboard
-- **Faturamento Mensal**: Gráfico de área mostrando receita por mês
-- **Pedidos por Dia**: Gráfico de barras com volume de pedidos
-- **Status dos Pedidos**: Gráfico de pizza com distribuição de status
-
-#### Dark Mode
-- Toggle de tema claro/escuro em todas as páginas
-- Persistência via `localStorage`
-- Suporte a preferência do sistema
-- Cores otimizadas para ambos os temas
-
-#### PWA (Progressive Web App)
-- Manifesto configurado (`/public/manifest.json`)
-- Ícones para instalação
-- Suporte a instalação em dispositivos móveis
-
----
-
-### Fase 2: Rastreamento em Tempo Real + Notificações
-
-#### Rastreamento ao Vivo
-- Mapa interativo com Google Maps
-- Posição do motoboy atualizada em tempo real
-- Marcadores: Coleta (verde), Entrega (vermelho), Motoboy (azul)
-- Rota desenhada entre pontos
-- ETA (tempo estimado de chegada)
-
-#### Compartilhamento de Localização
-- Motoboy compartilha GPS automaticamente durante entrega
-- Usa API de Geolocalização do navegador
-- Indicador visual de compartilhamento ativo
-
-#### Notificações
-- Push notifications do navegador
-- Toast notifications para feedback
-- Alertas de mudança de status
-- Notificação de novos pedidos para motoboys
-
----
-
-### Fase 3: Chat + Comprovante com Foto
-
-#### Sistema de Chat
-- Chat em tempo real entre cliente e motoboy
-- Mensagens com timestamps
-- Indicadores de leitura (✓/✓✓)
-- Badge de mensagens não lidas
-- Chat flutuante (minimizável)
-- Polling automático a cada 5 segundos
-
-#### Comprovante de Entrega
-- Captura de foto via câmera do dispositivo
-- Preferência para câmera traseira
-- Upload da galeria como alternativa
-- Preview antes de enviar
-- Obrigatório para confirmar entrega
-- Cliente visualiza foto após entrega
-
----
-
-### Fase 4: Sistema de Pagamentos
-
-#### Métodos de Pagamento
-> PIX e cartão são **simulados** (`src/lib/pagamentos.ts`) e ficam bloqueados em produção. Não há gateway, webhook nem estorno real.
-
-- **PIX** (simulado): QR Code fictício, aprovação aleatória na verificação
-- **Cartão de Crédito/Débito** (simulado): validação de formato; aprovação aleatória
-- **Dinheiro**: único método habilitado em produção; confirmação manual pelo motoboy na entrega
-
-#### Fluxo de Checkout
-1. Cliente cria pedido
-2. Seleciona método de pagamento
-3. PIX: Exibe QR Code e aguarda confirmação
-4. Cartão: Processa e aprova/recusa
-5. Dinheiro: Registra pendente, motoboy confirma
-6. Redirecionamento automático após aprovação
-
-#### Split de Pagamento
-```
-Taxa da Plataforma: 15%
-Ganho do Motoboy: 85%
-```
-
-#### Ganhos do Motoboy
-- Dashboard com saldo disponível, pendente e total
-- Histórico de transações
-- Filtros por tipo (crédito, débito, saque)
-- Crédito automático ao confirmar pagamento
-
-#### Integração com gateway
-Ainda não implementada. Ver `docs/PLANO_EVOLUCAO.md` (P1).
+> **Pagamentos:** PIX e cartão são simulados (`src/lib/pagamentos.ts`) e bloqueados em produção. Só dinheiro está habilitado; a central cobra os clientes como já faz e usa o fechamento para conferir. O gateway real é fase 2 ([docs/PLANO_EVOLUCAO.md](docs/PLANO_EVOLUCAO.md)). A taxa da plataforma sobre a corrida é configuração por central, com padrão 0.
 
 ---
 
@@ -236,181 +143,67 @@ entrega_pra_mim/
 
 ## API Routes
 
-### Autenticação
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/api/auth/[...nextauth]` | NextAuth handlers |
+Todas exigem login e central ativa, salvo as marcadas como públicas. Recurso de outra central responde 404.
 
-### Pedidos
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/pedidos` | Listar pedidos (com filtros) |
-| POST | `/api/pedidos` | Criar pedido (aceita `Idempotency-Key`) |
-| GET | `/api/pedidos/[id]` | Buscar pedido |
-| PATCH | `/api/pedidos/[id]` | Atualizar pedido |
-| DELETE | `/api/pedidos/[id]` | Cancelar pedido |
-| GET | `/api/pedidos/[id]/rastreamento` | Dados de rastreamento |
-| GET/POST | `/api/pedidos/[id]/mensagens` | Chat do pedido |
-| GET/POST | `/api/pedidos/[id]/comprovante` | Foto de comprovante |
-
-### Motoboys
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/motoboys` | Listar motoboys |
-| POST | `/api/motoboys` | Cadastro público (nasce `PENDENTE_APROVACAO`) |
-| GET | `/api/motoboys/[id]` | Buscar motoboy |
-| PATCH | `/api/motoboys/[id]` | Atualizar motoboy |
-| DELETE | `/api/motoboys/[id]` | Remover motoboy |
-| PATCH | `/api/motoboys/[id]/aprovacao` | Aprovar, reprovar ou suspender (admin) |
-| GET/POST | `/api/motoboys/[id]/localizacao` | Localização GPS (GET: próprio motoboy, admin ou cliente com entrega em andamento) |
-
-### Clientes
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/clientes` | Listar clientes |
-| POST | `/api/clientes` | Criar cliente |
-| GET | `/api/clientes/[id]` | Buscar cliente |
-| PATCH | `/api/clientes/[id]` | Atualizar cliente |
-
-### Endereços
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/enderecos` | Listar endereços |
-| POST | `/api/enderecos` | Criar endereço |
-| GET | `/api/enderecos/[id]` | Buscar endereço |
-| PATCH | `/api/enderecos/[id]` | Atualizar endereço |
-| DELETE | `/api/enderecos/[id]` | Remover endereço |
-
-### Pagamentos
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/api/pagamentos` | Listar pagamentos |
-| POST | `/api/pagamentos` | Criar pagamento (aceita `Idempotency-Key`) |
-| GET/POST/DELETE | `/api/pagamentos/[id]` | Consultar, verificar/confirmar dinheiro, cancelar |
-
-### Outros
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/api/avaliacoes` | Criar avaliação |
-| POST | `/api/rotas` | Calcular rota |
-| GET | `/api/health/live` | Processo no ar (público, usado no HEALTHCHECK do Docker) |
-| GET | `/api/health/ready` | Banco, Redis e storage (público; 503 se algo falhar) |
+| Área | Rotas |
+| --- | --- |
+| Sessão | `/api/auth/*` (NextAuth), `GET /api/organizacoes` (centrais do usuário para o seletor) |
+| Pedidos | `GET/POST /api/pedidos` (POST aceita `Idempotency-Key`), `GET/PATCH/DELETE /api/pedidos/[id]`, `.../rastreamento`, `.../mensagens`, `.../comprovante`, `.../comprovante/arquivo`, `POST .../rastreio-publico` |
+| Despacho | `GET /api/despacho/ofertas` e `POST /api/despacho/ofertas/[id]` (motoboy aceita/recusa), `GET/POST /api/despacho/fila` (gestão: fila manual e reoferta) |
+| Motoboys | `GET/POST /api/motoboys` (POST: cadastro direto pela gestão), `GET/PATCH/DELETE /api/motoboys/[id]`, `.../aprovacao`, `.../localizacao`, `.../resumo`, `.../saldo`, `.../transacoes` |
+| Clientes e endereços | `GET/POST /api/clientes`, `/api/clientes/[id]`, `/api/enderecos`, `/api/enderecos/[id]` |
+| Pagamentos | `GET/POST /api/pagamentos` (POST aceita `Idempotency-Key`), `GET/POST/DELETE /api/pagamentos/[id]` |
+| Avaliações e rota | `GET/POST /api/avaliacoes`, `POST /api/rotas` (cotação pela tabela da central) |
+| Central | `GET /api/organizacao/uso`, `GET/PUT /api/organizacao/precos`, `GET/PUT /api/organizacao/marca`, `POST/DELETE /api/organizacao/marca/logo`, `GET/POST /api/convites`, `DELETE /api/convites/[id]`, `GET /api/fechamento` (`?de&ate&visao=motoboy\|cliente&formato=csv`), `GET /api/dashboard` |
+| Plataforma | `GET /api/plataforma/organizacoes`, `PATCH /api/plataforma/organizacoes/[id]` (superadmin) |
+| Públicas | `GET /api/health/live`, `GET /api/health/ready`, `GET /api/publico/rastreio/[token]` (+ `/comprovante`), `GET/POST /api/publico/convites/[token]`, `POST /api/publico/centrais`, `GET /api/publico/organizacoes/[slug]` (+ `/logo`) |
+| Job | `POST /api/jobs/despacho` com `Authorization: Bearer CRON_SECRET` (chamado a cada 15 s pelo serviço `despacho-cron`) |
 
 ### Idempotência
-`POST /api/pedidos` e `POST /api/pagamentos` aceitam o header `Idempotency-Key` (8–255 caracteres `[A-Za-z0-9_:.-]`). A primeira resposta 2xx/4xx fica guardada por 24h por usuário; repetir a mesma chave com o mesmo corpo devolve a resposta original com `Idempotent-Replayed: true`, com outro corpo retorna 422 e, enquanto a original processa, 409. O frontend envia uma chave nova a cada tentativa.
+`POST /api/pedidos` e `POST /api/pagamentos` aceitam o header `Idempotency-Key` (8–255 caracteres `[A-Za-z0-9_:.-]`). A primeira resposta 2xx/4xx fica guardada por 24 h para cada usuário. Repetir a mesma chave com o mesmo corpo devolve a resposta original com `Idempotent-Replayed: true`. Com outro corpo, a resposta é 422; enquanto a original ainda processa, 409.
 
 ### Rate limit
-Por IP em login/cadastro; por usuário em chat (20/min), upload (10/min), envio de localização (30/min), pagamentos (20/min) e polling (60/min). Chamadas pagas ao Google Maps (rota no pedido, `/api/rotas`, geocodificação de endereço) somam um limite único por usuário: 20/min e 300/dia. Com `REDIS_URL` o contador é compartilhado entre instâncias; sem Redis, fica em memória por processo.
+- **Por IP:** login, cadastro e rotas públicas.
+- **Por usuário:** chat (20/min), upload (10/min), envio de localização (30/min), pagamentos (20/min) e polling (60/min).
+- **Google Maps:** rota, pedido e geocodificação somam um limite único por usuário, de 20/min e 300/dia.
+
+Com `REDIS_URL`, o contador é compartilhado entre instâncias.
 
 ### Sessão e senha
-Sessão JWT de 7 dias; a cada 5 min o perfil é relido do banco, e usuário excluído passa a receber 401. Senhas novas: 8 a 72 caracteres, recusando sequências e repetições óbvias.
+A sessão JWT dura 7 dias e guarda a central ativa e o papel nela. A cada 5 minutos, o usuário e o papel são relidos do banco; usuário excluído passa a receber 401. Senhas novas têm de 8 a 72 caracteres e recusam sequências e repetições óbvias.
 
 ### Headers
-Todas as respostas levam HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` e uma CSP sem `script-src` (`frame-ancestors`, `base-uri`, `form-action`, `object-src`), para não quebrar o Google Maps. O otimizador de imagens não aceita domínios externos.
+Todas as respostas levam HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` e uma CSP sem `script-src`. A CSP cobre `frame-ancestors`, `base-uri`, `form-action` e `object-src`. O otimizador de imagens não aceita domínios externos.
 
 ### Auditoria
-A tabela `audit_logs` registra login (sucesso e falha), cadastro/aprovação/exclusão de motoboy, criação e mudança de status de pedido, criação/confirmação/cancelamento de pagamento e envio/acesso a comprovante. É só inserção, e uma falha ao gravar não interrompe a operação.
+A tabela `audit_logs`, com `organizationId`, registra:
+- login, com sucesso ou falha;
+- aprovação e exclusão de motoboy;
+- status de pedido (inclusive o aceite por oferta);
+- pagamentos;
+- envio e acesso a comprovante;
+- convites;
+- link de rastreio;
+- marca;
+- alterações de central.
+
+É só inserção, e uma falha ao gravar não interrompe a operação.
 
 ---
 
 ## Modelos de Dados (Prisma)
 
-### User
-```prisma
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  senha         String
-  nome          String
-  telefone      String?
-  role          UserRole  @default(CLIENTE) // ADMIN, CLIENTE, MOTOBOY
-  emailVerified DateTime?
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-```
+Schema completo em `prisma/schema.prisma`. Migrations versionadas em `prisma/migrations` (sempre aditivas: acrescentar → preencher → restringir).
 
-### Motoboy
-```prisma
-model Motoboy {
-  id              String        @id @default(cuid())
-  userId          String        @unique
-  cnh             String        @unique
-  veiculoTipo     String
-  veiculoMarca    String
-  veiculoModelo   String
-  veiculoPlaca    String        @unique
-  status          StatusMotoboy @default(OFFLINE) // DISPONIVEL, EM_ENTREGA, OFFLINE
-  latitudeAtual   Float?
-  longitudeAtual  Float?
-  avaliacaoMedia  Float         @default(5.0)
-  totalEntregas   Int           @default(0)
-  ultimaAtividade DateTime?
-}
-```
+| Grupo | Modelos |
+| --- | --- |
+| Central | `Organization` (slug, `plano`, `status`), `OrganizationMember` (papel por central), `OrganizationSettings` (marca, taxa da plataforma, % de repasse, fuso, prazo e tentativas do despacho), `Convite` |
+| Preço e uso | `PricingRule`, `PricingBairro`, `UsageCounter` (entregas e chamadas ao Maps por mês) |
+| Operação | `Motoboy`, `Cliente`, `Endereco`, `Pedido` (preço congelado, `trackingToken`, controle do despacho), `DispatchOffer`, `Mensagem`, `Avaliacao` |
+| Financeiro (simulado/legado) | `Pagamento`, `SaldoMotoboy`, `TransacaoMotoboy` |
+| Plataforma | `User` (e-mail global; `SUPERADMIN` ou conta comum), `AuditLog`, `IdempotencyKey`, tabelas do NextAuth |
 
-### Cliente
-```prisma
-model Cliente {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  cpfCnpj    String?  @unique
-  tipoPessoa String   @default("PF") // PF ou PJ
-  razaoSocial String?
-}
-```
-
-### Pedido
-```prisma
-model Pedido {
-  id                String       @id @default(cuid())
-  clienteId         String
-  motoboyId         String?
-  enderecoOrigemId  String
-  enderecoDestinoId String
-  tipoServico       TipoServico  // EXPRESSA, AGENDADA, DOCUMENTOS
-  status            StatusPedido @default(SOLICITADO)
-  descricaoItem     String?
-  observacoes       String?
-  pesoAproximado    Float?
-  distanciaKm       Float
-  duracaoEstimada   Int          // minutos
-  valorBase         Float
-  multiplicador     Float
-  valorTotal        Float
-  dataAgendada      DateTime?
-  aceitoEm          DateTime?
-  coletadoEm        DateTime?
-  entregueEm        DateTime?
-  canceladoEm       DateTime?
-  motivoCancelamento String?
-  fotoComprovante   String?
-}
-```
-
-### Mensagem
-```prisma
-model Mensagem {
-  id         String   @id @default(cuid())
-  pedidoId   String
-  remetente  String   // 'CLIENTE' ou 'MOTOBOY'
-  conteudo   String   @db.Text
-  lida       Boolean  @default(false)
-  createdAt  DateTime @default(now())
-}
-```
-
-### Avaliacao
-```prisma
-model Avaliacao {
-  id         String   @id @default(cuid())
-  pedidoId   String   @unique
-  motoboyId  String
-  nota       Int      // 1 a 5
-  comentario String?
-}
-```
+Todos os agregados de negócio têm `organizationId`. CNH, placa, CPF/CNPJ e o perfil do usuário são únicos **por central**, então a mesma pessoa pode estar em duas centrais.
 
 ---
 
@@ -489,69 +282,35 @@ const {
 
 ## Fórmula de Preço
 
-| Tipo de Serviço | Multiplicador | Exemplo (10km) |
-|-----------------|---------------|----------------|
-| Agendada | 1.0x | R$ 30,00 |
-| Documentos | 1.2x | R$ 36,00 |
-| Expressa | 1.5x | R$ 45,00 |
+Cada central configura a própria tabela em **Painel → Preços** (`PricingRule`). Centrais novas começam com R$ 3,00/km e multiplicadores de 1,0 (agendada), 1,2 (documentos) e 1,5 (expressa).
 
-**Base**: R$ 3,00 por km
-
-```typescript
-const calcularPreco = (distanciaKm: number, tipoServico: TipoServico) => {
-  const PRECO_POR_KM = 3.0
-  const MULTIPLICADORES = {
-    AGENDADA: 1.0,
-    DOCUMENTOS: 1.2,
-    EXPRESSA: 1.5,
-  }
-  return distanciaKm * PRECO_POR_KM * MULTIPLICADORES[tipoServico]
-}
 ```
+valorBase  = preço fixo do bairro de destino (se houver) ou km × precoPorKm
+valorTotal = max(valorBase × multiplicador do serviço, valorMinimo)
+```
+
+O valor é calculado na criação do pedido (`calcularPrecoComRegra` em `src/lib/pricing.ts`) e nunca recalculado depois.
 
 ---
 
 ## Fluxo do Pedido
 
 ```
-                    ┌──────────────┐
-                    │  SOLICITADO  │
-                    └──────┬───────┘
-                           │ Motoboy aceita
-                    ┌──────▼───────┐
-                    │    ACEITO    │
-                    └──────┬───────┘
-                           │ Chegou na coleta
-                    ┌──────▼───────┐
-                    │   EM_COLETA  │
-                    └──────┬───────┘
-                           │ Saiu para entrega
-                    ┌──────▼───────┐
-                    │  EM_ENTREGA  │
-                    └──────┬───────┘
-                           │ Entregou + foto
-                    ┌──────▼───────┐
-                    │   ENTREGUE   │
-                    └──────────────┘
-
-    * CANCELADO pode ocorrer em SOLICITADO ou ACEITO
+SOLICITADO ──(oferta aceita pelo motoboy ou atribuição manual)──▶ ACEITO
+ACEITO ──▶ EM_COLETA ──▶ EM_ENTREGA ──(foto do comprovante)──▶ ENTREGUE
+CANCELADO: a partir de SOLICITADO, ACEITO, EM_COLETA ou EM_ENTREGA
 ```
 
----
+## Despacho com oferta
 
-## Algoritmo de Alocação
+Implementado em `src/lib/despacho.ts`:
 
-O sistema usa um algoritmo de pontuação para selecionar o melhor motoboy:
-
-```
-Score = (0.40 × Proximidade) + (0.35 × Avaliação) + (0.25 × Tempo Ocioso)
-```
-
-| Fator | Peso | Descrição |
-|-------|------|-----------|
-| Proximidade | 40% | Distância até o local de coleta |
-| Avaliação | 35% | Média de avaliações do motoboy |
-| Tempo Ocioso | 25% | Tempo desde última entrega (FIFO) |
+1. Quando o pedido é criado, `ofertarPedido` escolhe o melhor motoboy online e aprovado da central. O score vem de `src/lib/alocacao.ts`: proximidade da coleta (40%), avaliação (35%) e tempo parado (25%).
+2. A oferta (`DispatchOffer`) vale 90 s (`despachoTtlSegundos`). Há no máximo uma oferta aberta por pedido, e o mesmo motoboy não recebe duas ofertas ao mesmo tempo.
+3. O aceite é atômico: usa o lock do pedido e a reserva condicional do motoboy, então duas respostas nunca atribuem o pedido duas vezes.
+4. Se o motoboy recusa ou o prazo vence, o job oferece ao próximo, sem repetir quem já recebeu neste ciclo.
+5. Depois de 3 tentativas (`despachoMaxTentativas`), ou sem ninguém online, o pedido vai para a fila manual (`despachoManual`).
+6. Entrega agendada entra no despacho 30 minutos antes do horário.
 
 ---
 
@@ -577,9 +336,12 @@ Criar arquivo `.env`:
 # Banco de Dados
 DATABASE_URL="mysql://root:root123@localhost:3306/entrega_pra_mim"
 
-# NextAuth
+# NextAuth (gere o segredo com: openssl rand -base64 32)
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="super-secret-key-change-in-production"
+NEXTAUTH_SECRET="cole-aqui-o-resultado-do-openssl"
+
+# Job de despacho (opcional em desenvolvimento; obrigatório em produção)
+CRON_SECRET="gere com: openssl rand -hex 32"
 
 # Google Maps
 GOOGLE_MAPS_API_KEY="sua-chave-aqui"
@@ -606,10 +368,24 @@ npx prisma generate
 
 > Não use `prisma db push`: ele altera o banco sem histórico e diverge do que roda no CI e em produção. Para mudar o schema em desenvolvimento, use `npx prisma migrate dev --name descricao`.
 
-### 5. Criar Usuário Admin (Opcional)
+### 5. Criar o superadmin (e, opcionalmente, dados de demonstração)
+
+A migration já cria a "Central Principal". Para entrar como superadmin e dono dela:
 
 ```bash
-ADMIN_EMAIL=voce@exemplo.com ADMIN_PASSWORD='senha-com-12-ou-mais' npx tsx scripts/create-admin.ts
+ADMIN_EMAIL=voce@exemplo.com ADMIN_PASSWORD='senha-com-12-ou-mais' ORG_SLUG=central-principal npx tsx scripts/create-admin.ts
+```
+
+Para popular a Central Principal com dados fictícios (**apaga os dados existentes**):
+
+```bash
+DEMO_MODE=1 DEMO_PASSWORD='senha-demo' npx tsx scripts/seed-demo.ts
+```
+
+Para o despacho expirar ofertas e passar ao próximo em desenvolvimento, chame o job de tempos em tempos:
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/jobs/despacho
 ```
 
 Ou manualmente via Prisma Studio:
@@ -629,7 +405,7 @@ Acesse: **http://localhost:3000**
 
 ## Credenciais de Teste
 
-Não há credenciais fixas. Crie o admin com `scripts/create-admin.ts` (passo 5) e os demais usuários em `/registro`. Motoboys cadastrados precisam ser aprovados pelo admin.
+Não há credenciais fixas. Crie o superadmin com `scripts/create-admin.ts` (passo 5). Uma central nova nasce em `/registro` e é ativada em Painel → Centrais. Motoboys, empresas e despachantes entram pelos convites da central, e motoboys precisam de aprovação para receber ofertas.
 
 ---
 
@@ -706,11 +482,13 @@ npx prisma migrate reset    # Recriar o banco LOCAL (apaga dados)
 
 ## Próximas Fases (Roadmap)
 
-Ver [docs/PLANO_EVOLUCAO.md](docs/PLANO_EVOLUCAO.md). Resumo:
+Ver [docs/PLANO_EVOLUCAO.md](docs/PLANO_EVOLUCAO.md) (seção 12) e [CHANGELOG.md](CHANGELOG.md). Resumo:
 
-- [x] **P0 (parcial)**: localização restrita, aprovação de motoboy, idempotência, auditoria, rate limit por usuário, healthchecks, `assertEnv` no boot
-- [ ] **P1**: gateway de pagamento real com webhook, ledger, despacho com ofertas, ETA dinâmico
-- [ ] **P2**: multi-tenant (organizações) e produto B2B
+- [x] P0: segurança e operação mínima
+- [x] Multi-tenant, preço por central e limites, rastreio público e convites, fechamento, marca própria, despacho com oferta
+- [ ] Aviso por WhatsApp e domínio próprio da central
+- [ ] Piloto pago com 3 centrais
+- [ ] Fase 2: gateway Pix, integração com o Pedeli, ETA real, SSE
 
 ---
 

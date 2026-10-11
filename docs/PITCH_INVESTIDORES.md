@@ -1,260 +1,139 @@
 # Entrega Pra Mim
-## Plataforma de Gestão de Entregas com Motoboys
+## SaaS de gestão para centrais de motofrete
 
 ---
 
-## 📋 Sumário Executivo
+## Sumário executivo
 
-**Entrega Pra Mim** é uma plataforma completa de logística last-mile que conecta empresas, clientes e motoboys em um ecossistema integrado de entregas urbanas. A solução oferece gestão inteligente de entregas, rastreamento em tempo real, cálculo automático de rotas e precificação, sistema de pagamentos integrado e comunicação direta entre todas as partes.
+O **Entrega Pra Mim (EPM)** é o sistema de gestão das centrais de motofrete e empresas de entrega locais que hoje operam por WhatsApp e planilha. Cada central usa o EPM para despachar os próprios motoboys, atender as empresas clientes dela e mostrar o rastreio com a própria marca. A central paga uma **mensalidade fixa**; a plataforma **não tira comissão da corrida**.
 
-**Status:** MVP funcional em produção
-**URL:** https://entregapramim.impulsiodigital.com
-**Tecnologia:** Aplicação web responsiva (mobile-first)
+A escolha é deliberada: em vez de competir como marketplace (Uber Flash, 99Entrega, Lalamove), o EPM vende a ferramenta para quem já tem frota e clientes. Não há o problema do "ovo e a galinha" nem dinheiro de terceiros para intermediar.
 
----
-
-## 🎯 Problema
-
-O mercado de entregas urbanas enfrenta desafios críticos:
-
-| Problema | Impacto |
-|----------|---------|
-| **Gestão descentralizada** | Empresas usam WhatsApp e planilhas, gerando erros e perda de pedidos |
-| **Falta de rastreamento** | Clientes não sabem onde está sua entrega, gerando ansiedade e reclamações |
-| **Precificação inconsistente** | Motoboys cobram valores diferentes, causando conflitos |
-| **Comunicação fragmentada** | Ligações e mensagens em múltiplos canais dificultam o acompanhamento |
-| **Pagamentos manuais** | Acerto no fim do dia gera inadimplência e desconfiança |
+**Status:** sistema multi-tenant funcionando, a caminho do piloto pago com 3 centrais em Juiz de Fora.
+**Demo:** https://entregapramim.impulsiodigital.com
 
 ---
 
-## 💡 Solução
+## Problema
 
-Uma plataforma unificada que digitaliza toda a operação de entregas:
-
-### Para Empresas/Administradores
-- Dashboard completo com métricas em tempo real
-- Gestão de motoboys (cadastro, disponibilidade, avaliações)
-- Gestão de clientes e histórico de pedidos
-- Relatórios financeiros e operacionais
-- Controle de pagamentos e comissões
-
-### Para Clientes
-- Solicitação de entregas em poucos cliques
-- Cálculo automático de preço baseado em distância
-- Rastreamento em tempo real no mapa
-- Chat direto com o motoboy
-- Histórico completo de pedidos
-- Múltiplas formas de pagamento (PIX, cartão)
-
-### Para Motoboys
-- App para aceitar/recusar corridas
-- Navegação integrada com Google Maps
-- Visualização de ganhos em tempo real
-- Histórico de corridas e avaliações
-- Comprovante de entrega com foto
+| Hoje, na central | Consequência |
+| --- | --- |
+| Corridas distribuídas no grupo de WhatsApp | Sem critério, sem registro, motoboy parado enquanto outro acumula |
+| Cliente liga para saber onde está a entrega | Despachante preso ao telefone; cliente insatisfeito |
+| Fechamento do dia no caderno | Discussão sobre quantas corridas cada motoboy fez |
+| Cobrança das empresas por planilha | Horas no fim do mês e erros de cobrança |
+| Sem prova de entrega | Disputa quando o destinatário diz que não recebeu |
 
 ---
 
-## ⚙️ Funcionalidades Implementadas
+## Solução
 
-### ✅ Módulo de Autenticação
-- Login seguro com NextAuth.js
-- 3 tipos de usuário: Admin, Cliente, Motoboy
-- Sessões persistentes e seguras
-- Registro com validação de dados
+| Para | O que o EPM entrega |
+| --- | --- |
+| **Dono da central** | Painel da operação, tabela de preço própria, fechamento por motoboy e por empresa, plano e consumo do mês |
+| **Despachante** | Despacho com oferta automática e fila "sem motoboy" para atribuir na mão |
+| **Motoboy** | App no celular (PWA) com ofertas de corrida, contagem de 90 s, navegação e comprovante com foto |
+| **Empresa cliente** | Portal para abrir pedidos sozinha e acompanhar as entregas |
+| **Destinatário** | Link de rastreio sem conta e sem app, com a marca da central |
 
-### ✅ Módulo de Motoboys
-- Cadastro completo (dados pessoais, CNH, veículo)
-- Sistema de disponibilidade por horário
-- Status em tempo real (disponível, em entrega, offline)
-- Atualização de localização GPS
-- Histórico de entregas e avaliações
-- Sistema de ranking por performance
+### Funcionalidades implementadas (out/2026)
 
-### ✅ Módulo de Clientes
-- Cadastro simplificado (PF/PJ)
-- Gerenciamento de endereços favoritos
-- Histórico completo de pedidos
+- **Multi-tenant:** cada central só vê os próprios dados. Uma suíte de testes com duas centrais prova o isolamento em todas as rotas da API.
+- **Convites:** motoboys, empresas e despachantes entram por link de uso único. O cadastro público é só "criar minha central".
+- **Despacho com oferta:** score por proximidade, avaliação e tempo parado. Prazo para aceitar, reoferta e fila manual após 3 tentativas.
+- **Rastreio público:** status, ETA aproximado, posição só durante a entrega e foto do comprovante. Sem telefone, documento ou endereço completo.
+- **Fechamento:** repasse ao motoboy (percentual configurável), acerto do dinheiro recebido em mãos, valor a cobrar por empresa e exportação CSV.
+- **Preço por central:** valor por km, mínimo, multiplicador por serviço e preço fixo por bairro. O preço fica congelado no pedido.
+- **Planos e limites:** motoboys ativos e entregas por mês. Aviso ao passar do limite e bloqueio só acima de 120%.
+- **Marca própria:** logo, nome e cor no rastreio, no login da central e no app.
+- **Segurança:** aprovação de motoboy, auditoria, idempotência, rate limit, headers de segurança e sessão revalidada.
 
-### ✅ Módulo de Pedidos
-- **3 Tipos de Serviço:**
-  - Expressa (coleta imediata) - +50% no valor
-  - Agendada (data/hora específica) - preço base
-  - Documentos (com confirmação) - +20% no valor
-
-- **Fluxo completo:**
-  1. Solicitado → 2. Aceito → 3. Em Coleta → 4. Em Entrega → 5. Entregue
-
-- Cálculo automático de rota e preço
-- Observações e instruções especiais
-
-### ✅ Integração Google Maps
-- Cálculo de distância real (não linha reta)
-- Estimativa de tempo de entrega
-- Visualização de rota no mapa
-- Geocodificação de endereços
-- Rastreamento em tempo real
-
-### ✅ Sistema de Alocação Inteligente
-Algoritmo de pontuação para escolher o melhor motoboy:
-
-```
-Score = (40% × Proximidade) + (35% × Avaliação) + (25% × Tempo Disponível)
-```
-
-- Prioriza motoboys mais próximos
-- Considera histórico de avaliações
-- Implementa fila justa (FIFO)
-
-### ✅ Rastreamento em Tempo Real
-- Atualização da posição do motoboy a cada 10 segundos
-- Mapa interativo com rota e posição atual
-- Estimativa de chegada dinâmica
-- Notificações de status
-
-### ✅ Chat Integrado
-- Comunicação direta cliente ↔ motoboy
-- Histórico de mensagens por pedido
-- Interface simples e intuitiva
-
-### ✅ Comprovante de Entrega
-- Captura de foto no momento da entrega
-- Armazenamento seguro de imagens
-- Prova de entrega para disputas
-
-### ✅ Sistema de Pagamentos
-- **PIX:** QR Code gerado automaticamente
-- **Cartão:** Integração preparada para gateway
-- Histórico de transações
-- Controle de saldo do motoboy
-
-### ✅ Dashboard Administrativo
-- Visão geral de pedidos (hoje, semana, mês)
-- Métricas de performance
-- Gráficos de faturamento
-- Gestão de usuários
-- Relatórios exportáveis
-
-### ✅ Interface Responsiva
-- Design mobile-first
-- Funciona em qualquer dispositivo
-- Tema claro/escuro
-- UI moderna com Tailwind CSS
+**Ainda não implementado (fase 2):** Pix e cartão pelo sistema (hoje simulados), integração com o Pedeli, ETA pela rota real, atualização em tempo real (SSE) e aviso por WhatsApp.
 
 ---
 
-## 🛠️ Stack Tecnológica
+## Modelo de negócio
 
-| Camada | Tecnologia | Justificativa |
-|--------|------------|---------------|
-| **Frontend** | Next.js 16 + React 19 | Framework moderno, SSR, performance |
-| **Estilização** | Tailwind CSS | Desenvolvimento rápido, responsivo |
-| **Backend** | Next.js API Routes | Full-stack unificado, serverless-ready |
-| **Banco de Dados** | MySQL + Prisma ORM | Robusto, escalável, type-safe |
-| **Autenticação** | NextAuth.js | Seguro, flexível, padrão de mercado |
-| **Mapas** | Google Maps API | Líder de mercado, precisão máxima |
-| **Linguagem** | TypeScript | Segurança de tipos, menos bugs |
-| **Hospedagem** | VPS Linux (Ubuntu) | Controle total, custo-benefício |
-| **Process Manager** | PM2 | Auto-restart, monitoramento |
-| **Proxy Reverso** | Traefik | SSL automático, load balancing |
+**Mensalidade fixa por central, em três faixas, mais implantação.**
 
-### Arquitetura
-```
-┌─────────────────────────────────────────────────────────┐
-│                      CLIENTE                            │
-│              (Browser / Mobile)                         │
-└─────────────────────┬───────────────────────────────────┘
-                      │ HTTPS
-┌─────────────────────▼───────────────────────────────────┐
-│                    TRAEFIK                              │
-│            (Proxy Reverso + SSL)                        │
-└─────────────────────┬───────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────┐
-│                   NEXT.JS                               │
-│     ┌───────────────┬───────────────┐                   │
-│     │    Frontend   │   API Routes  │                   │
-│     │    (React)    │   (Backend)   │                   │
-│     └───────────────┴───────────────┘                   │
-└─────────────────────┬───────────────────────────────────┘
-                      │
-        ┌─────────────┼─────────────┐
-        │             │             │
-┌───────▼───────┐ ┌───▼───┐ ┌──────▼──────┐
-│    MySQL      │ │ Google│ │  Storage    │
-│   (Prisma)    │ │ Maps  │ │  (Uploads)  │
-└───────────────┘ └───────┘ └─────────────┘
-```
+| Plano | Limites | Preço proposto |
+| --- | --- | --- |
+| Essencial | 5 motoboys, 600 entregas/mês | R$ 149/mês |
+| Central | 20 motoboys, 2.500 entregas/mês, portal das empresas | R$ 299/mês |
+| Marca própria | 50 motoboys, 6.000 entregas/mês, marca da central | R$ 499/mês |
+| Implantação | Cadastro, tabela de preço, treinamento presencial | R$ 300 a R$ 600, uma vez |
+
+- Entrega acima do limite: R$ 0,10 cada, ou mudança de plano.
+- Os valores são uma **proposta** para validar com os primeiros clientes.
+- Receita futura opcional: taxa por transação Pix, só depois do gateway (fase 2).
+
+### Custo variável principal
+
+O Google Maps (Routes API e Geocoding) é medido por central e por mês, e rotas e endereços repetidos saem de cache. O objetivo é manter esse custo abaixo de 10% da mensalidade. O preço da API precisa ser conferido na tabela atual do Google.
 
 ---
 
-## 📊 Modelo de Negócio
+## Mercado e cliente ideal
 
-### Fontes de Receita
+O foco inicial são **centrais de motofrete com 5 a 50 motoboys** que atendem empresas com contrato mensal (farmácias, lojas, escritórios) e despacham pelo WhatsApp.
 
-| Modelo | Descrição | Projeção |
-|--------|-----------|----------|
-| **Taxa por entrega** | 10-15% sobre cada corrida | Principal |
-| **Assinatura Premium** | Plano mensal para empresas com volume | Recorrente |
-| **Taxa de urgência** | Adicional em entregas expressas | Variável |
+A ordem de entrada é: centrais de motofrete → restaurantes e lojas com frota própria (junto com o Pedeli) → farmácias, laboratórios e cartórios → cidades pequenas da Zona da Mata (fase 3, white-label).
 
-### Precificação Base
-- **R$ 3,00 por km** (ajustável por região)
-- Multiplicadores por tipo de serviço
-- Taxas adicionais configuráveis (horário, peso, etc.)
-
-### Exemplo de Cálculo
-| Distância | Tipo | Cálculo | Valor Final |
-|-----------|------|---------|-------------|
-| 10 km | Agendada | 10 × R$ 3,00 × 1.0 | R$ 30,00 |
-| 10 km | Documentos | 10 × R$ 3,00 × 1.2 | R$ 36,00 |
-| 10 km | Expressa | 10 × R$ 3,00 × 1.5 | R$ 45,00 |
+> O tamanho do mercado de software para centrais ainda não foi medido. O primeiro passo é levantar de 20 a 30 centrais em Juiz de Fora e conversar com 8 a 10 donos. Os números de mercado entram aqui quando tiverem fonte.
 
 ---
 
-## 📈 Mercado
+## Concorrência
 
-### TAM (Mercado Total)
-- Mercado de logística last-mile no Brasil: **R$ 30+ bilhões/ano**
-- Crescimento anual: **15-20%**
+| Concorrente | Modelo | Onde o EPM ganha |
+| --- | --- | --- |
+| WhatsApp + planilha | Grátis | Rastreio, comprovante, fechamento e menos discussão |
+| [Machine / Gaudium](https://www.mobiletime.com.br/?p=724529) | White-label de transporte e entregas, cobrado por corrida com taxa de adesão | Preço fixo e previsível; suporte local; foco em entrega B2B |
+| [Foody Delivery](https://saipos.com/foody-delivery) | Logística para restaurantes, planos de R$ 138 a R$ 289 | Atende também o que não é comida; integração com o Pedeli |
+| Uber Flash, 99Entrega, Lalamove | Marketplaces por corrida | Não disputam a central: o EPM ajuda a central a se defender deles |
 
-### SAM (Mercado Endereçável)
-- Entregas urbanas por motoboys: **R$ 8 bilhões/ano**
-- Foco inicial: pequenas e médias empresas
+Os dados de concorrentes vêm de páginas públicas e devem ser confirmados pedindo proposta como cliente.
 
-### SOM (Mercado Alcançável)
-- Meta ano 1: **R$ 500 mil em GMV**
-- Meta ano 2: **R$ 2 milhões em GMV**
-- Meta ano 3: **R$ 10 milhões em GMV**
+### Diferenciais a defender
 
-### Público-Alvo Inicial
-1. **Restaurantes e dark kitchens** - entregas de comida
-2. **E-commerces locais** - entregas same-day
-3. **Farmácias** - entregas urgentes
-4. **Escritórios de advocacia/contabilidade** - documentos
-5. **Floriculturas** - entregas expressas
+1. **A marca é da central:** o cliente final vê o logo e o nome dela, não o do EPM.
+2. **Preço fixo, sem comissão:** fica mais barato quanto mais a central cresce.
+3. **Pedeli + EPM:** restaurantes no Pedeli chamam motoboy da central parceira, um canal de vendas que os concorrentes locais não têm.
 
 ---
 
-## 🏆 Diferenciais Competitivos
+## Metas e sinais
 
-| Diferencial | Concorrentes | Entrega Pra Mim |
-|-------------|--------------|-----------------|
-| **Custo** | Taxas de 20-30% | Taxas de 10-15% |
-| **Tecnologia própria** | Dependem de terceiros | 100% proprietária |
-| **Customização** | Padronizado | Adaptável por cliente |
-| **Suporte** | Automatizado | Humanizado |
-| **White-label** | Não disponível | Disponível |
-| **Integração** | Limitada | API aberta |
+| Marco | Meta | Receita mensal aproximada |
+| --- | --- | --- |
+| 90 dias | 3 centrais pagantes; 70%+ das corridas delas no sistema | ~R$ 450 (com desconto de piloto) |
+| 6 meses | 10 centrais, ao menos 3 fora de Juiz de Fora | ~R$ 3.000 |
+| 12 meses | 25 centrais; cancelamento abaixo de 3% ao mês | ~R$ 7.500 |
 
-### Vantagens Técnicas
-- **Código proprietário** - não depende de plataformas terceiras
-- **Escalável** - arquitetura preparada para crescimento
-- **Modular** - fácil adicionar novas funcionalidades
-- **Open API** - integração com sistemas existentes
+**Sinal para parar ou mudar:** se, depois de 10 conversas, nenhuma central topar um piloto pago, o problema é o segmento ou a oferta, e não o código.
 
+### Riscos
+
+| Risco | Mitigação |
+| --- | --- |
+| Titularidade do código (projeto nasceu sob encomenda) | Resolver cessão ou licença com o cliente original antes de vender |
+| Foco dividido com o Pedeli | Limitar o tempo do EPM até haver uma central pagando |
+| Custo do Google Maps | Medição por central desde o primeiro dia; cache de cotação |
+| Dados de localização (LGPD) | Política de retenção, termos de uso e contrato de operação de dados com cada central |
 
 ---
 
-*Documento gerado em Janeiro/2026*
-*Versão 1.0*
+## Stack tecnológica
+
+| Camada | Tecnologia |
+| --- | --- |
+| Aplicação | Next.js 16 (App Router) + React 19 + TypeScript |
+| Dados | MySQL 8 + Prisma (migrations versionadas), Redis opcional (rate limit e cache) |
+| Autenticação | NextAuth (sessão JWT revalidada), papéis por central |
+| Mapas | Google Routes API e Geocoding, com cache e medição por central |
+| Infra | Docker Compose atrás do Traefik, job de despacho em contêiner auxiliar |
+| Qualidade | CI com migrations, lint, tipos, testes de integração em MySQL (isolamento, concorrência, segurança) e build |
+
+---
+
+*Atualizado em outubro/2026 com o reposicionamento para SaaS (ver `docs/PLANO_NEGOCIO.md`).*

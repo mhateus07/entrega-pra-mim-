@@ -2,9 +2,9 @@
 
 ## Regras implementadas
 
-- Somente cliente proprietário e administrador criam pedidos; ambos os endereços devem pertencer ao cliente informado.
+- Somente o cliente proprietário e a gestão da central criam pedidos; ambos os endereços devem pertencer ao cliente informado, dentro da mesma central.
 - Cliente pode cancelar seu pedido, mas não aceitar ou concluir entregas.
-- Motoboy aceita um pedido livre em seu próprio nome. Uma transação impede dois aceites do mesmo pedido ou dois pedidos ativos para o mesmo entregador.
+- Motoboy assume um pedido aceitando a oferta do despacho (desde out/2026; `src/lib/despacho.ts`) ou por atribuição manual da gestão. Uma transação impede dois aceites do mesmo pedido ou dois pedidos ativos para o mesmo entregador.
 - Alterar o perfil não permite liberar um entregador ocupado nem definir manualmente o status EM_ENTREGA.
 - Conclusão exige comprovante já enviado pela rota de upload. Concluir a entrega não cria nem aprova pagamento.
 - Somente cliente proprietário e administrador consultam/cancelam pagamentos; dinheiro é confirmado pelo entregador atribuído ou administrador, no momento da entrega ou depois dela.
