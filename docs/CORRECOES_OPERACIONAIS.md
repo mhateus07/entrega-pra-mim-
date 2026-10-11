@@ -23,6 +23,10 @@
 - `audit_logs` recebe as ações sensíveis (login, aprovação, status de pedido, pagamento, comprovante). Só inserção, melhor esforço.
 - Rate limit por usuário em chat, upload, localização e polling; upload recusa `Content-Length` acima de 5 MB antes de ler o corpo.
 - `src/instrumentation.ts` chama `assertEnv()` no boot; em produção, variável obrigatória ausente ou `NEXTAUTH_SECRET` com menos de 32 caracteres encerra o processo.
+- `GET /api/avaliacoes`: cliente vê só avaliações dos próprios pedidos, motoboy só as recebidas; a resposta traz apenas nota, comentário e nomes. Antes, qualquer conta devolvia todas as avaliações com CNH, placa e GPS dos motoboys.
+- Respostas de pedido não incluem CPF/CNPJ do cliente; e-mail só para admin; telefone do cliente só para o motoboy atribuído.
+- Cadastro público responde com a mesma mensagem para e-mail, documento ou placa duplicados.
+- Dependências: next 16.4.0 e next-auth 4.24.15 (corrigem, entre outros, o 500 com `Authorization: Bearer` malformado). `eslint-plugin-react-hooks` fixado em 7.0.1 via `overrides`; o alerta restante do `braces` é só de desenvolvimento (ESLint) e ainda não tem correção publicada.
 - `/api/health/live` (HEALTHCHECK do Docker) e `/api/health/ready` (banco, Redis, storage) são públicos e não expõem mensagens de erro.
 
 ## Validação local

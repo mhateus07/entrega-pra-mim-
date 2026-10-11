@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   pedidoFindFirst: vi.fn(),
   idemCreate: vi.fn(), idemFind: vi.fn(), idemUpdate: vi.fn(), idemDeleteMany: vi.fn(),
   auditCreate: vi.fn(),
+  avaliacaoFind: vi.fn(), avaliacaoCount: vi.fn(), userFind: vi.fn(),
 }))
 vi.mock('next-auth', () => ({ getServerSession: mocks.session, default: vi.fn() }))
 vi.mock('@/lib/prisma', () => {
@@ -18,6 +19,8 @@ vi.mock('@/lib/prisma', () => {
     pedido: { findFirst: mocks.pedidoFindFirst },
     idempotencyKey: { create: mocks.idemCreate, findUnique: mocks.idemFind, update: mocks.idemUpdate, deleteMany: mocks.idemDeleteMany },
     auditLog: { create: mocks.auditCreate },
+    avaliacao: { findMany: mocks.avaliacaoFind, count: mocks.avaliacaoCount },
+    user: { findUnique: mocks.userFind },
     $transaction: (fn: (tx: unknown) => unknown) => fn(db),
   }
   return { default: db }
@@ -223,5 +226,92 @@ describe('boot e health', () => {
     vi.stubEnv('DATABASE_URL', '')
     expect(() => assertEnv()).toThrow(/DATABASE_URL/)
     spy.mockRestore(); warn.mockRestore()
+  })
+})
+
+describe('avaliações', () => {
+  const listar = async () => {
+    const { GET } = await import('@/app/api/avaliacoes/route')
+    return GET(new NextRequest('http://x/api/avaliacoes?motoboyId=m1'))
+  }
+  beforeEach(() => { mocks.avaliacaoFind.mockResolvedValue([]); mocks.avaliacaoCount.mockResolvedValue(0) })
+
+  it('cliente só lista avaliações dos próprios pedidos', async () => {
+    logar('CLIENTE', { clienteId: 'c1' })
+    expect((await listar()).status).toBe(200)
+    expect(mocks.avaliacaoFind.mock.calls[0][0].where).toEqual({ pedido: { clienteId: 'c1' }, motoboyId: 'm1' })
+  })
+
+  it('motoboy ignora o filtro e vê só as próprias', async () => {
+    logar('MOTOBOY', { motoboyId: 'm2' })
+    await listar()
+    expect(mocks.avaliacaoFind.mock.calls[0][0].where).toEqual({ motoboyId: 'm2' })
+  })
+
+  it('não expõe CNH, placa, localização nem dados internos do pedido', async () => {
+    logar('ADMIN')
+    await listar()
+    const { select } = mocks.avaliacaoFind.mock.calls[0][0]
+    expect(select.motoboy).toEqual({ select: { id: true, user: { select: { nome: true } } } })
+    expect(Object.keys(select.pedido.select).sort()).toEqual(['cliente', 'createdAt', 'id', 'tipoServico'])
+  })
+})
+
+describe('senha', () => {
+  it('exige 8+ caracteres e recusa senhas óbvias', async () => {
+    const { senhaSchema } = await import('@/lib/validations')
+    expect(senhaSchema.safeParse('123456').success).toBe(false)
+    expect(senhaSchema.safeParse('12345678').success).toBe(false)
+    expect(senhaSchema.safeParse('aaaaaaaaaa').success).toBe(false)
+    expect(senhaSchema.safeParse('x'.repeat(73)).success).toBe(false)
+    expect(senhaSchema.safeParse('moto-azul-2026').success).toBe(true)
+  })
+})
+
+describe('sessão', () => {
+  it('relê o usuário após 5 min e invalida quem foi excluído', async () => {
+    const { authOptions } = await import('@/lib/auth')
+    const jwt = authOptions.callbacks!.jwt!
+    const antigo = { id: 'u1', role: 'MOTOBOY', motoboyId: 'm1', clienteId: null, verificadoEm: Date.now() - 6 * 60 * 1000 }
+
+    mocks.userFind.mockResolvedValue(null)
+    expect(await jwt({ token: { ...antigo } } as never)).toEqual({})
+
+    mocks.userFind.mockResolvedValue({ role: 'MOTOBOY', motoboy: { id: 'm1' }, cliente: null })
+    const renovado = await jwt({ token: { ...antigo } } as never)
+    expect(renovado).toMatchObject({ id: 'u1', motoboyId: 'm1' })
+    expect(Number(renovado.verificadoEm)).toBeGreaterThan(antigo.verificadoEm)
+
+    mocks.userFind.mockClear()
+    await jwt({ token: { ...antigo, verificadoEm: Date.now() } } as never)
+    expect(mocks.userFind).not.toHaveBeenCalled()
+  })
+
+  it('sessão sem id é tratada como deslogada', async () => {
+    mocks.session.mockResolvedValue({ user: { name: null } })
+    const { requireAuth } = await import('@/lib/auth-helpers')
+    expect((await requireAuth()).authenticated).toBe(false)
+  })
+})
+
+describe('cota do Google Maps', () => {
+  it('limita por usuário somando todos os endpoints', async () => {
+    const { applyMapsRateLimit } = await import('@/lib/auth-helpers')
+    const userId = `maps-${Math.random()}`
+    for (let i = 0; i < 20; i++) expect((await applyMapsRateLimit(userId)).success).toBe(true)
+    const bloqueado = await applyMapsRateLimit(userId)
+    expect(bloqueado.success).toBe(false)
+    if (!bloqueado.success) expect(bloqueado.response.status).toBe(429)
+  })
+})
+
+describe('headers e imagens', () => {
+  it('envia headers de segurança e não aceita imagens remotas', async () => {
+    const config = (await import('../next.config')).default
+    expect(config.poweredByHeader).toBe(false)
+    expect(config.images?.remotePatterns).toEqual([])
+    const [{ headers }] = await config.headers!()
+    const nomes = headers.map(h => h.key)
+    expect(nomes).toEqual(expect.arrayContaining(['Strict-Transport-Security', 'X-Frame-Options', 'X-Content-Type-Options', 'Content-Security-Policy']))
   })
 })

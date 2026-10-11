@@ -10,6 +10,9 @@ import { ApiResponse } from '@/types'
 import { requireAuth, serverError, applyRateLimit } from '@/lib/auth-helpers'
 import { registrarAuditoria } from '@/lib/audit'
 
+// Mesma resposta para qualquer duplicidade: não revela qual dado já existe
+const CADASTRO_INDISPONIVEL = 'Não foi possível concluir o cadastro: e-mail, CNH ou placa já em uso. Se você já tem conta, faça login.'
+
 // GET /api/motoboys - Listar motoboys (autenticado)
 export async function GET(request: NextRequest) {
   try {
@@ -116,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return jsonResponse(
-        { success: false, error: 'Email já cadastrado' },
+        { success: false, error: CADASTRO_INDISPONIVEL },
         { status: 400 }
       )
     }
@@ -128,7 +131,7 @@ export async function POST(request: NextRequest) {
 
     if (existingCNH) {
       return jsonResponse(
-        { success: false, error: 'CNH já cadastrada' },
+        { success: false, error: CADASTRO_INDISPONIVEL },
         { status: 400 }
       )
     }
@@ -140,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     if (existingPlaca) {
       return jsonResponse(
-        { success: false, error: 'Placa já cadastrada' },
+        { success: false, error: CADASTRO_INDISPONIVEL },
         { status: 400 }
       )
     }

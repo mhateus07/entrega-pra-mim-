@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs'
 import prisma from './prisma'
 import { registrarAuditoria } from './audit'
 
+const REVALIDAR_SESSAO_MS = 5 * 60 * 1000
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions['adapter'],
   providers: [
@@ -63,6 +65,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 7 * 24 * 60 * 60, // 7 dias (padrão do next-auth é 30)
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -71,6 +74,21 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role
         token.motoboyId = user.motoboyId
         token.clienteId = user.clienteId
+        token.verificadoEm = Date.now()
+        return token
+      }
+      // JWT não é revogável: a cada 5 min o perfil é relido do banco. Usuário
+      // excluído perde a identidade da sessão e passa a receber 401.
+      if (token.id && Date.now() - Number(token.verificadoEm ?? 0) > REVALIDAR_SESSAO_MS) {
+        const atual = await prisma.user.findUnique({
+          where: { id: String(token.id) },
+          select: { role: true, motoboy: { select: { id: true } }, cliente: { select: { id: true } } },
+        })
+        if (!atual) return {} as typeof token
+        token.role = atual.role
+        token.motoboyId = atual.motoboy?.id ?? null
+        token.clienteId = atual.cliente?.id ?? null
+        token.verificadoEm = Date.now()
       }
       return token
     },

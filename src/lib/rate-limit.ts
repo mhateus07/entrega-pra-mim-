@@ -67,6 +67,9 @@ export const RATE_LIMIT_CONFIGS = {
   upload: { limit: 10, windowMs: 60 * 1000 },
   // Envio de localização do motoboy: o app envia no máximo 1 a cada 5s
   localizacao: { limit: 30, windowMs: 60 * 1000 },
+  // Google Maps (rota e geocodificação), somando todos os endpoints de um usuário
+  maps: { limit: 20, windowMs: 60 * 1000 },
+  mapsDia: { limit: 300, windowMs: 24 * 60 * 60 * 1000 },
 } as const
 
 /**

@@ -106,7 +106,7 @@ function RegistroForm() {
       const data = await response.json()
 
       if (!data.success) {
-        setError(data.error || 'Erro ao criar conta')
+        setError(data.details?.[0]?.message || data.error || 'Erro ao criar conta')
         return
       }
 
@@ -246,8 +246,8 @@ function RegistroForm() {
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} helperText="Mínimo de 6 caracteres" minLength={6} autoComplete="new-password" required />
-          <Input label="Confirmar senha" type="password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} minLength={6} autoComplete="new-password" required />
+          <Input label="Senha" type="password" value={senha} onChange={(e) => setSenha(e.target.value)} helperText="Mínimo de 8 caracteres" minLength={8} maxLength={72} autoComplete="new-password" required />
+          <Input label="Confirmar senha" type="password" value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} minLength={8} maxLength={72} autoComplete="new-password" required />
         </div>
 
         <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>

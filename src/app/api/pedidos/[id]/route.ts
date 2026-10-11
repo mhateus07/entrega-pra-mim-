@@ -8,6 +8,7 @@ import { requireAuth, requirePedidoAccess, notFound, serverError, badRequest } f
 import { alterarStatusPedido } from '@/lib/pedido-status'
 import { OperacaoError } from '@/lib/operacao-error'
 import { registrarAuditoria } from '@/lib/audit'
+import { clientePedidoSelect } from '@/lib/pedido-select'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -22,11 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       where: { id },
       include: {
         cliente: {
-          include: {
-            user: {
-              select: { nome: true, email: true, telefone: true },
-            },
-          },
+          select: { ...clientePedidoSelect, user: { select: { nome: true, telefone: true, email: true } } },
         },
         motoboy: {
           select: {
@@ -64,9 +61,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const auth = await requirePedidoAccess(pedido)
     if (!auth.authenticated) return auth.response
 
-    const response: ApiResponse<typeof pedido> = {
+    // E-mail do cliente só para o admin
+    const data = auth.user.role === 'ADMIN'
+      ? pedido
+      : { ...pedido, cliente: { ...pedido.cliente, user: { nome: pedido.cliente.user.nome, telefone: pedido.cliente.user.telefone } } }
+    const response: ApiResponse<typeof data> = {
       success: true,
-      data: pedido,
+      data,
     }
 
     return jsonResponse(response)

@@ -36,13 +36,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           take: 10,
           orderBy: { createdAt: 'desc' },
           include: {
-            cliente: {
-              include: {
-                user: {
-                  select: { nome: true },
-                },
-              },
-            },
+            cliente: { select: { id: true, user: { select: { nome: true } } } },
           },
         },
         avaliacoes: {

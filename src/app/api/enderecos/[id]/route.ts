@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma'
 import { updateEnderecoSchema } from '@/lib/validations'
 import { geocodificarEndereco } from '@/lib/google-maps'
 import { ApiResponse } from '@/types'
-import { requireEnderecoAccess, notFound, badRequest, serverError } from '@/lib/auth-helpers'
+import { requireEnderecoAccess, applyMapsRateLimit, notFound, badRequest, serverError } from '@/lib/auth-helpers'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -85,6 +85,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     let longitude = data.longitude
 
     if (needsGeocode) {
+      const limite = await applyMapsRateLimit(auth.user.id)
+      if (!limite.success) return limite.response
       const geocode = await geocodificarEndereco({
         logradouro: data.logradouro || endereco.logradouro,
         numero: data.numero || endereco.numero,

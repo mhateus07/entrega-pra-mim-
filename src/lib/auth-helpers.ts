@@ -93,7 +93,8 @@ export function serverError(message = 'Erro interno do servidor') {
 export async function requireAuth(): Promise<AuthResult | AuthError> {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user) {
+  // Sessão sem id = usuário removido (ver callback jwt em auth.ts)
+  if (!session?.user?.id) {
     return {
       authenticated: false,
       response: unauthorized(),
@@ -272,7 +273,7 @@ export function isMotoboy(user: AuthenticatedUser): boolean {
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   const session = await getServerSession(authOptions)
 
-  if (!session?.user) {
+  if (!session?.user?.id) {
     return null
   }
 
@@ -323,26 +324,30 @@ export async function applyRateLimit(
   const identificador = userId ? `user:${userId}` : getClientIP(request)
 
   const result = await checkRateLimit(createRateLimitKey(identificador, endpoint), config)
+  return result.success ? { success: true } : { success: false, response: tooManyRequests(result) }
+}
 
-  if (!result.success) {
-    const headers = getRateLimitHeaders(result)
-    return {
-      success: false,
-      response: NextResponse.json(
-        {
-          success: false,
-          error: 'Muitas requisições. Tente novamente mais tarde.',
-          retryAfter: Math.ceil((result.resetTime - Date.now()) / 1000),
-        },
-        {
-          status: 429,
-          headers,
-        }
-      ),
-    }
+/**
+ * Limita chamadas que consomem cota paga do Google Maps (rota e geocodificação):
+ * 20 por minuto e 300 por dia por usuário, somando todos os endpoints.
+ */
+export async function applyMapsRateLimit(userId: string): Promise<RateLimitSuccess | RateLimitError> {
+  for (const config of [RATE_LIMIT_CONFIGS.maps, RATE_LIMIT_CONFIGS.mapsDia]) {
+    const result = await checkRateLimit(`maps:${config.windowMs}:user:${userId}`, config)
+    if (!result.success) return { success: false, response: tooManyRequests(result) }
   }
-
   return { success: true }
+}
+
+function tooManyRequests(result: Awaited<ReturnType<typeof checkRateLimit>>) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: 'Muitas requisições. Tente novamente mais tarde.',
+      retryAfter: Math.ceil((result.resetTime - Date.now()) / 1000),
+    },
+    { status: 429, headers: getRateLimitHeaders(result) }
+  )
 }
 
 // Re-export rate limit configs for direct use

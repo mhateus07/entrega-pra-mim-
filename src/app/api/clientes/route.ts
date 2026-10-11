@@ -9,6 +9,9 @@ import { createClienteSchema } from '@/lib/validations'
 import { ApiResponse } from '@/types'
 import { requireAdmin, serverError, applyRateLimit } from '@/lib/auth-helpers'
 
+// Mesma resposta para qualquer duplicidade: não revela qual dado já existe
+const CADASTRO_INDISPONIVEL = 'Não foi possível concluir o cadastro: e-mail ou CPF/CNPJ já em uso. Se você já tem conta, faça login.'
+
 // GET /api/clientes - Listar clientes (ADMIN apenas)
 export async function GET(request: NextRequest) {
   try {
@@ -103,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return jsonResponse(
-        { success: false, error: 'Email já cadastrado' },
+        { success: false, error: CADASTRO_INDISPONIVEL },
         { status: 400 }
       )
     }
@@ -116,7 +119,7 @@ export async function POST(request: NextRequest) {
 
       if (existingDoc) {
         return jsonResponse(
-          { success: false, error: 'CPF/CNPJ já cadastrado' },
+          { success: false, error: CADASTRO_INDISPONIVEL },
           { status: 400 }
         )
       }

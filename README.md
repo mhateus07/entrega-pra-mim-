@@ -300,7 +300,13 @@ entrega_pra_mim/
 `POST /api/pedidos` e `POST /api/pagamentos` aceitam o header `Idempotency-Key` (8–255 caracteres `[A-Za-z0-9_:.-]`). A primeira resposta 2xx/4xx fica guardada por 24h por usuário; repetir a mesma chave com o mesmo corpo devolve a resposta original com `Idempotent-Replayed: true`, com outro corpo retorna 422 e, enquanto a original processa, 409. O frontend envia uma chave nova a cada tentativa.
 
 ### Rate limit
-Por IP em login/cadastro; por usuário em chat (20/min), upload (10/min), envio de localização (30/min), pagamentos (20/min) e polling (60/min). Com `REDIS_URL` o contador é compartilhado entre instâncias; sem Redis, fica em memória por processo.
+Por IP em login/cadastro; por usuário em chat (20/min), upload (10/min), envio de localização (30/min), pagamentos (20/min) e polling (60/min). Chamadas pagas ao Google Maps (rota no pedido, `/api/rotas`, geocodificação de endereço) somam um limite único por usuário: 20/min e 300/dia. Com `REDIS_URL` o contador é compartilhado entre instâncias; sem Redis, fica em memória por processo.
+
+### Sessão e senha
+Sessão JWT de 7 dias; a cada 5 min o perfil é relido do banco, e usuário excluído passa a receber 401. Senhas novas: 8 a 72 caracteres, recusando sequências e repetições óbvias.
+
+### Headers
+Todas as respostas levam HSTS, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` e uma CSP sem `script-src` (`frame-ancestors`, `base-uri`, `form-action`, `object-src`), para não quebrar o Google Maps. O otimizador de imagens não aceita domínios externos.
 
 ### Auditoria
 A tabela `audit_logs` registra login (sucesso e falha), cadastro/aprovação/exclusão de motoboy, criação e mudança de status de pedido, criação/confirmação/cancelamento de pagamento e envio/acesso a comprovante. É só inserção, e uma falha ao gravar não interrompe a operação.

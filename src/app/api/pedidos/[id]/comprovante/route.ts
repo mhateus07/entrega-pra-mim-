@@ -19,7 +19,7 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return jsonResponse(
         { success: false, error: 'Não autorizado' },
         { status: 401 }

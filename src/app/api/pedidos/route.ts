@@ -9,8 +9,9 @@ import { calcularRota } from '@/lib/google-maps'
 import { calcularPrecoCompleto, estimarTempo } from '@/lib/pricing'
 import { encontrarMelhorMotoboy } from '@/lib/alocacao'
 import { ApiResponse } from '@/types'
-import { requireAuth, requireRole, serverError, forbidden, type AuthenticatedUser } from '@/lib/auth-helpers'
+import { requireAuth, requireRole, serverError, forbidden, applyMapsRateLimit, type AuthenticatedUser } from '@/lib/auth-helpers'
 import { comIdempotencia } from '@/lib/idempotency'
+import { clientePedidoSelect } from '@/lib/pedido-select'
 import { registrarAuditoria } from '@/lib/audit'
 
 // GET /api/pedidos - Listar pedidos (filtrado por papel do usuário)
@@ -77,13 +78,7 @@ export async function GET(request: NextRequest) {
     const pedidos = await prisma.pedido.findMany({
       where, skip: paging.skip, take: paging.take,
       include: {
-        cliente: {
-          include: {
-            user: {
-              select: { nome: true, telefone: true },
-            },
-          },
-        },
+        cliente: { select: clientePedidoSelect },
         motoboy: {
           select: {
             id: true, avaliacaoMedia: true,
@@ -103,7 +98,10 @@ export async function GET(request: NextRequest) {
     const response = {
       pagination: paginationMeta(paging.page, paging.pageSize, total),
       success: true,
-      data: pedidos,
+      // Antes do aceite, o motoboy vê endereços para decidir, mas não o telefone do cliente
+      data: auth.user.role === 'MOTOBOY'
+        ? pedidos.map(p => p.motoboyId === auth.user.motoboyId ? p : { ...p, cliente: { ...p.cliente, user: { nome: p.cliente.user.nome, telefone: null } } })
+        : pedidos,
     }
 
     return jsonResponse(response)
@@ -201,7 +199,9 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
       )
     }
 
-    // Calcular rota
+    // Calcular rota (consome cota do Google Maps)
+    const limite = await applyMapsRateLimit(user.id)
+    if (!limite.success) return limite.response
     const rota = await calcularRota(
       { latitude: enderecoOrigem.latitude, longitude: enderecoOrigem.longitude },
       { latitude: enderecoDestino.latitude, longitude: enderecoDestino.longitude }
@@ -243,13 +243,7 @@ async function criarPedido(request: NextRequest, user: AuthenticatedUser, body: 
         status: 'SOLICITADO',
       },
       include: {
-        cliente: {
-          include: {
-            user: {
-              select: { nome: true, telefone: true },
-            },
-          },
-        },
+        cliente: { select: clientePedidoSelect },
         enderecoOrigem: true,
         enderecoDestino: true,
       },
