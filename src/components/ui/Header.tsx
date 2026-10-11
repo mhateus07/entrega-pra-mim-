@@ -10,6 +10,7 @@ import ThemeToggle from './ThemeToggle'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
 import Faixa from '@/components/brand/Faixa'
 import { cn } from '@/utils/cn'
+import { Fixo } from '@/components/layout/Transicao'
 
 interface HeaderProps {
   userName?: string | null
@@ -71,11 +72,14 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
                 href={link.href}
                 aria-current={isActive(link.href) ? 'page' : undefined}
                 className={cn(
-                  'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                  isActive(link.href) ? 'bg-surface-2 text-fg' : 'text-fg-3 hover:text-fg'
+                  'relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  isActive(link.href) ? 'text-fg' : 'text-fg-3 hover:text-fg'
                 )}
               >
-                {link.label}
+                {isActive(link.href) && (
+                  <Fixo nome="indicador-aba" classe="indicador"><span aria-hidden="true" className="absolute inset-0 rounded-lg bg-surface-2" /></Fixo>
+                )}
+                <span className="relative">{link.label}</span>
               </Link>
             ))}
           </nav>

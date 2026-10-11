@@ -537,3 +537,226 @@ textarea:focus-visible {
   .mapa-quadra { opacity: 1; }
   .faixa-colete[data-reflexo]::after { display: none; }
 }
+
+/* ==========================================================================
+   Transições entre telas (View Transitions; componentes em layout/Transicao)
+   ========================================================================== */
+
+/* Destaque do item ativo do menu lateral: desliza de um item para o outro */
+.indicador-menu {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+.indicador-menu::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--brand-mark);
+}
+
+/* Carregando: aparece só depois de 250 ms; a rota se traça e o ponto pulsa */
+.carregando {
+  animation: tela-aparece 200ms ease-out 250ms both;
+}
+.carregando-rota {
+  stroke-dasharray: 1;
+  animation: carregando-rota 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.carregando-ponto {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: carregando-ponto 1.4s ease-out infinite;
+}
+@keyframes carregando-rota {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  60%, 85% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes carregando-ponto {
+  0%, 55% { transform: scale(0.4); opacity: 0.4; }
+  70% { transform: scale(1.25); opacity: 1; }
+  85%, 100% { transform: scale(1); opacity: 1; }
+}
+
+/* Conteúdo que chega depois do carregamento sobe e assenta */
+.conteudo-chega {
+  animation: conteudo-chega 360ms cubic-bezier(0.2, 0.9, 0.25, 1.05) both;
+}
+@keyframes conteudo-chega {
+  from { opacity: 0; transform: translateY(10px); }
+}
+
+/* Cliques passam para a página durante a animação */
+::view-transition {
+  pointer-events: none;
+}
+
+/* Destaque do menu e das abas: desliza com freada de moto */
+::view-transition-group(.indicador) {
+  z-index: 101;
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.25, 0.9, 0.3, 1.08);
+}
+::view-transition-old(.indicador) {
+  display: none;
+}
+::view-transition-new(.indicador) {
+  animation: none;
+}
+
+
+/* A tela inteira troca de uma vez: sem interpolar tamanho entre as duas */
+::view-transition-group(.tela-frente),
+::view-transition-group(.tela-volta),
+::view-transition-group(.tela-proximo-x),
+::view-transition-group(.tela-anterior-x),
+::view-transition-group(.tela-proximo-y),
+::view-transition-group(.tela-anterior-y),
+::view-transition-group(.tela-lado),
+::view-transition-group(.tela-entrar),
+::view-transition-group(.area-frente),
+::view-transition-group(.area-volta),
+::view-transition-group(.area-lado),
+::view-transition-group(.area-entrar) {
+  animation: none;
+}
+
+/* A antiga sai rápido; a nova chega e freia, passando um pouco e assentando
+   (como a moto parando na porta). Ninguém espera a animação: 420 ms no total. */
+::view-transition-old(.tela-frente),
+::view-transition-old(.area-frente) {
+  --tela-de: 0px; --tela-para: -32px; --tela-eixo: x;
+  animation: 170ms cubic-bezier(0.4, 0, 1, 1) both tela-sai;
+}
+::view-transition-new(.tela-frente),
+::view-transition-new(.area-frente) {
+  --tela-de: 56px;
+  animation: 380ms cubic-bezier(0.2, 0.9, 0.25, 1.12) 60ms both tela-chega;
+}
+::view-transition-old(.tela-volta),
+::view-transition-old(.area-volta) {
+  --tela-para: 32px;
+  animation: 170ms cubic-bezier(0.4, 0, 1, 1) both tela-sai;
+}
+::view-transition-new(.tela-volta),
+::view-transition-new(.area-volta) {
+  --tela-de: -56px;
+  animation: 380ms cubic-bezier(0.2, 0.9, 0.25, 1.12) 60ms both tela-chega;
+}
+::view-transition-old(.tela-proximo-x) {
+  --tela-para: -20px;
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both tela-sai;
+}
+::view-transition-new(.tela-proximo-x) {
+  --tela-de: 36px;
+  animation: 340ms cubic-bezier(0.2, 0.9, 0.25, 1.1) 50ms both tela-chega;
+}
+::view-transition-old(.tela-anterior-x) {
+  --tela-para: 20px;
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both tela-sai;
+}
+::view-transition-new(.tela-anterior-x) {
+  --tela-de: -36px;
+  animation: 340ms cubic-bezier(0.2, 0.9, 0.25, 1.1) 50ms both tela-chega;
+}
+/* No menu lateral o movimento é vertical: descer no menu sobe a tela */
+::view-transition-old(.tela-proximo-y) {
+  --tela-para: -14px;
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both tela-sai-y;
+}
+::view-transition-new(.tela-proximo-y) {
+  --tela-de: 28px;
+  animation: 340ms cubic-bezier(0.2, 0.9, 0.25, 1.1) 50ms both tela-chega-y;
+}
+::view-transition-old(.tela-anterior-y) {
+  --tela-para: 14px;
+  animation: 150ms cubic-bezier(0.4, 0, 1, 1) both tela-sai-y;
+}
+::view-transition-new(.tela-anterior-y) {
+  --tela-de: -28px;
+  animation: 340ms cubic-bezier(0.2, 0.9, 0.25, 1.1) 50ms both tela-chega-y;
+}
+::view-transition-old(.tela-lado),
+::view-transition-old(.area-lado) {
+  animation: 140ms ease-in both tela-some;
+}
+::view-transition-new(.tela-lado),
+::view-transition-new(.area-lado) {
+  animation: 220ms ease-out 60ms both tela-aparece;
+}
+
+@keyframes tela-sai {
+  to { transform: translateX(var(--tela-para)); opacity: 0; }
+}
+@keyframes tela-chega {
+  from { transform: translateX(var(--tela-de)); opacity: 0; }
+  40% { opacity: 1; }
+}
+@keyframes tela-sai-y {
+  to { transform: translateY(var(--tela-para)); opacity: 0; }
+}
+@keyframes tela-chega-y {
+  from { transform: translateY(var(--tela-de)); opacity: 0; }
+  40% { opacity: 1; }
+}
+@keyframes tela-some {
+  to { opacity: 0; }
+}
+@keyframes tela-aparece {
+  from { opacity: 0; }
+}
+
+/* Entrar no sistema: a faixa colete atravessa a tela da esquerda para a
+   direita. Atrás dela já está o painel; à frente, ainda a tela de acesso. */
+::view-transition-image-pair(.area-entrar) {
+  --faixa-l: 84px;
+  isolation: auto;
+  background:
+    linear-gradient(90deg, var(--faixa) 0 100%) var(--faixa-x, -84px) 0 / 12px 100% no-repeat,
+    linear-gradient(90deg, var(--faixa) 0 100%) var(--faixa-x2, -84px) 0 / 12px 100% no-repeat,
+    linear-gradient(90deg, var(--brand-mark) 0 100%) var(--faixa-x0, -84px) 0 / var(--faixa-l) 100% no-repeat;
+  animation: 760ms cubic-bezier(0.7, 0, 0.2, 1) both faixa-passa;
+}
+::view-transition-old(.area-entrar) {
+  mix-blend-mode: normal;
+  animation: 760ms cubic-bezier(0.7, 0, 0.2, 1) both faixa-cobre-antiga;
+}
+::view-transition-new(.area-entrar) {
+  mix-blend-mode: normal;
+  animation: 760ms cubic-bezier(0.7, 0, 0.2, 1) both faixa-revela-nova;
+}
+
+@keyframes faixa-passa {
+  from { --faixa-x0: -84px; --faixa-x: -66px; --faixa-x2: -30px; }
+  to { --faixa-x0: 100vw; --faixa-x: calc(100vw + 18px); --faixa-x2: calc(100vw + 54px); }
+}
+@keyframes faixa-cobre-antiga {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 0 0 calc(100vw + 84px)); }
+}
+@keyframes faixa-revela-nova {
+  from { clip-path: inset(0 calc(100% + 84px) 0 0); }
+  to { clip-path: inset(0 calc(100% - 100vw) 0 0); }
+}
+@property --faixa-x0 { syntax: '<length>'; inherits: false; initial-value: -84px; }
+@property --faixa-x { syntax: '<length>'; inherits: false; initial-value: -66px; }
+@property --faixa-x2 { syntax: '<length>'; inherits: false; initial-value: -30px; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-image-pair(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}

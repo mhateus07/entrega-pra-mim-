@@ -10,6 +10,7 @@ import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Ca
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { cn } from '@/utils/cn'
+import { Fixo, TransicaoTela } from '@/components/layout/Transicao'
 
 const nav = [
   { href: '/dashboard', label: 'Visão geral', icon: LayoutDashboard, exact: true },
@@ -31,7 +32,9 @@ function initials(name?: string | null) {
   return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
 }
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+// `indicador`: o destaque do item ativo desliza pelo menu ao trocar de tela (só
+// numa lista por vez, porque o nome da transição precisa ser único na página)
+function NavList({ onNavigate, indicador }: { onNavigate?: () => void; indicador?: boolean }) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const itens = session?.user?.superadmin ? [...nav, navPlataforma] : nav
@@ -48,13 +51,14 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             aria-current={active ? 'page' : undefined}
             className={cn(
               'relative flex h-9 items-center gap-2.5 rounded-[10px] px-2.5 text-sm font-medium transition-colors',
-              active
-                ? 'bg-surface font-semibold text-fg shadow-xs ring-1 ring-line before:absolute before:-left-3 before:top-2 before:bottom-2 before:w-[3px] before:rounded-r-full before:bg-brand-mark'
-                : 'text-fg-2 hover:bg-surface-3/60 hover:text-fg'
+              active ? 'font-semibold text-fg' : 'text-fg-2 hover:bg-surface-3/60 hover:text-fg'
             )}
           >
-            <Icon className={cn('h-4 w-4', active ? 'text-brand' : 'text-fg-3')} aria-hidden="true" />
-            {item.label}
+            {active && (indicador
+              ? <Fixo nome="indicador-menu" classe="indicador"><span aria-hidden="true" className="indicador-menu" /></Fixo>
+              : <span aria-hidden="true" className="indicador-menu" />)}
+            <Icon className={cn('relative h-4 w-4', active ? 'text-brand' : 'text-fg-3')} aria-hidden="true" />
+            <span className="relative">{item.label}</span>
           </Link>
         )
       })}
@@ -116,7 +120,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <Logo markClassName="h-7 w-7" />
         </Link>
         <p className="rotulo mb-2 px-2.5 text-fg-3">Operação</p>
-        <NavList />
+        <NavList indicador />
         <div className="mt-auto space-y-2 border-t border-line pt-3">
           <div className="flex items-center justify-between px-2">
             <span className="text-xs text-fg-3">Tema</span>
@@ -160,7 +164,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><ConteudoDaCentral>{children}</ConteudoDaCentral></main>
+      <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><TransicaoTela><ConteudoDaCentral>{children}</ConteudoDaCentral></TransicaoTela></main>
     </div>
   )
 }

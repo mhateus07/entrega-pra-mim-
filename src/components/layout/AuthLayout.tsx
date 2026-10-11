@@ -4,6 +4,7 @@ import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import Faixa from '@/components/brand/Faixa'
 import Rota from '@/components/brand/Rota'
+import { TransicaoTela } from '@/components/layout/Transicao'
 
 const pontos = [
   { icon: Radio, title: 'Despacho com oferta', text: 'A corrida vai para o motoboy mais perto e passa ao próximo se ele não aceitar.' },
@@ -20,7 +21,7 @@ export default function AuthLayout({ children, wide }: { children: React.ReactNo
           <ThemeToggle />
         </div>
         <div className="flex flex-1 items-center justify-center py-10">
-          <div className={wide ? 'w-full max-w-xl' : 'w-full max-w-sm'}>{children}</div>
+          <TransicaoTela className={wide ? 'w-full max-w-xl' : 'w-full max-w-sm'}>{children}</TransicaoTela>
         </div>
         <p className="text-center text-xs text-fg-3">© {new Date().getFullYear()} Entrega Pra Mim</p>
       </div>

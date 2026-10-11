@@ -6,9 +6,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ArrowLeft, CheckCircle2, Phone } from 'lucide-react'
 import Button, { buttonClass } from '@/components/ui/Button'
-import Header from '@/components/ui/Header'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Alert, DataRow, EmptyState, FullPageLoader } from '@/components/ui/Feedback'
+import { Alert, DataRow, EmptyState, PageLoader } from '@/components/ui/Feedback'
 import { PedidoStatusBadge, PagamentoStatusBadge } from '@/components/ui/StatusBadge'
 import { RotaEnderecos, LinhaDoTempo, Estrelas } from '@/components/pedido/PedidoParts'
 import ChatBox from '@/components/chat/ChatBox'
@@ -78,7 +77,7 @@ interface Pedido {
 }
 
 export default function PedidoMotoboyDetailPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const params = useParams()
   const pedidoId = params.id as string
@@ -176,13 +175,13 @@ export default function PedidoMotoboyDetailPage() {
     }
   }
 
-  if (status === 'loading' || isLoading) return <FullPageLoader label="Carregando pedido…" />
+  if (status === 'loading' || isLoading) return <PageLoader label="Carregando pedido…" />
 
   if (error && !pedido) {
     return (
-      <div className="min-h-screen bg-page">
+      <div>
         <EmptyState
-          className="min-h-screen"
+          className="min-h-[60vh]"
           icon={AlertTriangle}
           title={error}
           action={<Link href="/motoboy" className={buttonClass('outline')}>Voltar ao início</Link>}
@@ -220,8 +219,7 @@ export default function PedidoMotoboyDetailPage() {
   const pedidoEmAndamento = !['ENTREGUE', 'CANCELADO', 'SOLICITADO'].includes(pedido.status)
 
   return (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="MOTOBOY" />
+    <div className="conteudo-chega">
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
         <Link href="/motoboy" className="inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Archivo, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import { TransicaoArea } from '@/components/layout/Transicao'
 
 const archivo = Archivo({
   subsets: ['latin', 'latin-ext'],
@@ -67,7 +68,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${archivo.variable} ${plexMono.variable} font-sans antialiased`}>
-        <Providers>{children}</Providers>
+        <Providers><TransicaoArea>{children}</TransicaoArea></Providers>
       </body>
     </html>
   )

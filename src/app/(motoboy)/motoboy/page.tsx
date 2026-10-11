@@ -6,8 +6,7 @@ import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ArrowRight, Inbox, Navigation, Phone, Power, Radio, RefreshCw, Star } from 'lucide-react'
 import Button, { buttonClass } from '@/components/ui/Button'
-import Header from '@/components/ui/Header'
-import { Alert, EmptyState, FullPageLoader } from '@/components/ui/Feedback'
+import { Alert, EmptyState, PageLoader } from '@/components/ui/Feedback'
 import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
 import { cn } from '@/utils/cn'
 import TrackingMap from '@/components/maps/TrackingMap'
@@ -248,7 +247,7 @@ export default function MotoboyPage() {
   const handleAtualizarStatusPedido = async (novoStatus: StatusPedido) => {
     if (!pedidoAtual) return
     if (novoStatus === 'ENTREGUE') {
-      window.location.href = `/motoboy/pedido/${pedidoAtual.id}`
+      router.push(`/motoboy/pedido/${pedidoAtual.id}`)
       return
     }
 
@@ -283,7 +282,7 @@ export default function MotoboyPage() {
     }
   }
 
-  if (status === 'loading' || isLoading) return <FullPageLoader />
+  if (status === 'loading' || isLoading) return <PageLoader />
 
   const getNextStatus = (currentStatus: StatusPedido): StatusPedido | null => {
     const flow: Record<StatusPedido, StatusPedido | null> = {
@@ -338,8 +337,7 @@ export default function MotoboyPage() {
   )
 
   return (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="MOTOBOY" />
+    <div className="conteudo-chega">
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
         {motoboy && !aprovado && (

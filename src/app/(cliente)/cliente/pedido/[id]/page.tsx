@@ -7,10 +7,9 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ArrowLeft, Bell, Phone, Star } from 'lucide-react'
 import Button, { buttonClass } from '@/components/ui/Button'
-import Header from '@/components/ui/Header'
 import Textarea from '@/components/ui/Textarea'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
-import { Alert, DataRow, EmptyState, FullPageLoader } from '@/components/ui/Feedback'
+import { Alert, DataRow, EmptyState, PageLoader } from '@/components/ui/Feedback'
 import { PedidoStatusBadge, PagamentoStatusBadge } from '@/components/ui/StatusBadge'
 import { RotaEnderecos, LinhaDoTempo, Estrelas } from '@/components/pedido/PedidoParts'
 import { cn } from '@/utils/cn'
@@ -98,7 +97,7 @@ interface Pedido {
 }
 
 export default function PedidoDetalhePage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const params = useParams()
   const pedidoId = params.id as string
@@ -212,13 +211,13 @@ export default function PedidoDetalhePage() {
     }
   }
 
-  if (status === 'loading' || isLoading) return <FullPageLoader label="Carregando pedido…" />
+  if (status === 'loading' || isLoading) return <PageLoader label="Carregando pedido…" />
 
   if (error && !pedido) {
     return (
-      <div className="min-h-screen bg-page">
+      <div>
         <EmptyState
-          className="min-h-screen"
+          className="min-h-[60vh]"
           icon={AlertTriangle}
           title={error}
           action={<Link href="/cliente" className={buttonClass('outline')}>Voltar às entregas</Link>}
@@ -233,8 +232,7 @@ export default function PedidoDetalhePage() {
   const podeAvaliar = pedido.status === 'ENTREGUE' && !pedido.avaliacao && pedido.motoboy
 
   return (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="CLIENTE" />
+    <div className="conteudo-chega">
 
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <Link href="/cliente" className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">

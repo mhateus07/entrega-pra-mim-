@@ -9,9 +9,8 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import Textarea from '@/components/ui/Textarea'
-import Header from '@/components/ui/Header'
 import { Card, CardHeader, CardTitle, CardFooter } from '@/components/ui/Card'
-import { Alert, DataRow, FullPageLoader, Spinner } from '@/components/ui/Feedback'
+import { Alert, DataRow, PageLoader, Spinner } from '@/components/ui/Feedback'
 import { formatarMoeda, formatarDistancia, formatarTempo, DESCRICOES_SERVICO, MULTIPLICADORES, PRECO_POR_KM } from '@/lib/pricing'
 import { LABELS_TIPO_SERVICO } from '@/utils/helpers'
 import { cn } from '@/utils/cn'
@@ -316,13 +315,12 @@ export default function NovaEntregaPage() {
     setPagamentoData(null)
   }
 
-  if (status === 'loading' || isLoading) return <FullPageLoader />
+  if (status === 'loading' || isLoading) return <PageLoader />
 
   const etapaAtual = currentStep === 'form' ? 0 : currentStep === 'success' ? 2 : 1
 
   const shell = (children: React.ReactNode, voltar?: React.ReactNode) => (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="CLIENTE" />
+    <div className="conteudo-chega">
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         {voltar ?? (
           <Link href="/cliente" className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">

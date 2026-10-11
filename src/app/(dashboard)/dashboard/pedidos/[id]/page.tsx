@@ -160,7 +160,7 @@ export default function PedidoAdminDetailPage() {
   const podeAtribuir = pedido.status === 'SOLICITADO' && !pedido.motoboy
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="conteudo-chega mx-auto max-w-5xl">
       <Link href="/dashboard/pedidos" className="mb-4 inline-flex items-center gap-1.5 text-[13px] text-fg-3 hover:text-fg">
         <ArrowLeft className="h-4 w-4" /> Pedidos
       </Link>

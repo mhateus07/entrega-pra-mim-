@@ -6,10 +6,9 @@ import { useEffect, useState } from 'react'
 import Pagination from '@/components/ui/Pagination'
 import type { Pagination as PageInfo } from '@/lib/pagination'
 import { ArrowDownLeft, ArrowUpRight, Landmark, Receipt } from 'lucide-react'
-import Header from '@/components/ui/Header'
 import { Card, CardTitle } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
-import { EmptyState, FullPageLoader, PageHeader, Segmented } from '@/components/ui/Feedback'
+import { EmptyState, PageLoader, PageHeader, Segmented } from '@/components/ui/Feedback'
 import { DailyBars } from '@/components/charts/DashboardCharts'
 import { formatarMoeda } from '@/lib/pricing'
 import { formatarDataHora } from '@/utils/helpers'
@@ -105,7 +104,7 @@ export default function GanhosPage() {
     return () => { cancelled = true }
   }, [status, session, filtro, page])
 
-  if (status === 'loading' || isLoading) return <FullPageLoader />
+  if (status === 'loading' || isLoading) return <PageLoader />
 
   const tipoInfo: Record<string, { label: string; icon: typeof ArrowDownLeft; tone: string }> = {
     CREDITO: { label: 'Crédito', icon: ArrowDownLeft, tone: 'bg-success-soft text-success' },
@@ -131,8 +130,7 @@ export default function GanhosPage() {
   const entregas14 = serie.reduce((a, d) => a + d.entregas, 0)
 
   return (
-    <div className="min-h-screen bg-page">
-      <Header userName={session?.user?.name} userRole="MOTOBOY" />
+    <div className="conteudo-chega">
 
       <main className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:px-6">
         <PageHeader title="Ganhos" description="Saldo, repasses e histórico de transações." />

@@ -8,6 +8,41 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Transições entre telas (2026-10-11)
+
+**Na prática**
+- **Entrar no sistema:** depois do login, uma faixa colete (laranja com as faixas refletivas) atravessa a tela da esquerda para a direita. Atrás dela já aparece o painel.
+- **Dentro do sistema**, cada troca de tela mostra para onde a pessoa foi:
+  - abrir um detalhe (um pedido, por exemplo) desliza a tela para a esquerda, e voltar para a lista desliza para a direita;
+  - no menu lateral do painel, descer no menu sobe a tela e subir no menu desce;
+  - nas abas do motoboy e do cliente, o movimento é para o lado;
+  - a tela nova chega e "freia", passando um pouco e assentando, como a moto parando na porta. O total fica abaixo de meio segundo.
+- O destaque do item ativo desliza de um item para o outro, no menu lateral e nas abas.
+- O menu lateral e o cabeçalho ficam parados; só o conteúdo troca.
+- **Carregamento:**
+  - a rota da marca se traça em laço no lugar do spinner e só aparece se a espera passar de 250 ms;
+  - o conteúdo que chega depois sobe e assenta;
+  - o cabeçalho do motoboy e do cliente não some mais enquanto a tela carrega.
+- Quem pede menos movimento no sistema vê as trocas sem animação.
+- O botão voltar do navegador troca a tela sem animação.
+
+**Técnico**
+- Usa o `<ViewTransition>` do React que o Next 16 embute no App Router. Os tipos vêm de `react/canary` (`src/types/react-canary.d.ts`).
+- `src/lib/navegacao.ts`:
+  - `areaDe()` e `direcaoNavegacao()` calculam a direção a partir da rota anterior e da nova;
+  - o comportamento está coberto por `tests/navegacao.test.ts`.
+- `src/components/layout/Transicao.tsx` tem dois níveis:
+  - `TransicaoArea`, no layout raiz, com `key` igual à área e nome `area`;
+  - `TransicaoTela`, com `key` igual à rota e nome `tela-<área>`, para que telas de áreas diferentes nunca formem par.
+- O React só forma o par se a tela que sai também tiver classe diferente de `none`, por isso sempre existe uma classe base.
+- O cabeçalho do motoboy e do cliente passou para os layouts dos grupos (`AppShell`) e saiu das 7 páginas.
+- `FullPageLoader` virou `PageLoader` nessas páginas.
+- A tela de entrega do motoboy usa `router.push` em vez de `window.location`.
+- A cortina é só CSS:
+  - o fundo do `::view-transition-image-pair(.area-entrar)` desenha a faixa;
+  - `clip-path` sincronizado revela a tela nova e esconde a antiga;
+  - a posição é animada com `@property`.
+
 ### Entrada da landing com mapa de cidade (2026-10-11)
 
 **Na prática**
