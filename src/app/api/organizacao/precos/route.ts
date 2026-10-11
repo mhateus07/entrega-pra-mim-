@@ -7,11 +7,15 @@ import { normalizarBairro } from '@/lib/pricing'
 import { tabelaPrecoSchema } from '@/lib/validations'
 
 async function tabela(organizationId: string) {
-  const [regra, bairros] = await Promise.all([
+  const [regra, bairros, settings] = await Promise.all([
     carregarRegraPreco(organizationId),
     prisma.pricingBairro.findMany({ where: { organizationId }, select: { nome: true, valor: true }, orderBy: { nome: 'asc' } }),
+    prisma.organizationSettings.findUnique({ where: { organizationId }, select: { repasseMotoboy: true } }),
   ])
-  return { precoPorKm: regra.precoPorKm, valorMinimo: regra.valorMinimo, multiplicadores: regra.multiplicadores, bairros }
+  return {
+    precoPorKm: regra.precoPorKm, valorMinimo: regra.valorMinimo, multiplicadores: regra.multiplicadores, bairros,
+    repasseMotoboy: settings ? settings.repasseMotoboy.toNumber() : 0.7,
+  }
 }
 
 // GET /api/organizacao/precos - Tabela de preço da central (qualquer membro: o cliente vê a estimativa)
@@ -35,7 +39,7 @@ export async function PUT(request: NextRequest) {
 
     const validation = tabelaPrecoSchema.safeParse(await request.json().catch(() => null))
     if (!validation.success) return badRequest(validation.error.issues[0]?.message ?? 'Dados inválidos')
-    const { precoPorKm, valorMinimo, multiplicadores, bairros } = validation.data
+    const { precoPorKm, valorMinimo, multiplicadores, bairros, repasseMotoboy } = validation.data
 
     const porChave = new Map(bairros.map(b => [normalizarBairro(b.nome), b]))
     if (porChave.size !== bairros.length) return badRequest('Há bairros repetidos na tabela')
@@ -51,6 +55,9 @@ export async function PUT(request: NextRequest) {
       prisma.pricingBairro.createMany({
         data: [...porChave].map(([bairro, b]) => ({ organizationId, bairro, nome: b.nome, valor: b.valor })),
       }),
+      ...(repasseMotoboy !== undefined ? [prisma.organizationSettings.upsert({
+        where: { organizationId }, create: { organizationId, repasseMotoboy }, update: { repasseMotoboy },
+      })] : []),
     ])
 
     return jsonResponse({ success: true, data: await tabela(organizationId), message: 'Tabela de preço atualizada' })

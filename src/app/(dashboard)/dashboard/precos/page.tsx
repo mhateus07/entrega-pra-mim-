@@ -19,6 +19,7 @@ interface Tabela {
   valorMinimo: number
   multiplicadores: Record<Tipo, number>
   bairros: { nome: string; valor: number }[]
+  repasseMotoboy: number
 }
 
 const numero = (v: string) => Number(v.replace(',', '.'))
@@ -90,6 +91,9 @@ export default function PrecosPage() {
                 value={tabela.precoPorKm} onChange={(e) => set({ precoPorKm: numero(e.target.value) })} />
               <Input label="Valor mínimo da corrida (R$)" type="number" min={0} step="0.01" disabled={!podeEditar}
                 value={tabela.valorMinimo} onChange={(e) => set({ valorMinimo: numero(e.target.value) })} />
+              <Input label="Repasse ao motoboy (%)" type="number" min={0} max={100} step="1" disabled={!podeEditar}
+                value={Math.round(tabela.repasseMotoboy * 100)} onChange={(e) => set({ repasseMotoboy: Math.min(100, Math.max(0, numero(e.target.value))) / 100 })}
+                helperText="Usado só no fechamento, para calcular quanto pagar a cada motoboy." />
             </div>
             <p className="mt-4 text-[13px] font-medium text-fg-2">Multiplicador por tipo de serviço</p>
             <div className="mt-2 grid gap-3 sm:grid-cols-3">

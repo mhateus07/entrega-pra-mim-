@@ -168,6 +168,8 @@ export const calcularRotaSchema = z.object({
 const valorMonetario = z.number().min(0).max(100000)
 const multiplicador = z.number().min(0.1).max(10)
 export const tabelaPrecoSchema = z.object({
+  // Fração do valor da corrida repassada ao motoboy no fechamento (0 a 1)
+  repasseMotoboy: z.number().min(0).max(1).optional(),
   precoPorKm: valorMonetario,
   valorMinimo: valorMonetario,
   multiplicadores: z.object({ AGENDADA: multiplicador, DOCUMENTOS: multiplicador, EXPRESSA: multiplicador }),

@@ -54,6 +54,11 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       expect(texto).not.toContain(id)
     }
   }
+  // Listagem tem que responder 200: checar dados num JSON de erro não provaria nada
+  async function listaOk(res: Response) {
+    expect(res.status).toBe(200)
+    semDadosDeB(await res.json())
+  }
   async function negado(res: Response) {
     expect([403, 404]).toContain(res.status)
     semDadosDeB(await res.json().catch(() => null))
@@ -83,7 +88,7 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       include: { pagamento: true } })
     b.pedido = pedido.id
     b.pagamento = pedido.pagamento!.id
-    const entregue = await db.pedido.create({ data: { ...base, status: 'ENTREGUE', motoboyId: motoboyB.motoboyId } })
+    const entregue = await db.pedido.create({ data: { ...base, status: 'ENTREGUE', motoboyId: motoboyB.motoboyId, entregueEm: new Date() } })
     b.pedidoEntregue = entregue.id
     b.avaliacao = (await db.avaliacao.create({ data: { organizationId: orgB, pedidoId: entregue.id, motoboyId: motoboyB.motoboyId!, nota: 5, comentario: SEGREDO_B } })).id
     b.mensagem = (await db.mensagem.create({ data: { organizationId: orgB, pedidoId: pedido.id, remetente: 'CLIENTE', conteudo: SEGREDO_B } })).id
@@ -130,7 +135,7 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
     },
     'organizacao/precos': async () => {
       logarComo(donoA)
-      semDadosDeB(await (await chamar('organizacao/precos', 'GET')).json())
+      await listaOk(await chamar('organizacao/precos', 'GET'))
       const tabela = { precoPorKm: 1, valorMinimo: 0, multiplicadores: { AGENDADA: 1, DOCUMENTOS: 1, EXPRESSA: 1 }, bairros: [] }
       expect((await chamar('organizacao/precos', 'PUT', { body: tabela })).status).toBe(200)
       expect(await db.pricingBairro.count({ where: { organizationId: orgB } })).toBe(1)
@@ -143,7 +148,7 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
     },
     'convites': async () => {
       logarComo(donoA)
-      semDadosDeB(await (await chamar('convites', 'GET')).json())
+      await listaOk(await chamar('convites', 'GET'))
       const criado = await (await chamar('convites', 'POST', { body: { papel: 'DRIVER' } })).json()
       expect((await db.convite.findUniqueOrThrow({ where: { id: criado.data.id } })).organizationId).toBe(orgA)
     },
@@ -183,6 +188,15 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       // Pedido ainda em entrega: a foto só aparece depois de entregue
       expect((await chamar('publico/rastreio/[token]/comprovante', 'GET', { id: TOKEN_B })).status).toBe(404)
     },
+    'fechamento': async () => {
+      logarComo(donoA)
+      const dia = (deslocamento: number) => new Date(Date.now() + deslocamento * 86_400_000).toISOString().slice(0, 10)
+      for (const visao of ['motoboy', 'cliente']) {
+        const res = await chamar('fechamento', 'GET', { query: `de=${dia(-30)}&ate=${dia(1)}&visao=${visao}` })
+        expect(res.status).toBe(200)
+        semDadosDeB(await res.json())
+      }
+    },
     'dashboard': async () => {
       logarComo(donoA)
       const res = await chamar('dashboard', 'GET')
@@ -194,7 +208,7 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       const lista = await chamar('pedidos', 'GET')
       expect(lista.status).toBe(200)
       semDadosDeB(await lista.json())
-      semDadosDeB(await (await chamar('pedidos', 'GET', { query: `clienteId=${clienteB.clienteId}` })).json())
+      await listaOk(await chamar('pedidos', 'GET', { query: `clienteId=${clienteB.clienteId}` }))
       const antes = await db.pedido.count({ where: { organizationId: orgA } })
       await negado(await chamar('pedidos', 'POST', { body: { clienteId: clienteB.clienteId, enderecoOrigemId: b.endereco,
         enderecoDestinoId: b.endereco, tipoServico: 'EXPRESSA' } }))
@@ -287,15 +301,15 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
     },
     'avaliacoes': async () => {
       logarComo(donoA)
-      semDadosDeB(await (await chamar('avaliacoes', 'GET')).json())
-      semDadosDeB(await (await chamar('avaliacoes', 'GET', { query: `motoboyId=${motoboyB.motoboyId}` })).json())
+      await listaOk(await chamar('avaliacoes', 'GET'))
+      await listaOk(await chamar('avaliacoes', 'GET', { query: `motoboyId=${motoboyB.motoboyId}` }))
       await negado(await chamar('avaliacoes', 'POST', { body: { pedidoId: b.pedidoEntregue, nota: 1 } }))
       logarComo(clienteA)
       await negado(await chamar('avaliacoes', 'POST', { body: { pedidoId: b.pedidoEntregue, nota: 1 } }))
     },
     'pagamentos': async () => {
       logarComo(donoA)
-      semDadosDeB(await (await chamar('pagamentos', 'GET')).json())
+      await listaOk(await chamar('pagamentos', 'GET'))
       await negado(await chamar('pagamentos', 'POST', { body: { pedidoId: b.pedido, metodo: 'DINHEIRO' } }))
     },
     'pagamentos/[id]': async () => {

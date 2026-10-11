@@ -8,6 +8,31 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Etapa 4 — Fechamento do dia/mês (2026-10-11)
+
+**Na prática**
+- Em **Painel → Fechamento**, o dono escolhe o período: hoje, ontem, este mês, mês passado ou datas livres. O sistema mostra duas visões:
+  - **Por motoboy:** corridas, km, valor das corridas, repasse (70% por padrão, ajustável em Preços), dinheiro que o motoboy recebeu em mãos e o **saldo do acerto**. Positivo é o que a central paga a ele; negativo é o que ele devolve.
+  - **Por empresa cliente:** corridas, km, valor total, quanto já foi pago e quanto falta cobrar.
+- Botão **Exportar CSV** nas duas visões. O arquivo abre direto no Excel em português (separador ";" e vírgula nos centavos).
+- O relatório só lê os dados: não mexe em saldo nem em dinheiro.
+- Entram as corridas entregues no período, pela hora de entrega no fuso da central. Uma corrida entregue às 23h30 conta naquele dia.
+
+**Técnico**
+- `src/lib/fechamento.ts`:
+  - `porMotoboy` e `porCliente` fazem as contas em `Prisma.Decimal` com `money()`;
+  - `inicioDoDia` calcula a meia-noite no fuso da central;
+  - `gerarCsv` grava com BOM UTF-8 e protege contra fórmula no Excel (CSV injection).
+- `GET /api/fechamento?de&ate&visao=motoboy|cliente[&formato=csv]`, só para a gestão, com período de até 1 ano. Lê só `Pedido` + `Pagamento`.
+- Sem migration: `OrganizationSettings.repasseMotoboy` já existia. Ele passa a ser editado pela tabela de preço (`PUT /api/organizacao/precos`).
+- UI: `/dashboard/fechamento` (item "Fechamento" no menu) e o campo "Repasse ao motoboy (%)" em Preços.
+- Testes:
+  - unitários de agregação, saldo negativo, CSV e fuso;
+  - integração com período no fuso, exclusão de outra central, CSV, permissão, nenhum lançamento em saldo e período inválido;
+  - isolamento: o caso do fechamento agora pega vazamento (validado injetando o erro), e todas as listagens exigem resposta 200.
+
+  Total: 141 testes.
+
 ### Etapa 3 — Link público de rastreio e portal da empresa cliente (2026-10-11)
 
 **Na prática**
