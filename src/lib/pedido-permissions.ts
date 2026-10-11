@@ -8,17 +8,14 @@ export function podeAlterarPedido(
   user: OrgUser,
   pedido: { clienteId: string; motoboyId: string | null; status: StatusPedido },
   status: StatusPedido,
-  motoboyId?: string,
 ): boolean {
   if (isGestor(user)) return true
   if (user.orgRole === 'CLIENT') {
     return !!user.clienteId && user.clienteId === pedido.clienteId && status === 'CANCELADO'
   }
   if (user.orgRole !== 'DRIVER' || !user.motoboyId) return false
-  if (status === 'ACEITO') {
-    return pedido.status === 'SOLICITADO' && pedido.motoboyId === null &&
-      (!motoboyId || motoboyId === user.motoboyId)
-  }
+  // O motoboy assume corridas só aceitando uma oferta do despacho (src/lib/despacho.ts)
+  if (status === 'ACEITO') return false
   return pedido.motoboyId === user.motoboyId
 }
 

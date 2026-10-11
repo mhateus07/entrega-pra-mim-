@@ -90,7 +90,7 @@ function logarComo(user: OrgUser) {
     await db.pricingBairro.deleteMany({ where: { organizationId: orgId } })
 
     const { alterarStatusPedido } = await import('@/lib/pedido-status')
-    await alterarStatusPedido(criado.id, motoboy, { status: 'ACEITO' })
+    await alterarStatusPedido(criado.id, dono, { status: 'ACEITO', motoboyId: motoboy.motoboyId! })
     await alterarStatusPedido(criado.id, motoboy, { status: 'EM_COLETA' })
     await alterarStatusPedido(criado.id, motoboy, { status: 'EM_ENTREGA' })
     await db.pedido.update({ where: { id: criado.id }, data: { fotoComprovante: '/api/pedidos/x/comprovante/arquivo?f=x.jpg' } })

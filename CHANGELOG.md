@@ -8,6 +8,46 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Etapa 6 — Despacho com oferta (2026-10-11)
+
+**Na prática**
+- Quando entra um pedido, o sistema oferece a corrida ao **melhor motoboy online**, pelo mesmo score de antes: proximidade da coleta, avaliação e tempo parado.
+- No app, o motoboy vê a oferta com o **seu ganho**, os bairros, a distância e uma **contagem de 90 segundos** para aceitar ou recusar. O endereço completo só aparece depois do aceite.
+- Se ele recusa ou o tempo acaba, a corrida vai para o próximo. Ninguém recebe duas ofertas ao mesmo tempo, e a mesma oferta nunca vira dois aceites.
+- Depois de **3 tentativas**, ou se não houver ninguém online, o pedido cai na fila **"Sem motoboy"** em **Painel → Despacho**. O despachante vê um aviso no painel e pode atribuir na mão ou "ofertar de novo".
+- O motoboy deixou de ver a lista aberta de pedidos da central: só recebe as ofertas feitas para ele.
+- Entrega agendada entra no despacho 30 minutos antes do horário marcado.
+
+**Técnico**
+- Migration `202610110006_despacho_ofertas`:
+  - modelo `DispatchOffer` (`OFERTADA | ACEITA | RECUSADA | EXPIRADA | CANCELADA`, tentativa, `expiresAt`);
+  - `Pedido.tentativasDespacho` e `Pedido.despachoManual`;
+  - `OrganizationSettings.despachoTtlSegundos` (90) e `despachoMaxTentativas` (3).
+- `src/lib/despacho.ts`:
+  - `ofertarPedido` (idempotente, sob `comPedidoBloqueado`; usa o score de `alocacao.ts` com "online" como disponibilidade);
+  - `aceitarOferta` (oferta marcada com `updateMany` condicional + `reservarMotoboy` atômico);
+  - `recusarOferta`, `reofertarPedido` (novo ciclo) e `processarDespacho` (varredura do job).
+- `pedido-status.ts` passa a expor `reservarMotoboy` e `encerrarOfertas`. Cancelar o pedido ou atribuí-lo na mão encerra as ofertas abertas. O motoboy não aceita mais pelo `PATCH` (`podeAlterarPedido`).
+- Rotas:
+  - `GET /api/despacho/ofertas` e `POST /api/despacho/ofertas/[id]` (motoboy);
+  - `GET/POST /api/despacho/fila` (gestão);
+  - `POST /api/jobs/despacho`, com `Authorization: Bearer CRON_SECRET` comparado em tempo constante; sem o segredo a rota fica desligada.
+- `POST /api/pedidos` dispara a primeira oferta. `GET /api/pedidos` do motoboy lista só os pedidos dele.
+- Job: serviço `despacho-cron` no `docker-compose.yml` (curl a cada 15 s). `CRON_SECRET` foi para o `.env.production.example`, e o boot avisa se ele faltar.
+- UI:
+  - app do motoboy com ofertas, contagem regressiva, aceitar e recusar;
+  - `/dashboard/despacho` com fila manual (atribuir e ofertar de novo) e ofertas em andamento;
+  - aviso de fila manual no painel.
+- Testes (`despacho.test.ts`):
+  - **concorrência:** 5 aceites simultâneos + atribuição manual + motoboy errado → só um vence;
+  - **expiração** gera oferta ao próximo;
+  - **3 tentativas** → fila manual e "ofertar de novo";
+  - também: ordem pelo score, recusa, sem ninguém online, sem duas ofertas simultâneas ao mesmo motoboy, cancelamento, pedido novo pela API, motoboy bloqueado no `PATCH` e autenticação do job;
+  - isolamento cobrindo as 4 rotas novas;
+  - testes antigos de concorrência adaptados à atribuição pela gestão.
+
+  Total: 162 testes.
+
 ### Etapa 5 — Marca da central (white-label básico) (2026-10-11)
 
 **Na prática**

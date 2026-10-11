@@ -5,13 +5,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
-import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Calculator, Palette, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Calculator, Palette, Radio, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { cn } from '@/utils/cn'
 
 const nav = [
   { href: '/dashboard', label: 'Visão geral', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/despacho', label: 'Despacho', icon: Radio },
   { href: '/dashboard/pedidos', label: 'Pedidos', icon: Package },
   { href: '/dashboard/motoboys', label: 'Entregadores', icon: Bike },
   { href: '/dashboard/clientes', label: 'Clientes', icon: Users },

@@ -20,6 +20,7 @@ suite('MySQL: transações, autorização e concorrência', () => {
   let cliente: OrgUser
   let driver: OrgUser
   let otherDriver: OrgUser
+  let gestor: OrgUser
   let origemId: string
   let destinoId: string
   const pedidos: string[] = []
@@ -37,6 +38,7 @@ suite('MySQL: transações, autorização e concorrência', () => {
     cliente = await criarUsuario(db, orgId, 'CLIENT')
     driver = await criarUsuario(db, orgId, 'DRIVER')
     otherDriver = await criarUsuario(db, orgId, 'DRIVER')
+    gestor = await criarUsuario(db, orgId, 'DISPATCHER')
     const enderecos = []
     for (let i = 0; i < 2; i++) {
       enderecos.push(await db.endereco.create({ data: { organizationId: orgId, clienteId: cliente.clienteId!, cep: '36000000',
@@ -153,10 +155,11 @@ suite('MySQL: transações, autorização e concorrência', () => {
     await db.pedido.update({ where: { id: p.id }, data: { status: 'CANCELADO' } })
   })
 
-  it('dois motoboys disputando um pedido resultam em apenas um aceite', async () => {
+  // Atribuição manual pela gestão (o aceite do motoboy é por oferta: despacho.test.ts)
+  it('duas atribuições simultâneas do mesmo pedido resultam em apenas um motoboy', async () => {
     const p = await pedido('SOLICITADO')
     await db.motoboy.updateMany({ where: { id: { in: [driver.motoboyId!, otherDriver.motoboyId!] } }, data: { status: 'DISPONIVEL' } })
-    const results = await Promise.allSettled([driver, otherDriver].map(user => alterar(p.id, user, { status: 'ACEITO', motoboyId: user.motoboyId! })))
+    const results = await Promise.allSettled([driver, otherDriver].map(user => alterar(p.id, gestor, { status: 'ACEITO', motoboyId: user.motoboyId! })))
     expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
     const aceito = await db.pedido.findUniqueOrThrow({ where: { id: p.id } })
     const winner = aceito.motoboyId === driver.motoboyId ? driver : otherDriver
@@ -168,7 +171,7 @@ suite('MySQL: transações, autorização e concorrência', () => {
   it('dois pedidos disputando o mesmo motoboy resultam em apenas uma atribuição', async () => {
     const a = await pedido('SOLICITADO')
     const b = await pedido('SOLICITADO')
-    const results = await Promise.allSettled([a, b].map(p => alterar(p.id, driver, { status: 'ACEITO', motoboyId: driver.motoboyId! })))
+    const results = await Promise.allSettled([a, b].map(p => alterar(p.id, gestor, { status: 'ACEITO', motoboyId: driver.motoboyId! })))
     expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
     for (const p of [a, b]) await alterar(p.id, cliente, { status: 'CANCELADO' })
   })

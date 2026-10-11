@@ -12,6 +12,7 @@ import { BarList, DemandHeatmap, KpiCard, StackedBar, TrendChart, fmt, type Pont
 import { LABELS_TIPO_SERVICO, codigoPedido } from '@/utils/helpers'
 import { cn } from '@/utils/cn'
 import PlanoUsoCard from '@/components/org/PlanoUsoCard'
+import FilaManualAlerta from '@/components/org/FilaManualAlerta'
 import type { StatusMotoboy, StatusPedido, TipoServico } from '@prisma/client'
 
 type Par = { atual: number; anterior: number }
@@ -148,7 +149,7 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="mb-4"><PlanoUsoCard /></div>
+      <div className="mb-4 space-y-3"><FilaManualAlerta /><PlanoUsoCard /></div>
 
       {erro && !data && <Alert variant="danger" icon={AlertTriangle} title="Erro ao carregar o painel">{erro}</Alert>}
       {!data && !erro && <Skeleton />}

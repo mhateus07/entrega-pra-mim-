@@ -10,7 +10,7 @@ import { calcularPrecoComRegra, estimarTempo } from '@/lib/pricing'
 import { carregarRegraPreco } from '@/lib/pricing-org'
 import { registrarEntrega } from '@/lib/uso'
 import { gerarToken } from '@/lib/tokens'
-import { encontrarMelhorMotoboy } from '@/lib/alocacao'
+import { ofertarPedido } from '@/lib/despacho'
 import { ApiResponse } from '@/types'
 import { requireOrgAccess, serverError, forbidden, applyMapsRateLimit, isGestor, type OrgUser } from '@/lib/auth-helpers'
 import { comIdempotencia } from '@/lib/idempotency'
@@ -42,14 +42,9 @@ export async function GET(request: NextRequest) {
       where.clienteId = auth.user.clienteId
     } else if (auth.user.orgRole === 'DRIVER') {
       if (!auth.user.motoboyId) return forbidden('Cadastro de motoboy não encontrado')
-      const perfil = await prisma.motoboy.findUnique({
-        where: { id: auth.user.motoboyId }, select: { aprovacao: true },
-      })
-      // Motoboy aprovado vê pedidos disponíveis (SOLICITADO) ou atribuídos a ele;
-      // cadastro pendente não vê endereços de pedidos de terceiros
-      where.OR = perfil?.aprovacao === 'APROVADO'
-        ? [{ status: 'SOLICITADO' }, { motoboyId: auth.user.motoboyId }]
-        : [{ motoboyId: auth.user.motoboyId }]
+      // Motoboy vê só os pedidos atribuídos a ele; novas corridas chegam como oferta
+      // (GET /api/despacho/ofertas), não como lista aberta de pedidos da central
+      where.motoboyId = auth.user.motoboyId
     }
     // Gestão da central vê todos os pedidos dela
 
@@ -266,35 +261,17 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
       dados: { tipoServico: pedido.tipoServico, valorTotal: pedido.valorTotal.toString() },
     })
 
-    // Para entregas expressas, tentar alocar motoboy automaticamente
-    if (data.tipoServico === 'EXPRESSA') {
-      const motoboys = await prisma.motoboy.findMany({
-        where: { organizationId: user.organizationId, status: 'DISPONIVEL', aprovacao: 'APROVADO' },
-        include: { disponibilidades: true },
-      })
-
-      const melhorMotoboy = encontrarMelhorMotoboy(motoboys, {
-        latitude: enderecoOrigem.latitude,
-        longitude: enderecoOrigem.longitude,
-      })
-
-      if (melhorMotoboy) {
-        // Notificar motoboy (aqui seria via push notification/websocket)
-        // Por enquanto, apenas retornar a sugestão no response
-        const response: ApiResponse<typeof pedido & { motoboyRecomendado?: string }> = {
-          success: true,
-          data: { ...pedido, motoboyRecomendado: melhorMotoboy.motoboyId },
-          message: 'Pedido criado com sucesso. Motoboy será notificado.',
-          ...(avisoPlano ? { aviso: avisoPlano } : {}),
-        }
-        return jsonResponse(response, { status: 201 })
-      }
-    }
+    // Despacho: oferece ao melhor motoboy online (ou manda para a fila manual).
+    // Falha aqui não desfaz o pedido; o job de despacho tenta de novo.
+    const despacho = await ofertarPedido(pedido.id).catch((error) => {
+      console.error('Despacho: falha ao ofertar pedido novo', pedido.id, error)
+      return null
+    })
 
     const response: ApiResponse<typeof pedido> = {
       success: true,
       data: pedido,
-      message: 'Pedido criado com sucesso',
+      message: despacho?.tipo === 'ofertado' ? 'Pedido criado. Procurando o motoboy mais próximo.' : 'Pedido criado com sucesso',
       ...(avisoPlano ? { aviso: avisoPlano } : {}),
     }
 

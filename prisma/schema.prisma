@@ -31,6 +31,14 @@ enum StatusOrganizacao {
   SUSPENSA
 }
 
+enum StatusOferta {
+  OFERTADA
+  ACEITA
+  RECUSADA
+  EXPIRADA
+  CANCELADA
+}
+
 enum PlanoOrganizacao {
   ESSENCIAL
   CENTRAL
@@ -120,6 +128,7 @@ model Organization {
   bairros     PricingBairro[]
   uso         UsageCounter[]
   convites    Convite[]
+  ofertas     DispatchOffer[]
 
   @@map("organizations")
 }
@@ -140,18 +149,21 @@ model OrganizationMember {
 }
 
 model OrganizationSettings {
-  id             String   @id @default(cuid())
-  organizationId String   @unique
+  id                    String   @id @default(cuid())
+  organizationId        String   @unique
   // Marca (white-label, plano MARCA_PROPRIA)
-  nomeExibicao   String?
-  logoArquivo    String?
-  corPrimaria    String?  @db.VarChar(7)
+  nomeExibicao          String?
+  logoArquivo           String?
+  corPrimaria           String?  @db.VarChar(7)
   // Taxa opcional da plataforma sobre a corrida (padrão 0: sem comissão)
-  taxaPlataforma Decimal  @default(0) @db.Decimal(5, 4)
+  taxaPlataforma        Decimal  @default(0) @db.Decimal(5, 4)
   // Fração do valor da corrida repassada ao motoboy no fechamento (só relatório)
-  repasseMotoboy Decimal  @default(0.7) @db.Decimal(5, 4)
-  fusoHorario    String   @default("America/Sao_Paulo")
-  updatedAt      DateTime @updatedAt
+  repasseMotoboy        Decimal  @default(0.7) @db.Decimal(5, 4)
+  fusoHorario           String   @default("America/Sao_Paulo")
+  // Despacho: tempo para o motoboy aceitar e tentativas antes da fila manual
+  despachoTtlSegundos   Int      @default(90)
+  despachoMaxTentativas Int      @default(3)
+  updatedAt             DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -247,6 +259,7 @@ model Motoboy {
   avaliacoes       Avaliacao[]
   saldo            SaldoMotoboy?
   transacoes       TransacaoMotoboy[]
+  ofertas          DispatchOffer[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -328,16 +341,19 @@ model Endereco {
 }
 
 model Pedido {
-  id                String       @id @default(cuid())
+  id                 String       @id @default(cuid())
   // Link público de rastreio (/r/[token]): aleatório, 43 caracteres
-  trackingToken     String?      @unique @db.VarChar(64)
-  organizationId    String
-  clienteId         String
-  motoboyId         String?
-  enderecoOrigemId  String
-  enderecoDestinoId String
-  tipoServico       TipoServico
-  status            StatusPedido @default(SOLICITADO)
+  trackingToken      String?      @unique @db.VarChar(64)
+  // Despacho com oferta: tentativas feitas e fila manual do despachante
+  tentativasDespacho Int          @default(0)
+  despachoManual     Boolean      @default(false)
+  organizationId     String
+  clienteId          String
+  motoboyId          String?
+  enderecoOrigemId   String
+  enderecoDestinoId  String
+  tipoServico        TipoServico
+  status             StatusPedido @default(SOLICITADO)
 
   // Detalhes da entrega
   descricaoItem  String?
@@ -376,6 +392,7 @@ model Pedido {
   mensagens       Mensagem[]
   pagamento       Pagamento?
   transacoes      TransacaoMotoboy[]
+  ofertas         DispatchOffer[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -615,4 +632,27 @@ model Convite {
 
   @@index([organizationId, createdAt])
   @@map("convites")
+}
+
+// Oferta de corrida a um motoboy. Há no máximo uma OFERTADA por pedido;
+// expirou ou foi recusada, o sistema oferece ao próximo do score.
+model DispatchOffer {
+  id             String       @id @default(cuid())
+  organizationId String
+  pedidoId       String
+  motoboyId      String
+  status         StatusOferta @default(OFERTADA)
+  tentativa      Int
+  expiresAt      DateTime
+  respondidaEm   DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pedido       Pedido       @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  motoboy      Motoboy      @relation(fields: [motoboyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, expiresAt])
+  @@index([pedidoId, status])
+  @@index([motoboyId, status, expiresAt])
+  @@map("dispatch_offers")
 }

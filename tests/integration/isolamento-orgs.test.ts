@@ -43,7 +43,7 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
   let orgA: string, orgB: string
   let donoA: OrgUser, clienteA: OrgUser, motoboyA: OrgUser
   let clienteB: OrgUser, motoboyB: OrgUser
-  const b = { pedido: '', pedidoEntregue: '', endereco: '', pagamento: '', avaliacao: '', mensagem: '', convite: '' }
+  const b = { pedido: '', pedidoEntregue: '', endereco: '', pagamento: '', avaliacao: '', mensagem: '', convite: '', oferta: '' }
   const TOKEN_B = 'tokenPublicoDaCentralB_0123456789abcdefABCDEF'
   const SEGREDO_B = 'Segredo da Central B'
 
@@ -96,6 +96,8 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
     await db.transacaoMotoboy.create({ data: { organizationId: orgB, motoboyId: motoboyB.motoboyId!, pedidoId: entregue.id,
       tipo: 'CREDITO', valor: 10, descricao: SEGREDO_B, status: 'CONCLUIDO' } })
 
+    b.oferta = (await db.dispatchOffer.create({ data: { organizationId: orgB, pedidoId: pedido.id, motoboyId: motoboyB.motoboyId!,
+      tentativa: 1, expiresAt: new Date(Date.now() + 3_600_000) } })).id
     b.convite = (await db.convite.create({ data: { organizationId: orgB, papel: 'DRIVER', tokenHash: 'b'.repeat(64), nome: SEGREDO_B,
       expiresAt: new Date(Date.now() + 86_400_000), criadoPorId: clienteB.id } })).id
     await db.pricingBairro.create({ data: { organizationId: orgB, bairro: 'segredo b', nome: SEGREDO_B, valor: 77 } })
@@ -217,6 +219,26 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       for (const proibido of [SEGREDO_B, clienteB.clienteId!, motoboyB.motoboyId!, 'email', 'telefone']) expect(texto).not.toContain(proibido)
     },
     'publico/organizacoes/[slug]/logo': async () => { /* imagem pública da central; coberto em marca.test.ts */ },
+    'despacho/ofertas': async () => {
+      logarComo(motoboyA)
+      await listaOk(await chamar('despacho/ofertas', 'GET'))
+    },
+    'despacho/ofertas/[id]': async () => {
+      logarComo(motoboyA)
+      await negado(await chamar('despacho/ofertas/[id]', 'POST', { id: b.oferta, body: { acao: 'aceitar' } }))
+      await negado(await chamar('despacho/ofertas/[id]', 'POST', { id: b.oferta, body: { acao: 'recusar' } }))
+      expect((await db.dispatchOffer.findUniqueOrThrow({ where: { id: b.oferta } })).status).toBe('OFERTADA')
+    },
+    'despacho/fila': async () => {
+      logarComo(donoA)
+      await listaOk(await chamar('despacho/fila', 'GET'))
+      await negado(await chamar('despacho/fila', 'POST', { body: { pedidoId: b.pedido } }))
+    },
+    'jobs/despacho': async () => {
+      // Job global, sem sessão: só com CRON_SECRET
+      sessao.atual = null
+      expect((await chamar('jobs/despacho', 'POST')).status).toBe(401)
+    },
     'dashboard': async () => {
       logarComo(donoA)
       const res = await chamar('dashboard', 'GET')
