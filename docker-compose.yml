@@ -43,8 +43,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    # Liveness, igual ao Dockerfile: só confirma que o processo responde. Banco e
+    # Redis ficam em /api/health/ready, para o contêiner não sair do Traefik por
+    # causa de uma queda do Redis (o rate limit cai para a memória nesse caso).
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/auth/providers').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -62,14 +65,36 @@ services:
 
   # Despacho com oferta: expira ofertas vencidas e oferece ao próximo motoboy.
   # Chama a rota interna a cada 15 s; sem CRON_SECRET no .env, não sobe.
+  # Falhas aparecem em `docker compose logs despacho-cron` com o código HTTP.
   despacho-cron:
     image: curlimages/curl:8.10.1
     restart: always
     environment:
       CRON_SECRET: ${CRON_SECRET:?defina CRON_SECRET no .env (openssl rand -hex 32)}
-    entrypoint: ["sh", "-c", "while true; do curl -fsS -m 10 -o /dev/null -X POST -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/jobs/despacho || true; sleep 15; done"]
+      TZ: America/Sao_Paulo
+    entrypoint: ["sh", "-c", "while true; do c=$$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X POST -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/jobs/despacho); [ \"$$c\" = 200 ] || echo \"[despacho $$(date '+%F %T')] falhou: HTTP $$c\"; sleep 15; done"]
     depends_on:
       - app
+
+  # Backup diário do banco e dos arquivos (scripts/backup.sh), em ./backups no servidor.
+  # Na hora: docker compose run --rm backup agora
+  backup:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_PWD: ${DB_ROOT_PASSWORD:?defina DB_ROOT_PASSWORD no .env}
+      TZ: America/Sao_Paulo
+      BACKUP_HORA: ${BACKUP_HORA:-03:00}
+      BACKUP_RETENCAO_DIAS: ${BACKUP_RETENCAO_DIAS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+      - comprovantes:/dados/comprovantes:ro
+      - logos:/dados/logos:ro
+    entrypoint: ["sh", "/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
 
 networks:
   default:

@@ -37,7 +37,7 @@ const pageMiddleware = withAuth(
 
 // Camada extra: cada rota continua verificando permissão, mas uma rota nova
 // que esqueça a checagem não fica exposta a visitantes anônimos.
-export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+export default async function proxy(req: NextRequest, event: NextFetchEvent) {
   const path = req.nextUrl.pathname
   if (path.startsWith('/api')) {
     if (isPublicApi(req.method, path)) return NextResponse.next()

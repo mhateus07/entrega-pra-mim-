@@ -48,19 +48,7 @@
   --asfalto: #141413;
 
   /* Mapa ilustrado (hero): terreno, quadras, prédios, ruas, rio e parque */
-  --mapa-terra: #e7e5de;
-  --mapa-quadra: #efede7;
-  --mapa-predio: #e2dfd7;
-  --mapa-predio-2: #dbd8cf;
-  --mapa-rua: #ffffff;
-  --mapa-avenida: #fbf3ea;
-  --mapa-faixa: #e9c9b0;
-  --mapa-agua: #cfdbe6;
-  --mapa-agua-2: #c2d1df;
-  --mapa-parque: #d8e4cf;
-  --mapa-arvore: #bcd1ad;
-  --mapa-texto: #8b887f;
-  --mapa-frota: #52514e;
+  --mapa-fundo: #ecebe6;
 
   /* Gráficos */
   --chart-1: #2a78d6;
@@ -119,19 +107,7 @@
   --rota: #6aa5ef;
   --asfalto: #0e0e0d;
 
-  --mapa-terra: #161615;
-  --mapa-quadra: #1c1c1b;
-  --mapa-predio: #232322;
-  --mapa-predio-2: #282826;
-  --mapa-rua: #2c2c2a;
-  --mapa-avenida: #363431;
-  --mapa-faixa: #5a4030;
-  --mapa-agua: #13202c;
-  --mapa-agua-2: #172838;
-  --mapa-parque: #18241b;
-  --mapa-arvore: #1f3324;
-  --mapa-texto: #6c6a63;
-  --mapa-frota: #a8a69c;
+  --mapa-fundo: #0b0c0e;
 
   --chart-1: #3987e5;
   --chart-2: #d95926;
@@ -186,7 +162,7 @@
   --color-rota: var(--rota);
   --color-asfalto: var(--asfalto);
 
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: var(--font-host), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, 'SF Mono', Menlo, monospace;
 
   --shadow-xs: var(--shadow-sm);
@@ -203,71 +179,29 @@ body {
   color: var(--fg);
 }
 
-/* Títulos da marca: Archivo estreitado (ver brand/README.md).
+/* Títulos da marca: Host Grotesk 600, espaçamento fechado (ver brand/README.md).
  * Nomes sem o prefixo "text-": o tailwind-merge (cn) apagaria a classe ao
- * combiná-la com uma cor ou tamanho text-*. .text-display fica como sinônimo. */
+ * combiná-la com uma cor ou tamanho text-*. .text-display e .cartaz ficam como sinônimos. */
 .titulo-display,
-.text-display {
-  font-weight: 800;
-  font-stretch: 90%;
-  letter-spacing: -0.025em;
-  line-height: 1;
-}
-
-/* Manchete em caixa alta, bem estreita (post "Ainda despachando…") */
+.text-display,
 .cartaz {
-  font-weight: 800;
-  font-stretch: 72%;
-  text-transform: uppercase;
-  letter-spacing: 0.01em;
-  line-height: 0.92;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+  text-wrap: balance;
 }
 
-/* Rótulo de sinalização: caixa alta, estreito. Nunca para frases. */
+/* Rótulo curto (nome de seção, campo, coluna). Nunca para frases. */
 .rotulo {
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 16px;
-  font-weight: 700;
-  font-stretch: 80%;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 /* =========================================================================
  * Elementos gráficos da marca
  * ========================================================================= */
-
-/* Faixa colete: banda laranja com duas faixas refletivas */
-.faixa-colete {
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(var(--faixa), var(--faixa)) 0 22.5% / 100% 14.5% no-repeat,
-    linear-gradient(var(--faixa), var(--faixa)) 0 63% / 100% 14.5% no-repeat,
-    var(--brand-mark);
-}
-
-/* Reflexo: o farol que passa pelo colete. Só as faixas refletivas acendem. */
-.faixa-colete[data-reflexo]::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent 0, rgba(255, 255, 255, 0.95) 50%, transparent 100%) 0 22.5% / 160px 14.5% no-repeat,
-    linear-gradient(90deg, transparent 0, rgba(255, 255, 255, 0.95) 50%, transparent 100%) 0 63% / 160px 14.5% no-repeat;
-  transform: translateX(-200px);
-  animation: farol 2.6s cubic-bezier(0.55, 0, 0.25, 1) 0.4s 1 both;
-}
-
-.faixa-colete[data-reflexo='sempre']::after {
-  animation: farol 2.6s cubic-bezier(0.55, 0, 0.25, 1) 0.4s infinite;
-  animation-delay: 1.2s;
-}
-
-@keyframes farol {
-  0% { transform: translateX(-200px); }
-  70%, 100% { transform: translateX(calc(100vw + 200px)); }
-}
 
 /* Placa (Mercosul): código de pedido e placa do motoboy */
 .placa {
@@ -303,43 +237,13 @@ body {
 
 /* =========================================================================
  * Movimento da marca
- * Tudo vem da operação: a rota se desenha, o ponto de entrega pousa como um
- * carimbo, o GPS pulsa, o odômetro roda. Curvas firmes, nada flutuando.
+ * Tudo vem da operação: o GPS pulsa, o odômetro roda, o status troca.
+ * Curvas firmes, nada flutuando.
  * ========================================================================= */
 
 :root {
   --curva-firme: cubic-bezier(0.2, 0.8, 0.2, 1);
   --curva-pouso: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Rota se desenhando: use em <path pathLength="1" class="rota-traco"> */
-.rota-traco {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-}
-
-[data-visivel='true'] .rota-traco,
-.rota-traco[data-visivel='true'] {
-  animation: tracar var(--duracao-rota, 1.4s) var(--curva-firme) var(--atraso-rota, 0s) forwards;
-}
-
-@keyframes tracar {
-  to { stroke-dashoffset: 0; }
-}
-
-/* Ponto de entrega pousando (carimbo) */
-.pouso {
-  transform-box: fill-box;
-  transform-origin: center;
-  transform: scale(0);
-}
-
-[data-visivel='true'] .pouso {
-  animation: pousar 0.5s var(--curva-pouso) var(--atraso-pouso, 1.2s) forwards;
-}
-
-@keyframes pousar {
-  to { transform: scale(1); }
 }
 
 /* GPS do motoboy */
@@ -354,59 +258,9 @@ body {
   100% { transform: scale(2.4); opacity: 0; }
 }
 
-/* Mapa carregando: cada quadra aparece com atraso pela distância ao centro */
-.mapa-quadra {
-  animation: quadra 0.5s var(--curva-firme) var(--atraso-quadra, 0s) both;
-}
-
-@keyframes quadra {
-  from { opacity: 0; transform: scale(0.94); }
-  to { opacity: 1; transform: none; }
-}
-
-/* Câmera do mapa: aproxima, segue a moto e afasta */
-.mapa-camera {
-  transform-origin: 0 0;
-}
-
-/* Radar procurando motoboy em volta da coleta */
-.radar {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: radar 1.6s ease-out infinite;
-}
-
 @keyframes radar {
   0% { transform: scale(0.2); opacity: 0.6; }
   100% { transform: scale(1); opacity: 0; }
-}
-
-/* Título do hero: cada linha sobe de dentro de uma máscara */
-.linha-mascara {
-  display: block;
-  overflow: hidden;
-  padding-bottom: 0.06em;
-  margin-bottom: -0.06em;
-}
-
-.linha-mascara > span {
-  display: block;
-  transform: translateY(105%);
-  animation: linha-sobe 0.9s var(--curva-firme) var(--atraso, 0s) forwards;
-}
-
-@keyframes linha-sobe {
-  to { transform: none; }
-}
-
-/* Carimbo de "Entregue": cai em cima e assenta */
-.carimbo {
-  animation: carimbar 0.42s var(--curva-pouso) both;
-}
-
-@keyframes carimbar {
-  from { opacity: 0; transform: scale(1.7) rotate(-7deg); }
-  to { opacity: 1; transform: scale(1) rotate(-7deg); }
 }
 
 .carimbo-check {
@@ -447,22 +301,6 @@ body {
 }
 
 /* Linha de rótulo que se estende sob títulos de seção */
-.regua {
-  display: block;
-  height: 3px;
-  width: 56px;
-  background: var(--brand-mark);
-  transform-origin: left;
-  transform: scaleX(0);
-}
-
-[data-visivel='true'] .regua {
-  animation: regua 0.8s var(--curva-firme) 0.1s forwards;
-}
-
-@keyframes regua {
-  to { transform: scaleX(1); }
-}
 
 .tabular {
   font-variant-numeric: tabular-nums;
@@ -530,12 +368,7 @@ textarea:focus-visible {
   }
 
   /* Sem movimento, o estado final aparece direto */
-  .rota-traco { stroke-dashoffset: 0; }
-  .pouso, .regua { transform: none; }
   .chega { opacity: 1; transform: none; }
-  .linha-mascara > span { transform: none; }
-  .mapa-quadra { opacity: 1; }
-  .faixa-colete[data-reflexo]::after { display: none; }
 }
 
 /* ==========================================================================
@@ -715,15 +548,12 @@ textarea:focus-visible {
   from { opacity: 0; }
 }
 
-/* Entrar no sistema: a faixa colete atravessa a tela da esquerda para a
-   direita. Atrás dela já está o painel; à frente, ainda a tela de acesso. */
+/* Entrar no sistema: a barra laranja do símbolo (a porta) atravessa a tela da
+   esquerda para a direita. Atrás dela já está o painel; à frente, a tela de acesso. */
 ::view-transition-image-pair(.area-entrar) {
-  --faixa-l: 84px;
+  --faixa-l: 10px;
   isolation: auto;
-  background:
-    linear-gradient(90deg, var(--faixa) 0 100%) var(--faixa-x, -84px) 0 / 12px 100% no-repeat,
-    linear-gradient(90deg, var(--faixa) 0 100%) var(--faixa-x2, -84px) 0 / 12px 100% no-repeat,
-    linear-gradient(90deg, var(--brand-mark) 0 100%) var(--faixa-x0, -84px) 0 / var(--faixa-l) 100% no-repeat;
+  background: linear-gradient(90deg, var(--brand-mark) 0 100%) var(--faixa-x0, -84px) 0 / var(--faixa-l) 100% no-repeat;
   animation: 760ms cubic-bezier(0.7, 0, 0.2, 1) both faixa-passa;
 }
 ::view-transition-old(.area-entrar) {
@@ -760,3 +590,85 @@ textarea:focus-visible {
     animation-delay: 0s !important;
   }
 }
+
+/* ===== Mapa 3D da landing (OperacaoAoVivo) ===== */
+.operacao-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 24px 60px -20px rgb(0 0 0 / 0.45);
+}
+.mapa-bairro {
+  font: 500 10.5px/1 var(--font-plex-mono), ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  opacity: 0.75;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.mapa-pino {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+.mapa-pino > span {
+  font: 500 11.5px/1 var(--font-sans, system-ui);
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px -8px rgb(0 0 0 / 0.5);
+  transition: opacity 0.4s, transform 0.4s;
+}
+.mapa-pino::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 4px solid var(--fg);
+  box-shadow: 0 0 0 6px color-mix(in oklab, var(--fg) 12%, transparent);
+  transition: background 0.3s, border-color 0.3s;
+}
+.mapa-pino-coleta[data-feito='true'] > span { opacity: 0; transform: translateY(4px); }
+.mapa-pino-destino::after { background: var(--fg); }
+.mapa-pino-destino[data-entregue='true']::after { background: var(--success); border-color: var(--success); box-shadow: 0 0 0 8px color-mix(in oklab, var(--success) 22%, transparent); }
+.mapa-pino-destino[data-entregue='true'] > span { color: var(--success); border-color: color-mix(in oklab, var(--success) 45%, transparent); }
+.mapa-moto { position: relative; width: 18px; height: 18px; pointer-events: none; }
+.mapa-moto > b {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: var(--brand-mark); border: 3px solid #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.2), 0 0 22px 4px color-mix(in oklab, var(--brand-mark) 60%, transparent);
+}
+.mapa-moto > i {
+  position: absolute; inset: -14px; border-radius: 50%;
+  background: var(--brand-mark); opacity: 0.25;
+  animation: gps 1.8s ease-out infinite;
+}
+.mapa-moto > em {
+  position: absolute; left: 24px; top: -6px;
+  font: 500 11px/1 var(--font-plex-mono), ui-monospace, monospace; font-style: normal;
+  color: #fff; background: #141413; border-radius: 5px; padding: 5px 7px; white-space: nowrap;
+  opacity: 0; transition: opacity 0.3s;
+}
+.mapa-moto[data-fase='entrega'] > em { opacity: 1; }
+.mapa-moto[data-fase='busca'] > b, .mapa-moto[data-fase='busca'] > i { background: var(--fg-3); box-shadow: none; }
+.mapa-moto[data-fase='entregue'] { opacity: 0; transition: opacity 0.4s; }
+.mapa-radar { position: relative; width: 0; height: 0; pointer-events: none; }
+.mapa-radar > i {
+  position: absolute; left: -160px; top: -160px; width: 320px; height: 320px; border-radius: 50%;
+  border: 2px solid var(--brand-mark); opacity: 0;
+}
+.mapa-radar[data-ativo='true'] > i { animation: radar 1.6s ease-out infinite; }
+.mapa-radar[data-ativo='true'] > i + i { animation-delay: 0.8s; }
+.maplibregl-ctrl-attrib.maplibregl-compact { background: color-mix(in oklab, var(--surface) 70%, transparent) !important; color: var(--fg-3); }
+.maplibregl-ctrl-attrib a { color: var(--fg-3) !important; }
+.mapa-bairro { transition: opacity 0.3s; }
+.mapa-bairro[data-oculto='true'] { opacity: 0; }
+.maplibregl-ctrl-attrib { font-size: 10.5px; }

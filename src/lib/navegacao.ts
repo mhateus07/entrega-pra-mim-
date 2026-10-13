@@ -2,7 +2,7 @@
 // Direção da navegação, usada pelas transições entre telas
 // =============================================================================
 // A animação conta para onde a pessoa foi: entrar no sistema (cortina com a
-// faixa colete), avançar para um detalhe, voltar para a lista ou andar no menu.
+// barra laranja do símbolo), avançar para um detalhe, voltar para a lista ou andar no menu.
 // =============================================================================
 
 export type Area = 'site' | 'acesso' | 'painel' | 'motoboy' | 'cliente' | 'rastreio' | 'outra'

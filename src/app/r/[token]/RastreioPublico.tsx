@@ -98,7 +98,7 @@ export default function RastreioPublico({ token }: { token: string }) {
               : <span className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[12px] font-bold text-white" style={{ background: cor }}>
                 {dados?.central.nome.split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase()}
               </span>
-          ) : <LogoMark className="h-8 w-8" />}
+          ) : <LogoMark variant="icone" className="h-8 w-8" />}
           <p className="truncate text-[16px] font-bold text-fg">{marcaPropria ? dados?.central.nome : 'Entrega Pra Mim'}</p>
         </header>
 

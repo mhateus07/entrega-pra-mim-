@@ -8,7 +8,6 @@ import { ArrowLeft, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from './ThemeToggle'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
-import Faixa from '@/components/brand/Faixa'
 import { cn } from '@/utils/cn'
 import { Fixo } from '@/components/layout/Transicao'
 
@@ -53,7 +52,6 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
-      <Faixa className="h-[5px]" reflexo="nao" />
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           {showBackButton && backHref && (
@@ -62,7 +60,7 @@ export default function Header({ userName, userRole, showBackButton, backHref }:
             </Link>
           )}
           <Link href={home} className="flex items-center">
-            <Logo markClassName="h-7 w-7" className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline" />
+            <Logo className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline" />
           </Link>
           {navLinks.length > 0 && <span className="mx-3 hidden h-5 w-px bg-line md:block" aria-hidden="true" />}
           <nav className="hidden items-center gap-0.5 md:flex" aria-label="Navegação principal">

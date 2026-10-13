@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import OrgSwitcher from '@/components/org/OrgSwitcher'
-import Faixa from '@/components/brand/Faixa'
 import { LayoutDashboard, Package, Bike, Users, Tags, Send, Building2, Clock, Calculator, Palette, Radio, LogOut, Menu, X } from 'lucide-react'
 import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
@@ -115,9 +114,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-page lg:pl-60">
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface-2 px-3 pb-4 lg:flex">
-        <Faixa className="-mx-3 mb-4 h-[12px] w-auto" />
-        <Link href="/dashboard" className="mb-6 px-2">
-          <Logo markClassName="h-7 w-7" />
+        <Link href="/dashboard" className="mb-6 mt-5 px-2">
+          <Logo />
         </Link>
         <p className="rotulo mb-2 px-2.5 text-fg-3">Operação</p>
         <NavList indicador />
@@ -132,7 +130,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
       {/* Topbar (mobile) */}
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-line bg-surface/95 px-4 backdrop-blur lg:hidden">
-        <Link href="/dashboard"><Logo markClassName="h-7 w-7" /></Link>
+        <Link href="/dashboard"><Logo /></Link>
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <button
@@ -151,7 +149,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <div className="absolute inset-y-0 right-0 flex w-72 max-w-[85vw] flex-col border-l border-line bg-surface-2 px-3 py-4 shadow-pop">
             <div className="mb-6 flex items-center justify-between px-2">
-              <Logo markClassName="h-7 w-7" />
+              <Logo />
               <button type="button" onClick={() => setOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-3" aria-label="Fechar menu">
                 <X className="h-5 w-5" />
               </button>

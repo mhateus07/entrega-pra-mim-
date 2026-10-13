@@ -12,7 +12,7 @@ O produto está mudando de modelo de negócio. Antes de qualquer coisa, leia nes
 
 1. `docs/PLANO_NEGOCIO.md`: a decisão de negócio. Este é o documento que manda.
 2. `docs/PLANO_EVOLUCAO.md`: o roadmap técnico anterior. Ele continua valendo nos princípios (monólito modular, migrations aditivas, máquina de estados, auditoria), mas a **ordem das prioridades mudou**.
-3. `docs/CORRECOES_OPERACIONAIS.md`, `prisma/schema.prisma`, `src/lib/auth-helpers.ts`, `src/lib/pedido-permissions.ts`, `src/lib/pricing.ts`, `src/lib/pagamentos.ts`, `src/lib/alocacao.ts`, `src/middleware.ts` e os testes em `tests/`.
+3. `docs/CORRECOES_OPERACIONAIS.md`, `prisma/schema.prisma`, `src/lib/auth-helpers.ts`, `src/lib/pedido-permissions.ts`, `src/lib/pricing.ts`, `src/lib/pagamentos.ts`, `src/lib/alocacao.ts`, `src/proxy.ts` e os testes em `tests/`.
 
 ### A mudança, em uma frase
 

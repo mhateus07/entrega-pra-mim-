@@ -15,3 +15,5 @@ deploy.tar.gz
 coverage
 tests
 docs
+# dumps do banco e arquivos do servidor: nunca dentro da imagem
+backups

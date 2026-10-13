@@ -453,6 +453,18 @@ docker start entrega-mysql   # Iniciar
 
 ---
 
+## Backup
+
+Em produção, o serviço `backup` do `docker-compose.yml` roda `scripts/backup.sh` todo dia às 03:00 (horário de Brasília): dump do banco (`banco-AAAAMMDD-HHMM.sql.gz`) e cópia dos comprovantes e logos (`arquivos-AAAAMMDD-HHMM.tar.gz`) em `./backups` no servidor, guardando 14 dias (`BACKUP_HORA` e `BACKUP_RETENCAO_DIAS` no `.env` mudam isso).
+
+```bash
+docker compose run --rm backup agora      # backup na hora
+docker compose logs backup                # histórico (falhas aparecem como ERRO)
+gunzip -c backups/banco-AAAAMMDD-HHMM.sql.gz | docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" entrega_pra_mim'   # restaurar
+```
+
+Os arquivos ficam na mesma VPS: para sobreviver à perda do servidor, copie a pasta `backups/` para fora dela (por exemplo, `rsync -av root@SERVIDOR:/opt/entrega-pra-mim/backups/ ~/backups-epm/`).
+
 ## Troubleshooting
 
 ### Erro de conexão MySQL

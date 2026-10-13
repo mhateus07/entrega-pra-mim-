@@ -42,7 +42,9 @@ export default function GlobalError({
                 Tentar novamente
               </button>
               <button
-                onClick={() => window.location.assign('/')}
+                // Recarga completa de propósito: o layout raiz quebrou e a navegação do cliente não é confiável
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                onClick={() => { window.location.href = '/' }}
                 style={{
                   padding: '0.625rem 1.5rem',
                   backgroundColor: '#ffffff',

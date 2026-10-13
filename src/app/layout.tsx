@@ -1,13 +1,12 @@
 import type { Metadata, Viewport } from 'next'
-import { Archivo, IBM_Plex_Mono } from 'next/font/google'
+import { Host_Grotesk, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { TransicaoArea } from '@/components/layout/Transicao'
 
-const archivo = Archivo({
+const hostGrotesk = Host_Grotesk({
   subsets: ['latin', 'latin-ext'],
-  axes: ['wdth'],
-  variable: '--font-archivo',
+  variable: '--font-host',
   display: 'swap',
 })
 
@@ -45,7 +44,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     siteName: 'Entrega Pra Mim',
-    title: 'Entrega Pra Mim — Despacha. Rastreia. Fecha o dia.',
+    title: 'Entrega Pra Mim — Sistema para centrais de motofrete',
     description: 'Sua central de motofrete despachando, rastreando e fechando o dia num sistema só, com a sua marca e preço fixo. Sem comissão por corrida.',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Entrega Pra Mim' }],
   },
@@ -67,7 +66,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${archivo.variable} ${plexMono.variable} font-sans antialiased`}>
+      <body className={`${hostGrotesk.variable} ${plexMono.variable} font-sans antialiased`}>
         <Providers><TransicaoArea>{children}</TransicaoArea></Providers>
       </body>
     </html>
