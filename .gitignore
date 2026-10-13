@@ -62,3 +62,9 @@ deploy/.env*
 
 # configurações locais do Claude Code
 .claude/settings.local.json
+
+# worker do MapLibre copiado de node_modules (scripts/copiar-worker-mapa.mjs)
+/public/vendor/maplibre/
+
+# backups do banco e dos arquivos gerados no servidor (scripts/backup.sh)
+/backups/

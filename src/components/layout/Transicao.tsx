@@ -10,7 +10,7 @@ import { areaDe, direcaoNavegacao } from '@/lib/navegacao'
 // Dois níveis, cada um com um nome fixo e a chave da rota, para o navegador
 // animar a tela antiga saindo e a nova entrando:
 // - Área (site, acesso, painel, motoboy, cliente): entrar no sistema passa a
-//   faixa colete pela tela; sair do site para o acesso avança.
+//   barra laranja do símbolo pela tela; sair do site para o acesso avança.
 // - Tela, dentro da área: avançar para um detalhe, voltar para a lista ou
 //   andar pelo menu. Menu lateral e cabeçalho ficam no layout, parados.
 // A direção sai da rota anterior e da nova, então o botão voltar do navegador

@@ -1,7 +1,7 @@
 {
   "name": "Entrega Pra Mim",
   "short_name": "Entrega",
-  "description": "Entregas urbanas sob demanda",
+  "description": "Sistema para centrais de motofrete",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f6f5f1",

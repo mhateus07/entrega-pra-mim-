@@ -34,7 +34,7 @@ export default function RastreioMarca() {
       >
         <div className="flex items-center gap-2.5 px-5 pb-3 pt-6">
           {marca === 'epm'
-            ? <LogoMark className="h-7 w-7" />
+            ? <LogoMark variant="icone" className="h-7 w-7" />
             : <span className="flex h-7 w-7 items-center justify-center rounded-[7px] text-[11px] font-bold text-white transition-colors duration-500" style={{ background: 'var(--cor)' }}>RJ</span>}
           <span key={marca} className="status-troca text-[15px] font-bold">{m.nome}</span>
         </div>

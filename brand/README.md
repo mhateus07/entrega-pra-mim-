@@ -1,40 +1,31 @@
-# Marca Entrega Pra Mim
+# Marca Entrega Pra Mim — "Chegada"
 
-Guia completo, com tokens, componentes e regras de uso: **Design System "Entrega Pra Mim"** no Claude (artifact privado do Mateus). Este README resume o que está nesta pasta e o que mudou no código.
+Identidade adotada em 13/10/2026, no lugar da anterior (quadrado laranja com o "check", títulos condensados e faixa colete).
 
 ## Na prática
 
 - **Para quem a marca fala:** primeiro o dono da central de motofrete, que é quem compra. Depois o despachante, o motoboy e o destinatário que abre o link de rastreio.
-- **Conceito:** a rota que termina em entregue. O símbolo começa num anel (a coleta) e termina num ponto cheio (a entrega), formando um sinal de confirmado. O pingo do "i" de "Mim" é esse mesmo ponto, em laranja.
-- **Assinatura:** "Despacha. Rastreia. Fecha o dia."
-- **Cores:** neutros quentes (papel #F6F5F1 e asfalto #141413) com o laranja colete (#E2570F) usado com intenção: no símbolo, no ponto de destino, na faixa colete e no botão de ação. O azul rota (#1F63C1) é só do mapa e da placa.
-- **Letras:** Archivo em tudo, com títulos estreitados (largura 90%, peso 800). IBM Plex Mono para código de pedido, placa, horário e valor.
-- **Elementos:** a rota (anel, linha e ponto), a faixa colete (banda laranja com duas faixas refletivas) e a placa (caixa com tarja azul, como a placa Mercosul).
-- **Marca da central (white-label):** no plano Marca Própria, o rastreio mostra o logo e a cor da central. A Entrega Pra Mim aparece só como "tecnologia Entrega Pra Mim" no rodapé. Nos outros planos, a marca Entrega Pra Mim fica no topo e a central aparece como "Entrega feita por…".
-- **Cartão de visita:** o telefone em `png/cartao-visita.png` é um exemplo e precisa ser trocado antes de imprimir.
+- **Símbolo:** uma barra horizontal (a rota) que termina numa barra vertical laranja (a porta do cliente). Lê-se "chegou". Sem moldura; no ícone de app ele vai sobre um quadrado em asfalto.
+- **Logotipo:** "Entrega Pra Mim" em Host Grotesk 600, com espaçamento de −0,035em, convertido em curvas nos arquivos de `logo/`. No site o nome é texto na mesma fonte.
+- **Cores:** neutros (papel #F6F5F1 e asfalto #121314) e o laranja (#E2570F no claro, #F0712B no escuro). O laranja aparece só na porta do símbolo, no que está acontecendo agora (a moto e a rota percorrida no mapa) e no botão principal. Nunca em palavras de títulos.
+- **Letras:** Host Grotesk em tudo, peso 600 nos títulos, frases completas em caixa normal. IBM Plex Mono para código de pedido, placa, horário e valor.
+- **O que saiu:** a faixa colete, a régua laranja sobre os títulos, os rótulos em caixa-alta com "01 ·", o ícone em cada card e a assinatura "Despacha. Rastreia. Fecha o dia." como manchete.
+- **Marca da central (white-label):** no plano Marca Própria, o rastreio mostra o logo e a cor da central e a Entrega Pra Mim aparece só como "tecnologia Entrega Pra Mim" no rodapé.
 
-## O que tem aqui
+## Arquivos
 
-| Pasta | Conteúdo |
+| Arquivo | Uso |
 | --- | --- |
-| `logo/` | Todas as versões em SVG: horizontal, empilhado, negativo, mono preto e branco, logotipo, símbolo (laranja, asfalto e branco) e glifo |
-| `padroes/` | Faixa colete, rota e placa em SVG |
-| `png/` | Imagem de compartilhamento (OG), post de Instagram, cartão de visita e mockup do rastreio white-label |
-| `aplicacoes/` | Os HTMLs que geram os PNGs, com as fontes. Abra no navegador e tire o print no tamanho do `body` para regerar |
-| `tokens.json` | Tokens de cor (claro/escuro), tipografia, espaço, cantos e sombra |
+| `logo/epm-logo-horizontal.svg` | Versão principal, sobre fundo claro |
+| `logo/epm-logo-horizontal-negativo.svg` | Sobre fundo escuro |
+| `logo/epm-logo-horizontal-mono-preto.svg` / `-mono-branco.svg` | Uma cor só (carimbo, gravação, documento) |
+| `logo/epm-logotipo.svg` | Só o nome |
+| `logo/epm-simbolo.svg` / `-branco.svg` | Só o símbolo |
+| `logo/epm-icone-app.svg` | Ícone de app (quadrado em asfalto) |
+| `tokens.json` | Cores (claro/escuro), tipografia, espaço, cantos e sombra |
 
-## Técnico: o que mudou no código
+Os SVGs e os ícones de `public/icons/` são gerados a partir da fonte; para mudar a geometria, edite `src/components/brand/Logo.tsx` (site) e regere os arquivos.
 
-- `src/components/brand/Logo.tsx`: o novo símbolo em `LogoMark` (com a variante `asfalto`) e um novo `LogoWordmark` com o logotipo em curvas. A tinta segue `currentColor`, então funciona no tema claro e no escuro. O pingo do "i" usa `var(--brand-mark)`.
-- `src/app/globals.css`:
-  - `--page` passou para #f6f5f1, `--fg` e `--primary` para #141413 e `--fg-3` para #6f6d66 (4.5:1 sobre o papel, o anterior dava 3.5:1).
-  - `--brand` passou para #bc450a (texto branco a 5.3:1; o #e2570f dava 3.7:1 e não passava em botão), com `--brand-hover` em #a83d08.
-  - Novo `--brand-mark` (#e2570f no claro, #f0712b no escuro) para símbolo e grafismos, com a classe `bg-brand-mark`/`text-brand-mark`.
-  - As famílias passaram para Archivo e IBM Plex Mono. Nova classe `.text-display` para títulos.
-- `src/app/layout.tsx`: troca de Inter por Archivo (variável com eixo `wdth`) e IBM Plex Mono via `next/font`, imagem OG, ícone da Apple e `themeColor` novos.
-- `public/`:
-  - `logo.svg`, `icons/icon.svg`, `icons/icon-maskable.svg` e todos os PNGs de `icons/` foram regerados com o símbolo novo.
-  - Novos `icons/apple-touch-icon-180x180.png`, `icons/favicon-32x32.png`, `icons/favicon-16x16.png`, `icons/icon-maskable-{192,512}.png` e `og-image.png`.
-- `public/manifest.json`: cores novas, e os ícones `maskable` agora ficam separados dos `any`.
+## Mapa da landing
 
-Os textos da landing e do one-pager não mudaram. Eles entram na Etapa 7 do `docs/PROMPT_CLAUDE_CODE_REPOSICIONAMENTO.md`, já com o tom de voz do guia.
+O hero mostra uma corrida em 3D nas ruas reais do centro de Juiz de Fora (MapLibre GL). Os tiles ficam em `public/mapas/jf.pmtiles` e as rotas em `src/components/landing/mapa/rotas-jf.json`; os dois são gerados por `scripts/gerar-mapa-landing.mjs` (instruções no topo do script). O site não chama nenhum serviço de mapa externo. Dados © OpenStreetMap.
