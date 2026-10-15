@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Entrega Pra Mim — one-pager</title>
+<link rel="stylesheet" href="base.css">
+<style>
+@page { size: 210mm 297mm; margin: 0; }
+body { width: 794px; height: 1123px; overflow: hidden; position: relative; }
+
+.top { background: var(--asfalto); color: #fff; height: 352px; padding: 34px 48px 0; position: relative; }
+.brand { display: flex; justify-content: space-between; align-items: center; }
+.brand img { height: 24px; }
+.brand span { font-size: 11px; color: var(--e-t3); }
+.top h1 { font-size: 35px; line-height: 1.05; margin-top: 34px; max-width: 520px; }
+.top p.sub { font-size: 13.5px; line-height: 1.5; color: var(--e-t2); margin-top: 12px; max-width: 520px; }
+.chips { display: flex; gap: 8px; margin-top: 18px; }
+.chips span { font-size: 11.5px; font-weight: 500; border: 1px solid #3a3a37; border-radius: 99px; padding: 6px 12px; color: #F4F4F2; }
+
+.shot-pc { position: absolute; left: 48px; top: 306px; width: 516px; }
+.shot-cel { position: absolute; right: 48px; top: 196px; width: 170px; border-radius: 18px; border-color: #3a3a37; }
+.cap { position: absolute; font-size: 10.5px; line-height: 1.35; color: var(--t3); }
+.cap b { color: var(--asfalto); font-weight: 600; }
+.cap-pc { left: 48px; top: 566px; width: 516px; }
+.cap-cel { right: 48px; top: 517px; width: 170px; }
+
+.body { position: absolute; left: 48px; right: 48px; top: 612px; }
+.feat { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
+.feat h2 { grid-column: 1 / -1; font-size: 19px; margin-bottom: 6px; }
+.feat li { list-style: none; font-size: 11.6px; padding: 6px 0 6px 20px; position: relative; border-bottom: 1px solid var(--linha); color: var(--asfalto); }
+.feat li::before { content: ''; position: absolute; left: 2px; top: 10px; width: 9px; height: 5px; border-left: 1.8px solid var(--sucesso); border-bottom: 1.8px solid var(--sucesso); transform: rotate(-45deg); }
+
+.plans { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.plan { background: var(--sup); border: 1px solid var(--linha); border-radius: 12px; padding: 12px 14px 12px; position: relative; }
+.plan h3 { font-size: 13.5px; letter-spacing: -0.01em; }
+.plan .price { font-family: 'IBM Plex Mono'; font-weight: 500; font-size: 22px; margin-top: 3px; letter-spacing: -0.02em; }
+.plan .price small { font-family: 'Host Grotesk'; font-size: 11.5px; font-weight: 400; color: var(--t3); letter-spacing: 0; }
+.plan .lim { font-size: 10.5px; color: var(--asfalto); margin-top: 3px; font-weight: 500; }
+.plan p { font-size: 10.5px; color: var(--t2); line-height: 1.4; margin-top: 3px; }
+.plan.rec { background: var(--asfalto); color: #fff; border-color: var(--asfalto); }
+.plan.rec .lim { color: #fff; }
+.plan.rec p, .plan.rec .price small { color: var(--e-t2); }
+.plan.rec em { position: absolute; top: 12px; right: 14px; font-style: normal; font-size: 9.5px; font-weight: 600; color: var(--asfalto); background: var(--papel); padding: 3px 8px; border-radius: 99px; }
+
+.notes { position: absolute; left: 48px; right: 48px; bottom: 126px; display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; color: var(--t2); }
+.notes .aviso { color: var(--t3); }
+
+.cta { position: absolute; left: 0; right: 0; bottom: 0; height: 112px; background: var(--asfalto); color: #fff; padding: 0 48px; display: flex; align-items: center; gap: 28px; }
+.cta .txt { flex: 1; }
+.cta h2 { font-size: 21px; line-height: 1.15; }
+.cta .ct { display: flex; gap: 30px; margin-top: 12px; }
+.cta .ct span { display: block; font-size: 10px; color: var(--e-t3); margin-bottom: 2px; }
+.cta .ct b { font-size: 14.5px; font-weight: 600; letter-spacing: -0.01em; }
+.cta .ct b.mono { font-size: 14px; }
+.cta .qrw { display: flex; align-items: center; gap: 12px; }
+.cta .qr { background: #fff; padding: 6px; border-radius: 8px; width: 80px; height: 80px; }
+.cta .qr img { width: 100%; height: 100%; display: block; }
+.cta .qrl { font-size: 10.5px; line-height: 1.35; color: var(--e-t2); width: 70px; text-align: right; }
+</style></head>
+<body>
+<section class="top">
+  <div class="brand"><img src="assets/epm-logo-horizontal-negativo.svg" alt="Entrega Pra Mim"><span>por Impulsio Digital · Juiz de Fora (MG)</span></div>
+  <h1>Sua central de motoboy, do despacho ao fechamento.</h1>
+  <p class="sub">O pedido entra e o sistema oferece a corrida ao motoboy online. No fim do mês, mostra quanto pagar a cada motoboy e quanto cobrar de cada empresa.</p>
+  <div class="chips"><span>Sem comissão por corrida</span><span>Mensalidade fixa</span><span>Sem fidelidade</span></div>
+</section>
+
+<div class="tela shot-pc"><img src="assets/telas/visao-geral.jpg"></div>
+<div class="tela shot-cel"><img src="assets/telas/rastreio-entregue.jpg"></div>
+<div class="cap cap-pc"><b>Painel da central.</b> Pedido sem motoboy, uso do plano, receita, pedidos e entregas do período.</div>
+<div class="cap cap-cel"><b>Link de rastreio</b> com o logo da central e a foto na entrega.</div>
+
+<div class="body">
+  <ul class="feat">
+    <h2>Muito mais que um grupo de WhatsApp</h2>
+    <li>A corrida é oferecida ao motoboy online</li>
+    <li>Portal para a empresa cliente abrir a entrega</li>
+    <li>90 segundos para aceitar, senão vai ao próximo</li>
+    <li>Preço calculado antes de confirmar o pedido</li>
+    <li>Fila de pedidos sem motoboy para o despachante</li>
+    <li>Tabela por km, valor mínimo e preço por bairro</li>
+    <li>Celular do motoboy com passo a passo da entrega</li>
+    <li>Fechamento por motoboy, com o dinheiro em mãos</li>
+    <li>Link de rastreio para quem vai receber</li>
+    <li>Fechamento por empresa: já pago e a cobrar</li>
+    <li>Comprovante com foto na entrega</li>
+    <li>Motoboys e empresas entram por convite</li>
+  </ul>
+
+  <div class="plans">
+    <div class="plan"><h3>Essencial</h3><div class="price">R$ 149<small>/mês</small></div><div class="lim">5 motoboys · 600 entregas</div><p>Despacho, rastreio, comprovante com foto e fechamento.</p></div>
+    <div class="plan rec"><em>Mais escolhido</em><h3>Central</h3><div class="price">R$ 299<small>/mês</small></div><div class="lim">20 motoboys · 2.500 entregas</div><p>Tudo do Essencial + portal das empresas e preço por bairro.</p></div>
+    <div class="plan"><h3>Marca própria</h3><div class="price">R$ 499<small>/mês</small></div><div class="lim">50 motoboys · 6.000 entregas</div><p>Tudo do Central + logo, nome e cor da central no rastreio e no app.</p></div>
+  </div>
+</div>
+
+<div class="notes"><span>Mensalidade fixa, sem comissão por corrida e sem fidelidade.</span><span class="aviso">Telas com dados ilustrativos de uma central-exemplo.</span></div>
+
+<section class="cta">
+  <div class="txt">
+    <h2>Agende uma demonstração sem compromisso.</h2>
+    <div class="ct">
+      <div><span>WhatsApp</span><b>(32) 99857-8057</b></div>
+      <div><span>Site</span><b>entregapramim.impulsiodigital.com</b></div>
+      
+    </div>
+  </div>
+  <div class="qrw"><div class="qrl">Chame no WhatsApp pelo QR</div><div class="qr"><img src="assets/qr-whatsapp.svg"></div></div>
+</section>
+</body></html>
