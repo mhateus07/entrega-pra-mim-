@@ -68,3 +68,8 @@ deploy/.env*
 
 # backups do banco e dos arquivos gerados no servidor (scripts/backup.sh)
 /backups/
+
+# arquivos locais do editor/agente e pacote duplicado do kit
+*.swp
+.claude/settings.local.json
+scripts/kit-vendas/.src-pacote.zip

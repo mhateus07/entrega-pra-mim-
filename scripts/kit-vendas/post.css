@@ -1,0 +1,8 @@
+body { width: 1080px; height: 1350px; overflow: hidden; position: relative; }
+.pad { position: absolute; inset: 0; padding: 88px; }
+.logo { height: 40px; display: block; }
+.foot { position: absolute; left: 88px; right: 88px; bottom: 72px; display: flex; justify-content: space-between; align-items: baseline; }
+.foot .site { font-weight: 600; font-size: 28px; letter-spacing: -0.02em; }
+.foot .aviso { font-size: 19px; color: var(--t3); }
+.cap { font-size: 21px; line-height: 1.4; color: var(--t3); }
+.cap b { color: var(--asfalto); font-weight: 600; }

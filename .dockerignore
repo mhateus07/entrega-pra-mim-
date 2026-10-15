@@ -17,3 +17,5 @@ tests
 docs
 # dumps do banco e arquivos do servidor: nunca dentro da imagem
 backups
+# kit de vendas (vídeos e fontes): não vai para a imagem
+scripts/kit-vendas
