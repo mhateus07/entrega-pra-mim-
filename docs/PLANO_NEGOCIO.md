@@ -148,7 +148,7 @@ Integração Pedeli → EPM, ETA real pela posição atual, troca do polling por
 1. **Montar a lista (semana 1).** Buscar no Google Maps e no Instagram por "motoboy", "motofrete", "tele-entrega" e "entregas rápidas" em Juiz de Fora. Anotar nome, número de motoboys e quem são os clientes de cada central. A meta é de 20 a 30 nomes numa planilha.
 2. **Perguntar antes de vender (semanas 1–2).** Conversar com 8 a 10 donos, sem pitch: "Como vocês distribuem as corridas hoje? Como fecham o dia? Já perderam cliente por atraso?". Anotar as palavras que eles usam, porque elas viram o texto do site e dos posts.
 3. **Usar o Pedeli como porta de entrada.** Perguntar a cada restaurante do Pedeli quem faz as entregas. Cada resposta é o nome de uma central e já vem com uma indicação.
-4. **Falar com o cliente original.** Quem encomendou o projeto conhece o mercado e talvez seja o primeiro piloto, um parceiro ou uma indicação. Antes, resolva a questão do código (ver Riscos).
+4. **Falar com quem participou da conversa de origem.** O projeto não foi encomendado nem contratado: nasceu de uma conversa informal, sem contrato nem pagamento. Quem estava nessa conversa conhece o mercado e talvez seja o primeiro piloto, um parceiro ou uma indicação.
 5. **Piloto pago com 3 centrais (semanas 4–10).** 50% de desconto por 60 dias, implantação presencial e um grupo de WhatsApp direto. Medir quantas corridas passam pelo sistema contra o total da central.
 6. **Transformar em prova (mês 3).** Depoimento em vídeo do dono e um número concreto ("fechamento do dia caiu de 1 hora para 10 minutos"). Com isso, abrir a venda para Zona da Mata e Grande BH pelo Instagram da Impulsio e por indicação.
 
@@ -176,7 +176,6 @@ A identidade visual deve falar primeiro com o dono da central (B2B), e só depoi
 
 | Risco | Por que importa | O que fazer |
 | --- | --- | --- |
-| **De quem é o código** | O projeto nasceu encomendado por um cliente. Pela Lei de Software (Lei 9.609/98, art. 4º), o programa feito sob contrato de serviço pertence ao contratante, salvo acordo em contrário | Ler o contrato e o que foi pago. Se não houver cláusula clara, fazer um termo de cessão ou licença com o cliente antes de vender. Não é parecer jurídico |
 | **Foco dividido com o Pedeli** | O Pedeli tem 5 lacunas abertas (iFood, fiscal, TEF...). Dois SaaS ao mesmo tempo, sozinho, é o jeito mais comum de nenhum decolar | Limitar o EPM a um dia por semana até haver uma central pagando, ou pausar uma lacuna do Pedeli. Reaproveitar ao máximo o que já existe no Pedeli |
 | **Custo do Google Maps** | Pode corroer a margem nos planos baratos | Medir o uso por organização desde o primeiro dia |
 | **Dados de localização (LGPD)** | O sistema guarda onde o motoboy esteve e o endereço de terceiros | Política de retenção (ex.: apagar pings de GPS após 90 dias), termos de uso e contrato de operação de dados com cada central |
@@ -186,7 +185,7 @@ A identidade visual deve falar primeiro com o dono da central (B2B), e só depoi
 
 **Primeiro validar com gente, depois codar.** As semanas 1 e 2 são quase só conversa. O código do multi-tenant começa quando pelo menos duas centrais disserem que pagariam.
 
-- [ ] Ler o contrato com o cliente original e resolver a cessão ou licença do código
+- [x] ~~Ler o contrato com o cliente original e resolver a cessão ou licença do código~~ Resolvida em 16/10/2026: o projeto não foi encomendado nem contratado, nasceu de uma conversa informal, sem contrato nem pagamento.
 - [ ] Montar a lista de 20 a 30 centrais de Juiz de Fora
 - [ ] Conversar com 8 a 10 donos de central
 - [ ] Perguntar aos restaurantes do Pedeli quem faz as entregas deles
@@ -198,8 +197,8 @@ A identidade visual deve falar primeiro com o dono da central (B2B), e só depoi
 
 ### Decisões em aberto
 
-- O cliente original entra como sócio, como cliente piloto ou fica de fora?
-- O EPM fica "by Impulsio", como o Pedeli, ou ganha marca independente?
+- Quem participou da conversa de origem entra como sócio, como cliente piloto ou fica de fora?
+- ~~O EPM fica "by Impulsio", como o Pedeli, ou ganha marca independente?~~ Decidido em 16/10/2026: fica **"Entrega Pra Mim by Impulsio"**, divulgado para central de motofrete.
 - Quanto tempo por semana vai para o EPM enquanto o Pedeli está no lançamento?
 
 ## Fontes
