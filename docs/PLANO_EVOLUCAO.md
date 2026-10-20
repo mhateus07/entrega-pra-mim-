@@ -2,6 +2,8 @@
 
 > **Atualização out/2026 — nova ordem de prioridades.** O produto virou um SaaS multi-tenant para centrais de motofrete (ver `docs/PLANO_NEGOCIO.md`): cada central paga mensalidade fixa e a plataforma não tira comissão da corrida. Os princípios deste documento continuam valendo (monólito modular, migrations aditivas, máquina de estados, auditoria), mas a ordem mudou: **multi-tenant vem antes do gateway**. A seção 12 tem a ordem atual; as seções 5 e 11 ficam como histórico do raciocínio original.
 
+> **Estado verificado em 20/10/2026:** P0 de segurança, multi-tenant, preços e limites, rastreio público, convites, fechamento, marca própria e despacho com oferta estão implementados. A suíte completa tem 168 testes; pagamentos eletrônicos continuam deliberadamente simulados e bloqueados em produção.
+
 ## 1. Objetivo
 
 Transformar o MVP atual em uma plataforma B2B de logística urbana confiável para pequenas e médias empresas, com despacho operacional, rastreamento verificável, pagamentos conciliados, governança multi-tenant e uma experiência mobile-first para operador, cliente e entregador.
@@ -14,7 +16,7 @@ Direção recomendada para o produto:
 
 Essa decisão é importante porque o sistema atual mistura cliente final, empresa contratante e administrador em três papéis globais. A evolução precisa criar a entidade de organização/empresa antes de adicionar cobrança recorrente, white-label, franquias ou múltiplas cidades.
 
-## 2. Diagnóstico atual
+## 2. Diagnóstico de base (histórico anterior às entregas de 2026)
 
 ### O que já está bom
 

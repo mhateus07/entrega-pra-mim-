@@ -1,6 +1,6 @@
 # Entrega Pra Mim — Plano de Negócio
 
-11/10/2026 · Mateus · versão editável: https://claude.ai/code/artifact/fbb9bf98-85b9-467e-b2c8-4714c0f3d6c6
+20/10/2026 · Mateus · versão editável: https://claude.ai/code/artifact/fbb9bf98-85b9-467e-b2c8-4714c0f3d6c6
 
 ## Resumo
 
@@ -18,7 +18,7 @@ Na prática, o EPM deixa de precisar "ter" motoboys. Ele passa a vender a ferram
 
 ## Onde o projeto está hoje
 
-O EPM tem uma base técnica boa, mas ainda não pode cobrar dinheiro de ninguém. O último commit (out/2026) fechou a parte de segurança (P0). Pagamento eletrônico e um sistema que atenda várias empresas no mesmo ambiente ainda não existem.
+O EPM tem uma base técnica boa para piloto. O sistema já atende várias centrais no mesmo ambiente, com isolamento por organização, despacho com oferta, rastreio público, marca própria e fechamento. Ainda não deve processar pagamentos eletrônicos reais: em produção, o fluxo disponível é dinheiro e o gateway continua sendo fase 2.
 
 | Área | Situação | O que significa na prática |
 | --- | --- | --- |
@@ -27,11 +27,11 @@ O EPM tem uma base técnica boa, mas ainda não pode cobrar dinheiro de ninguém
 | Rastreio e chat | Funciona, por *polling* a cada 5–10 s | Serve no piloto; fica caro com volume |
 | Aprovação de motoboy, auditoria, idempotência, rate limit | Funciona (P0, out/2026) | Seguro o bastante para um piloto |
 | Pix e cartão | **Simulado**; em produção só aceita dinheiro | Não há como cobrar nem repassar pelo sistema |
-| Despacho automático | Calcula o melhor motoboy, mas não oferta, não expira, não reatribui | Ainda precisa de alguém olhando o painel |
-| ETA | Fixo em 10 ou 15 min | O cliente vê uma previsão que não é real |
-| Várias empresas no mesmo sistema (multi-tenant) | **Não existe**; cada cliente exigiria uma instalação separada | Esse é o principal bloqueio para vender como SaaS |
+| Despacho automático | Oferece ao melhor motoboy, expira, reoferta e cai na fila manual | O job de despacho precisa estar ativo em produção |
+| ETA | Aproximado; usa a posição atual em linha reta durante a entrega | A rota real e o ETA calibrado ficam para a fase 2 |
+| Várias empresas no mesmo sistema (multi-tenant) | **Implementado e coberto por testes** | É a base para vender como SaaS; falta validar o piloto com centrais reais |
 
-**Parte técnica:** Next.js 16 (App Router) + Prisma + MySQL + Redis opcional + Docker, com CI rodando migrations, lint, tipos, testes e build. O schema tem `User`, `Motoboy`, `Cliente`, `Pedido`, `Pagamento`, `SaldoMotoboy`, `IdempotencyKey` e `AuditLog`, mas nenhuma entidade `Organization`. Os papéis são globais (ADMIN/CLIENTE/MOTOBOY). O `docs/PLANO_EVOLUCAO.md` já descreve bem o caminho (P1 = dinheiro e despacho, P2 = multi-tenant). Este plano só muda a **ordem**: o multi-tenant passa para antes do gateway.
+**Parte técnica:** Next.js 16.4 (App Router) + Prisma + MySQL + Redis opcional + Docker, com 168 testes passando, além de lint, typecheck e build. O schema usa `Organization`, `OrganizationMember`, pedidos, despacho, pagamentos, fechamento, uso, convites e auditoria. Os papéis são por central (`OWNER`, `DISPATCHER`, `CLIENT`, `DRIVER`) e há `SUPERADMIN` da plataforma. O gateway eletrônico continua fora do piloto.
 
 ## Por que mudar o modelo
 
@@ -48,7 +48,7 @@ O problema do marketplace não é o código. É o "ovo e a galinha": sem motoboy
 
 O marketplace não some: vira a fase 3. Uma central que usa o EPM pode, mais tarde, abrir pedidos para o público com a marca dela. Isso nasce já com frota e clientes.
 
-**Parte técnica:** quase todo o código atual se aproveita. Os papéis passam a ser por organização: o ADMIN global vira o "dono da central", o CLIENTE vira a "empresa atendida pela central", e o motoboy pertence a uma central. O split de 15% (`taxa da plataforma`) sai da regra padrão e vira configuração opcional por organização.
+**Parte técnica:** quase todo o código atual já se aproveita. Os papéis são por organização: o `OWNER` administra a central, o `DISPATCHER` opera o despacho, o `CLIENT` solicita/acompanha entregas e o `DRIVER` executa corridas. A central controla preço, plano, marca, limites e repasse operacional. O split de 15% (`taxa da plataforma`) não é regra do piloto e pagamentos eletrônicos ficam fora da primeira venda.
 
 ## Pra quem vender
 
@@ -127,7 +127,7 @@ O maior custo variável é o Google Maps. Cada pedido chama a Routes API para ca
 | 5 | Tabela de preço por central | Cada central cobra do seu jeito (por km, por bairro, valor mínimo) | `PricingRule` por organização, substituindo a regra global; preço congelado no pedido |
 | 6 | Marca da central | Logo e cor da central no rastreio e no app | Campos de marca em `OrganizationSettings`, lidos pelos tokens do `globals.css` e pelo `manifest.json` dinâmico |
 | 7 | Aviso por WhatsApp | O cliente recebe "saiu para entrega" e "entregue" com o link | Reaproveitar a integração com a Evolution API que já existe no Pedeli |
-| 8 | Despacho com oferta | O sistema oferece a corrida, espera o aceite e passa para o próximo | `DispatchOffer` com TTL de 60–90 s e fallback para o despachante (item P1 do PLANO_EVOLUCAO) |
+| 8 | Despacho com oferta | O sistema oferece a corrida, espera o aceite e passa para o próximo | `DispatchOffer` com TTL configurável e fallback para o despachante (Etapa 6) |
 
 ### Cortar ou adiar
 
@@ -184,7 +184,7 @@ A identidade visual deve falar primeiro com o dono da central (B2B), e só depoi
 
 ## Próximos 30 dias
 
-**Primeiro validar com gente, depois codar.** As semanas 1 e 2 são quase só conversa. O código do multi-tenant começa quando pelo menos duas centrais disserem que pagariam.
+**Agora validar com gente e medir a operação.** A base do piloto já está implementada; as próximas semanas devem priorizar conversas, implantação assistida e dados reais antes de ampliar o escopo técnico.
 
 - [ ] Ler o contrato com o cliente original e resolver a cessão ou licença do código
 - [ ] Montar a lista de 20 a 30 centrais de Juiz de Fora
@@ -193,7 +193,7 @@ A identidade visual deve falar primeiro com o dono da central (B2B), e só depoi
 - [ ] Pedir proposta da Machine Entregas e da Foody como se fosse uma central
 - [ ] Conferir a tabela atual da Routes API do Google e calcular o custo por plano
 - [ ] Decidir os preços finais com base nas conversas
-- [ ] Começar a fase 1 pelo multi-tenant (`Organization` + isolamento), seguido do link público de rastreio
+- [x] Multi-tenant (`Organization` + isolamento), link público de rastreio, despacho por oferta e fechamento
 - [ ] Reescrever o one-pager com o novo posicionamento
 
 ### Decisões em aberto

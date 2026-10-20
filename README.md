@@ -10,7 +10,7 @@ Next.js 16, TypeScript, Tailwind CSS, MySQL e Prisma.
 
 | Tecnologia | Versão | Uso |
 |------------|--------|-----|
-| Next.js | 16.1.6 (App Router) | Frontend/Backend |
+| Next.js | 16.4.0 (App Router) | Frontend/Backend |
 | TypeScript | 5+ | Tipagem estática |
 | Tailwind CSS | 4 | Estilização |
 | MySQL | 8.0 | Banco de dados |
@@ -317,7 +317,7 @@ Implementado em `src/lib/despacho.ts`:
 ## Instalação e Execução
 
 ### Pré-requisitos
-- Node.js 18+
+- Node.js 20.9+
 - Docker e Docker Compose
 - Conta Google Cloud (para mapas)
 
@@ -419,11 +419,15 @@ npm run dev
 npm run build
 npm start
 
+# Smoke test contra um servidor já iniciado
+SMOKE_URL=http://127.0.0.1:3000 npm run smoke
+
 # Prisma
 npx prisma studio      # Interface visual do banco
 npx prisma migrate deploy # Aplicar migrations pendentes
 npx prisma migrate dev --name x # Criar migration (desenvolvimento)
 npx prisma generate    # Gerar cliente
+npm run smoke          # Validar healthchecks e endpoints básicos
 npx prisma migrate reset # Resetar banco
 
 # Docker MySQL

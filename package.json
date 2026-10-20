@@ -11,7 +11,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:integration": "vitest run tests/integration",
-    "typecheck": "tsc --noEmit --incremental false"
+    "typecheck": "tsc --noEmit --incremental false",
+    "smoke": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

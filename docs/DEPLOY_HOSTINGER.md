@@ -2,6 +2,11 @@
 
 Guia completo para colocar o **Entrega Pra Mim** em produção usando VPS da Hostinger.
 
+> **Estado atual:** o caminho recomendado é `docker compose up -d --build`, usando o
+> `Dockerfile` e o `docker-compose.yml` da raiz. Este guia mantém o fluxo PM2
+> para VPS sem Docker. Em ambos os casos, use Node.js 20.9+ e somente
+> `prisma migrate deploy`; não use `prisma db push` em produção.
+
 ---
 
 ## Pré-requisitos

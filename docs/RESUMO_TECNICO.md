@@ -1,276 +1,85 @@
-# Resumo Técnico - Entrega Pra Mim
+# Resumo técnico — Entrega Pra Mim
 
-## Visão Geral
+Estado verificado em 20/10/2026. Este documento substitui o resumo legado que ainda descrevia a primeira versão do produto.
 
-Plataforma de entregas com motoboys desenvolvida em **3 fases**, utilizando tecnologias modernas e boas práticas de desenvolvimento.
+## Stack
 
----
+- Next.js 16.4.0 com App Router e `proxy.ts`
+- React 19.2.3 e TypeScript 5+
+- Prisma 5.22.0 com MySQL 8.0
+- NextAuth 4 com sessão JWT e credenciais
+- Tailwind CSS 4, Recharts, MapLibre/Google Maps
+- Vitest 4 para testes unitários, de rota e integração
+- Docker Compose com MySQL, Redis, aplicação, cron de despacho e backup
+- Node.js 20.9+; a imagem de produção usa Node.js 22
 
-## Tecnologias Utilizadas
+## Arquitetura atual
 
-| Camada | Tecnologia | Justificativa |
-|--------|------------|---------------|
-| Frontend | Next.js 16 (App Router) | SSR, SEO, API Routes integradas |
-| Linguagem | TypeScript | Tipagem estática, melhor DX |
-| Estilização | Tailwind CSS | Utility-first, produtividade |
-| Banco de Dados | MySQL 8.0 | Relacional, robusto, escalável |
-| ORM | Prisma | Type-safe, migrations, studio |
-| Autenticação | NextAuth.js | Flexível, session management |
-| Mapas | Google Maps API | Rotas, distâncias, geocoding |
-| Gráficos | Recharts | React-based, customizável |
-| Temas | next-themes | Dark mode simplificado |
-| Notificações | react-hot-toast | Toast notifications elegantes |
+O produto é um monólito modular: frontend, Route Handlers e domínio vivem na mesma aplicação Next.js. A separação principal está em `src/lib`:
 
----
+- identidade e autorização: `auth.ts`, `auth-helpers.ts`, `org-context.ts`;
+- operação: pedidos, status, despacho e alocação;
+- financeiro: pagamentos simulados, fechamento, saldo e idempotência;
+- plataforma: organizações, planos, preços, marca e uso;
+- proteção: rate limit, auditoria, storage e validações.
 
-## Arquitetura
+Cada agregado de negócio possui `organizationId`. O papel é definido por central em `OrganizationMember`, e não apenas pelo papel global do usuário. As rotas devem usar `requireOrgAccess` e filtros da central ativa.
 
-### Padrão de Projeto
-- **App Router** do Next.js 16
-- **Route Groups** para organização (`(auth)`, `(cliente)`, etc.)
-- **API Routes** para backend
-- **Server Components** onde possível
-- **Client Components** para interatividade
+## Fluxos implementados
 
-### Estrutura de Pastas
-```
-src/
-├── app/           # Páginas e APIs (App Router)
-├── components/    # Componentes React reutilizáveis
-├── hooks/         # Custom hooks
-├── lib/           # Configurações e utilitários
-├── types/         # Tipos TypeScript
-└── utils/         # Funções auxiliares
-```
+- criação e acompanhamento de pedidos;
+- despacho automático por oferta, TTL, reoferta e fila manual;
+- aprovação e suspensão de motoboys;
+- localização durante entrega;
+- rastreio público por token;
+- chat cliente–motoboy por polling;
+- comprovante de entrega com foto;
+- fechamento por motoboy e por empresa, com CSV;
+- marca própria por central e manifest PWA;
+- limites por plano, tabela de preços e preço congelado no pedido;
+- convites de clientes, motoboys e despachantes;
+- auditoria e idempotência para operações sensíveis.
 
-### Banco de Dados
-- **9 tabelas** principais
-- Relacionamentos bem definidos
-- Índices para performance
-- Soft delete onde aplicável
+## Segurança e consistência
 
----
+- autorização por organização, papel e posse do recurso;
+- isolamento multi-tenant coberto por teste de integração para todas as rotas da API;
+- lock `SELECT ... FOR UPDATE` para mudanças concorrentes no pedido;
+- crédito financeiro liberado de forma idempotente após entrega e pagamento aprovado;
+- rate limit por IP ou usuário, com Redis em produção;
+- upload de imagem validado por conteúdo e armazenado fora de `public/`;
+- tokens de convite armazenados como hash;
+- headers de segurança e imagens remotas desabilitadas;
+- healthchecks de processo, banco, storage e Redis.
 
-## Funcionalidades por Fase
+## Estado financeiro
 
-### Fase Base (v1.0.0)
-| Funcionalidade | Status |
-|----------------|--------|
-| Autenticação (Login/Registro) | Completo |
-| 3 tipos de usuário (Admin, Cliente, Motoboy) | Completo |
-| CRUD de Pedidos | Completo |
-| CRUD de Motoboys | Completo |
-| CRUD de Clientes | Completo |
-| CRUD de Endereços | Completo |
-| Cálculo de rotas (Google Maps) | Completo |
-| Sistema de preços por km | Completo |
-| Algoritmo de alocação | Completo |
-| Sistema de avaliações | Completo |
-| Dashboard Admin | Completo |
-| Dashboard Cliente | Completo |
-| Dashboard Motoboy | Completo |
+PIX e cartão continuam simulados em desenvolvimento/testes. Em produção, a aplicação só permite dinheiro e bloqueia pagamentos eletrônicos. Ainda não existe gateway real, webhook assinado, tokenização, estorno real, chargeback ou ledger contábil.
 
-### Fase 1 (v1.1.0) - Dashboard + Dark Mode + PWA
-| Funcionalidade | Status |
-|----------------|--------|
-| Gráfico de Faturamento | Completo |
-| Gráfico de Pedidos/Dia | Completo |
-| Gráfico de Status | Completo |
-| Dark Mode toggle | Completo |
-| Persistência de tema | Completo |
-| PWA Manifest | Completo |
-| Meta tags PWA | Completo |
+O fechamento atual é um relatório operacional: não representa transferência bancária nem liquidação real.
 
-### Fase 2 (v1.2.0) - Rastreamento + Notificações
-| Funcionalidade | Status |
-|----------------|--------|
-| Mapa de rastreamento | Completo |
-| Localização do motoboy em tempo real | Completo |
-| Compartilhamento de GPS | Completo |
-| Push notifications (browser) | Completo |
-| Toast notifications | Completo |
-| Polling para atualizações | Completo |
-| ETA (tempo estimado) | Completo |
+## Testes e validação
 
-### Fase 3 (v1.3.0) - Chat + Comprovante
-| Funcionalidade | Status |
-|----------------|--------|
-| Chat cliente-motoboy | Completo |
-| Mensagens em tempo real (polling) | Completo |
-| Indicadores de leitura | Completo |
-| Captura de foto (câmera) | Completo |
-| Upload de galeria | Completo |
-| Comprovante obrigatório | Completo |
-| Visualização pelo cliente | Completo |
+Com MySQL descartável, a suíte completa deve ser executada assim:
 
----
-
-## APIs Desenvolvidas
-
-### Autenticação
-- `POST /api/auth/[...nextauth]` - NextAuth handlers
-
-### Pedidos
-- `GET /api/pedidos` - Listar (com filtros)
-- `POST /api/pedidos` - Criar
-- `GET /api/pedidos/[id]` - Buscar
-- `PATCH /api/pedidos/[id]` - Atualizar
-- `DELETE /api/pedidos/[id]` - Cancelar
-- `GET /api/pedidos/[id]/rastreamento` - Tracking
-- `GET/POST /api/pedidos/[id]/mensagens` - Chat
-- `GET/POST /api/pedidos/[id]/comprovante` - Foto
-
-### Motoboys
-- `GET /api/motoboys` - Listar
-- `POST /api/motoboys` - Criar
-- `GET /api/motoboys/[id]` - Buscar
-- `PATCH /api/motoboys/[id]` - Atualizar
-- `DELETE /api/motoboys/[id]` - Remover
-- `GET/POST /api/motoboys/[id]/localizacao` - GPS
-
-### Clientes
-- `GET /api/clientes` - Listar
-- `POST /api/clientes` - Criar
-- `GET /api/clientes/[id]` - Buscar
-- `PATCH /api/clientes/[id]` - Atualizar
-
-### Endereços
-- `GET /api/enderecos` - Listar
-- `POST /api/enderecos` - Criar
-- `GET /api/enderecos/[id]` - Buscar
-- `PATCH /api/enderecos/[id]` - Atualizar
-- `DELETE /api/enderecos/[id]` - Remover
-
-### Outros
-- `POST /api/avaliacoes` - Criar avaliação
-- `POST /api/rotas` - Calcular rota
-
----
-
-## Componentes Desenvolvidos
-
-### UI Base
-| Componente | Arquivo | Descrição |
-|------------|---------|-----------|
-| Button | `ui/Button.tsx` | Botão com variantes e loading |
-| Card | `ui/Card.tsx` | Container estilizado |
-| Badge | `ui/Badge.tsx` | Tag colorida |
-| ThemeToggle | `ui/ThemeToggle.tsx` | Toggle dark/light |
-
-### Gráficos
-| Componente | Arquivo | Descrição |
-|------------|---------|-----------|
-| FaturamentoChart | `charts/DashboardCharts.tsx` | Área chart |
-| PedidosPorDiaChart | `charts/DashboardCharts.tsx` | Bar chart |
-| StatusPedidosChart | `charts/DashboardCharts.tsx` | Pie chart |
-
-### Mapas
-| Componente | Arquivo | Descrição |
-|------------|---------|-----------|
-| TrackingMap | `maps/TrackingMap.tsx` | Mapa com tracking |
-
-### Chat
-| Componente | Arquivo | Descrição |
-|------------|---------|-----------|
-| ChatBox | `chat/ChatBox.tsx` | Chat flutuante |
-
-### Câmera
-| Componente | Arquivo | Descrição |
-|------------|---------|-----------|
-| PhotoCapture | `camera/PhotoCapture.tsx` | Captura de foto |
-
----
-
-## Hooks Customizados
-
-| Hook | Arquivo | Descrição |
-|------|---------|-----------|
-| useTracking | `hooks/useTracking.ts` | Rastreamento de pedido |
-| useLocationSharing | `hooks/useTracking.ts` | Compartilhamento GPS |
-| useNotifications | `hooks/useNotifications.ts` | Push notifications |
-
----
-
-## Modelos de Dados
-
-```
-User (1) ──── (1) Motoboy
-  │               │
-  │               ├── (N) Pedido
-  │               ├── (N) Avaliacao
-  │               └── (N) Disponibilidade
-  │
-  └──── (1) Cliente
-            │
-            ├── (N) Endereco
-            └── (N) Pedido
-                    │
-                    ├── (1) Avaliacao
-                    └── (N) Mensagem
+```bash
+DATABASE_URL='mysql://root:senha@127.0.0.1:33379/entrega_test' \
+TEST_DATABASE_URL='mysql://root:senha@127.0.0.1:33379/entrega_test' \
+npm test
 ```
 
----
+O CI aplica migrations e executa lint, typecheck, os 168 testes e build. O smoke test de servidor pode ser executado com:
 
-## Algoritmos Implementados
-
-### Cálculo de Preço
-```typescript
-valorTotal = distanciaKm * PRECO_POR_KM * MULTIPLICADOR[tipoServico]
-
-// PRECO_POR_KM = 3.00
-// MULTIPLICADORES = { AGENDADA: 1.0, DOCUMENTOS: 1.2, EXPRESSA: 1.5 }
+```bash
+SMOKE_URL=http://127.0.0.1:3000 \
+SMOKE_CRON_SECRET="$CRON_SECRET" \
+npm run smoke
 ```
 
-### Alocação de Motoboy
-```typescript
-score = (0.40 * proximidadeNorm) +
-        (0.35 * avaliacaoNorm) +
-        (0.25 * tempoOciosoNorm)
+## Próximos riscos
 
-// Motoboy com maior score recebe a oferta
-```
-
----
-
-## Segurança
-
-- Senhas hasheadas com bcrypt (salt rounds: 10)
-- Sessões gerenciadas pelo NextAuth
-- Validação de entrada com Zod
-- Verificação de permissões por role
-- Proteção contra CSRF
-- Sanitização de uploads
-
----
-
-## Performance
-
-- Server Components para renderização inicial
-- Client Components apenas onde necessário
-- Polling otimizado (5-10 segundos)
-- Lazy loading de componentes pesados
-- Índices no banco de dados
-
----
-
-## Próximos Passos (Roadmap)
-
-### Fase 4 - Pagamentos
-- [ ] Integração com gateway de pagamento
-- [ ] PIX automático
-- [ ] Cartão de crédito/débito
-- [ ] Histórico de transações
-- [ ] Split de pagamento (motoboy/plataforma)
-
-### Fase 5 - Agendamento + Cupons
-- [ ] Calendário para agendamentos
-- [ ] Recorrência de pedidos
-- [ ] Sistema de cupons
-- [ ] Programa de fidelidade
-
-### Fase 6 - Qualidade + Monitoramento
-- [ ] Testes unitários (Jest)
-- [ ] Testes E2E (Playwright)
-- [ ] Logging estruturado
-- [ ] Métricas de performance
-- [ ] Alertas de erro
+1. gateway financeiro real;
+2. testes E2E dos fluxos de navegador;
+3. observabilidade com logs estruturados, métricas e alertas;
+4. backup externo e teste periódico de restauração;
+5. substituição gradual do polling por eventos em tempo real quando o volume justificar.
