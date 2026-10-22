@@ -15,7 +15,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const pedido = await prisma.pedido.findFirst({
       where: { id, organizationId: auth.user.organizationId },
-      select: { id: true, organizationId: true, clienteId: true, motoboyId: true, trackingToken: true },
+      select: {
+        id: true, organizationId: true, clienteId: true, motoboyId: true, trackingToken: true,
+        organization: { select: { nome: true, plano: true, settings: { select: { nomeExibicao: true } } } },
+      },
     })
     if (!pedido) return notFound('Pedido não encontrado')
     const acesso = await requirePedidoAccess(pedido)
@@ -31,7 +34,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await registrarAuditoria({ acao: 'rastreio.link', entidade: 'Pedido', entidadeId: id, userId: auth.user.id, organizationId: auth.user.organizationId, request })
     }
 
-    return jsonResponse({ success: true, data: { url: `${urlBase()}/r/${token}` } })
+    // Mesmo nome que o destinatário vê no rastreio (nome de exibição só no plano Marca própria)
+    const org = pedido.organization
+    const central = (org.plano === 'MARCA_PROPRIA' && org.settings?.nomeExibicao) || org.nome
+    return jsonResponse({ success: true, data: { url: `${urlBase()}/r/${token}`, central } })
   } catch (error) {
     console.error('Erro ao gerar link de rastreio:', error)
     return serverError()

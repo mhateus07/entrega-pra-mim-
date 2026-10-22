@@ -32,6 +32,8 @@ interface Endereco {
 interface Pedido {
   id: string
   status: StatusPedido
+  destinatarioNome?: string | null
+  destinatarioTelefone?: string | null
   tipoServico: TipoServico
   valorTotal: number
   distanciaKm: number
@@ -174,7 +176,7 @@ export default function PedidoAdminDetailPage() {
             <Badge variant="outline" size="md">{LABELS_TIPO_SERVICO[pedido.tipoServico]}</Badge>
           </div>
           <p className="mt-1 text-sm text-fg-3">Criado em {formatarDataHora(pedido.createdAt)}</p>
-          {pedido.status !== 'CANCELADO' && <div className="mt-3"><CompartilharRastreio pedidoId={pedido.id} /></div>}
+          {pedido.status !== 'CANCELADO' && <div className="mt-3"><CompartilharRastreio pedidoId={pedido.id} status={pedido.status} destinatarioNome={pedido.destinatarioNome} destinatarioTelefone={pedido.destinatarioTelefone} /></div>}
         </div>
         <p className="text-[26px] font-semibold tracking-tight tabular text-fg">{formatarMoeda(pedido.valorTotal)}</p>
       </div>

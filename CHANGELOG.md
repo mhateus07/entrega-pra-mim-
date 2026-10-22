@@ -8,6 +8,19 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Aviso ao destinatário pelo WhatsApp em um clique (2026-10-22)
+
+**Na prática**
+- No detalhe do pedido (central e empresa cliente), quando o pedido tem o telefone de quem recebe, aparece o botão verde **"Avisar: saiu para entrega"** ou **"Avisar: entregue"**, conforme a etapa.
+- Um clique abre o WhatsApp já na conversa com o destinatário e a mensagem pronta, com o nome da central e o link de rastreio. Basta apertar enviar.
+- Sem telefone, o botão continua abrindo o WhatsApp para escolher o contato.
+- Não tem custo nem depende de provedor. O envio automático (sem clique) segue na issue #16.
+
+**Técnico**
+- `src/lib/whatsapp.ts`: `telefoneWhatsApp()` normaliza telefone brasileiro (fixo ou celular, com ou sem 55/0), `mensagemAviso()` monta o texto por etapa e `linkWhatsApp()` gera o `wa.me`. Coberto por `tests/whatsapp.test.ts`.
+- `POST /api/pedidos/[id]/rastreio-publico` devolve também o nome da central (o de exibição só no plano Marca própria, igual ao rastreio).
+- `CompartilharRastreio` abre a janela antes do `fetch` para o navegador não bloquear o pop-up.
+
 ### Evolução operacional (2026-10-22)
 
 **Na prática**
