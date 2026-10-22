@@ -34,6 +34,7 @@ export async function POST(
         latitudeAtual: latitude,
         longitudeAtual: longitude,
         ultimaAtividade: new Date(),
+        localizacaoEm: new Date(),
       },
     })
     if (atualizado.count !== 1) return forbidden('Cadastro de motoboy não aprovado')

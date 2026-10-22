@@ -192,6 +192,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     // Atualizar última atividade se estiver mudando status para disponível
     if (data.status === 'DISPONIVEL') {
       updateData.ultimaAtividade = new Date()
+      updateData.disponivelDesde = new Date()
     }
 
     const result = await prisma.$transaction(async (tx) => {

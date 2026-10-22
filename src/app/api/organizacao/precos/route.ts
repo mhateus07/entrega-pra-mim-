@@ -10,11 +10,12 @@ async function tabela(organizationId: string) {
   const [regra, bairros, settings] = await Promise.all([
     carregarRegraPreco(organizationId),
     prisma.pricingBairro.findMany({ where: { organizationId }, select: { nome: true, valor: true }, orderBy: { nome: 'asc' } }),
-    prisma.organizationSettings.findUnique({ where: { organizationId }, select: { repasseMotoboy: true } }),
+    prisma.organizationSettings.findUnique({ where: { organizationId }, select: { repasseMotoboy: true, fusoHorario: true } }),
   ])
   return {
     precoPorKm: regra.precoPorKm, valorMinimo: regra.valorMinimo, multiplicadores: regra.multiplicadores, bairros,
     repasseMotoboy: settings ? settings.repasseMotoboy.toNumber() : 0.7,
+    fusoHorario: settings?.fusoHorario ?? 'America/Sao_Paulo',
   }
 }
 

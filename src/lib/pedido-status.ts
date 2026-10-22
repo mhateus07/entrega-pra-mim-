@@ -57,6 +57,7 @@ export async function alterarStatusPedido(id: string, user: OrgUser, data: Updat
       update.despachoManual = false
     }
     if (data.status === 'EM_ENTREGA') update.coletadoEm = new Date()
+    if (data.status === 'EM_COLETA') update.chegadaColetaEm = new Date()
     if (data.status === 'ENTREGUE') {
       if (!pedido.fotoComprovante) throw new OperacaoError('Envie o comprovante antes de concluir a entrega', 400)
       update.entregueEm = new Date()
@@ -86,10 +87,11 @@ export async function alterarStatusPedido(id: string, user: OrgUser, data: Updat
         enderecoOrigem: true, enderecoDestino: true,
       },
     })
+    await tx.pedidoEvento.create({ data: { pedidoId: id, organizationId: user.organizationId, userId: user.id, descricao: `Status: ${pedido.status} → ${data.status}${data.motivoCancelamento ? ` · ${data.motivoCancelamento}` : ''}`.slice(0, 500) } })
     if ((data.status === 'ENTREGUE' || data.status === 'CANCELADO') && pedido.motoboyId) {
       await tx.motoboy.update({
         where: { id: pedido.motoboyId },
-        data: { status: 'DISPONIVEL', ultimaAtividade: new Date(),
+        data: { status: 'DISPONIVEL', ultimaAtividade: new Date(), disponivelDesde: new Date(),
           ...(data.status === 'ENTREGUE' ? { totalEntregas: { increment: 1 } } : {}) },
       })
     }

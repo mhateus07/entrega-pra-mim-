@@ -154,6 +154,7 @@ async function criarPagamento(request: NextRequest, user: OrgUser, body: unknown
         where: { organizationId: user.organizationId }, select: { taxaPlataforma: true },
       })
       const valores = dividirPagamento(pedido.valorTotal, settings?.taxaPlataforma ?? 0)
+      if (pedido.valorRepasse !== null) valores.valorMotoboy = pedido.valorRepasse
       const valor = valores.valor.toNumber()
       const dados: Prisma.PagamentoUncheckedCreateInput = {
         organizationId: user.organizationId, pedidoId, clienteId: pedido.clienteId, ...valores, metodo, status: 'PENDENTE',

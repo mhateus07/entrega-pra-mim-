@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/Feedback'
 import { cn } from '@/utils/cn'
 import { novaChaveIdempotencia } from '@/utils/idempotency-key'
 import toast from 'react-hot-toast'
+import CheckoutOnline from './CheckoutOnline'
 import {
   formatarValor,
   detectarBandeira,
@@ -146,6 +147,7 @@ export default function PaymentForm({
       </div>
 
       <div className="mt-5 space-y-5">
+        <CheckoutOnline pedidoId={pedidoId} />
         <Alert variant={ELECTRONIC_PAYMENTS_AVAILABLE ? 'info' : 'warning'} icon={Info}>
           {ELECTRONIC_PAYMENTS_AVAILABLE
             ? 'Ambiente de demonstração: Pix e cartão são simulados. Não informe dados reais de cartão.'

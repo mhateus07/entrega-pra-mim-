@@ -1,4 +1,5 @@
 'use client'
+import OperacaoPedido from '@/components/pedido/OperacaoPedido'
 
 import CompartilharRastreio from '@/components/pedido/CompartilharRastreio'
 import { useEffect, useState } from 'react'
@@ -293,6 +294,7 @@ export default function PedidoAdminDetailPage() {
           )}
         </div>
       </div>
+      <OperacaoPedido pedidoId={pedido.id} />
     </div>
   )
 }

@@ -18,7 +18,7 @@ export async function GET() {
           id: true, expiresAt: true,
           pedido: {
             select: {
-              id: true, tipoServico: true, distanciaKm: true, duracaoEstimada: true, valorTotal: true, descricaoItem: true,
+              id: true, tipoServico: true, distanciaKm: true, duracaoEstimada: true, valorTotal: true, valorRepasse: true, descricaoItem: true,
               enderecoOrigem: { select: { bairro: true, cidade: true, latitude: true, longitude: true } },
               enderecoDestino: { select: { bairro: true, cidade: true } },
             },
@@ -31,8 +31,8 @@ export async function GET() {
     // Antes de aceitar, só bairros: o endereço completo aparece depois do aceite
     return jsonResponse({
       success: true,
-      data: ofertas.map(({ pedido: { valorTotal, ...pedido }, ...o }) => ({
-        ...o, pedido: { ...pedido, seuGanho: money(valorTotal.mul(repasse)).toNumber() },
+      data: ofertas.map(({ pedido: { valorTotal, valorRepasse, ...pedido }, ...o }) => ({
+        ...o, pedido: { ...pedido, seuGanho: (valorRepasse ?? money(valorTotal.mul(repasse))).toNumber() },
       })),
     })
   } catch (error) {

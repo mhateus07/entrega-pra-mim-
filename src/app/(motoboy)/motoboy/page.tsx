@@ -99,7 +99,7 @@ export default function MotoboyPage() {
   const isDelivering = pedidoAtual && !['ENTREGUE', 'CANCELADO'].includes(pedidoAtual.status)
   const { isSharing, error: locationError } = useLocationSharing(
     motoboy?.id || null,
-    !!isDelivering
+    !!isDelivering || motoboy?.status === 'DISPONIVEL'
   )
 
   useEffect(() => {
@@ -108,12 +108,6 @@ export default function MotoboyPage() {
     }
   }, [status, router])
 
-  // Solicitar permissão de notificação ao carregar
-  useEffect(() => {
-    if (permission === 'default' && motoboy) {
-      requestPermission()
-    }
-  }, [permission, motoboy, requestPermission])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -196,6 +190,16 @@ export default function MotoboyPage() {
       motoboy.status === 'DISPONIVEL' ? 'OFFLINE' : 'DISPONIVEL'
 
     try {
+      if (novoStatus === 'DISPONIVEL') {
+        if (!navigator.onLine) throw new Error('Conecte-se à internet para ficar disponível')
+        if (!navigator.geolocation) throw new Error('Seu navegador não oferece localização')
+        const posicao = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }))
+        const gps = await fetch(`/api/motoboys/${motoboy.id}/localizacao`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ latitude: posicao.coords.latitude, longitude: posicao.coords.longitude }),
+        })
+        if (!gps.ok) throw new Error('Não foi possível confirmar sua localização. Tente novamente.')
+      }
       const response = await fetch(`/api/motoboys/${motoboy.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -217,7 +221,7 @@ export default function MotoboyPage() {
       }
     } catch (error) {
       console.error('Erro ao atualizar status:', error)
-      toast.error('Erro ao atualizar status')
+      toast.error(error instanceof Error ? error.message : 'Autorize a localização para receber corridas')
     } finally {
       setIsUpdatingStatus(false)
     }
@@ -340,6 +344,12 @@ export default function MotoboyPage() {
     <div className="conteudo-chega">
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+        <div className="flex items-end justify-between gap-3 pb-2">
+          <div><p className="text-sm text-fg-3">Seu turno</p><h1 className="titulo-display text-3xl">Vamos para a próxima.</h1></div>
+          {permission === 'default' && <Button variant="outline" onClick={requestPermission}>Ativar avisos</Button>}
+        </div>
+        {locationError && <Alert variant="warning" title="Localização indisponível">Verifique a permissão de GPS e sua conexão. {locationError}</Alert>}
+        {motoboy?.status === 'DISPONIVEL' && <p role="status" className="text-sm text-fg-2">{isSharing ? 'GPS atualizado · pronto para receber ofertas' : 'Confirmando localização… mantenha esta tela aberta para receber ofertas.'}</p>}
         {motoboy && !aprovado && (
           motoboy.aprovacao === 'PENDENTE_APROVACAO' ? (
             <Alert variant="info" icon={AlertTriangle} title="Cadastro em análise">

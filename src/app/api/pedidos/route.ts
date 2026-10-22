@@ -16,6 +16,8 @@ import { requireOrgAccess, serverError, forbidden, applyMapsRateLimit, isGestor,
 import { comIdempotencia } from '@/lib/idempotency'
 import { clientePedidoSelect } from '@/lib/pedido-select'
 import { registrarAuditoria } from '@/lib/audit'
+import { dataNoFuso } from '@/lib/agendamento'
+import { money } from '@/lib/money'
 
 // GET /api/pedidos - Listar pedidos (filtrado por papel do usuário)
 export async function GET(request: NextRequest) {
@@ -27,6 +29,7 @@ export async function GET(request: NextRequest) {
     const paging = parsePagination(searchParams)
     const status = enumFilter(searchParams.get('status'), ['SOLICITADO', 'ACEITO', 'EM_COLETA', 'EM_ENTREGA', 'ENTREGUE', 'CANCELADO'] as const)
     const tipoServico = enumFilter(searchParams.get('tipoServico'), ['EXPRESSA', 'AGENDADA', 'DOCUMENTOS'] as const)
+    const busca = searchParams.get('busca')?.trim().slice(0, 100)
     const clienteId = searchParams.get('clienteId')
     const motoboyId = searchParams.get('motoboyId')
     const dataInicio = searchParams.get('dataInicio')
@@ -34,6 +37,11 @@ export async function GET(request: NextRequest) {
 
     // Sempre dentro da central ativa
     const where: Prisma.PedidoWhereInput = { organizationId: auth.user.organizationId }
+    if (busca) where.OR = [
+      { id: { contains: busca.replace(/^#/, '') } }, { referenciaCliente: { contains: busca } },
+      { destinatarioNome: { contains: busca } }, { enderecoDestino: { logradouro: { contains: busca } } },
+      { cliente: { user: { nome: { contains: busca } } } },
+    ]
 
     // Filtrar por papel do usuário (segurança)
     if (auth.user.orgRole === 'CLIENT') {
@@ -223,6 +231,14 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
 
     // Preço pela tabela da central; fica congelado no pedido e nunca é recalculado
     const regra = await carregarRegraPreco(user.organizationId)
+    const settings = await prisma.organizationSettings.findUnique({ where: { organizationId: user.organizationId } })
+    let dataAgendada: Date | null = null
+    if (data.tipoServico === 'AGENDADA' && data.dataAgendada) {
+      try {
+        dataAgendada = data.dataAgendada.endsWith('Z') ? new Date(data.dataAgendada) : dataNoFuso(data.dataAgendada, settings?.fusoHorario ?? 'America/Sao_Paulo')
+      } catch { throw new OperacaoError('Data ou horário inválido para a central', 400) }
+      if (dataAgendada.getTime() <= Date.now()) throw new OperacaoError('O agendamento deve estar no futuro', 400)
+    }
     const preco = { ...calcularPrecoComRegra(regra, distanciaKm, data.tipoServico, enderecoDestino.bairro), tempoEstimado: duracaoMinutos }
 
     // Criar pedido e contar a entrega no mês do plano, na mesma transação
@@ -240,13 +256,18 @@ async function criarPedido(request: NextRequest, user: OrgUser, body: unknown) {
         descricaoItem: data.descricaoItem,
         observacoes: data.observacoes,
         pesoAproximado: data.pesoAproximado,
-        dataAgendada: data.dataAgendada ? new Date(data.dataAgendada) : null,
+        dataAgendada,
+        destinatarioNome: data.destinatarioNome,
+        destinatarioTelefone: data.destinatarioTelefone,
+        referenciaCliente: data.referenciaCliente,
+        valorRepasse: money(new Prisma.Decimal(preco.valorTotal).mul(settings?.repasseMotoboy ?? 0.7)),
         distanciaKm: preco.distanciaKm,
         duracaoEstimada: preco.tempoEstimado,
         valorBase: preco.valorBase,
         multiplicador: preco.multiplicador,
         valorTotal: preco.valorTotal,
         status: 'SOLICITADO',
+        eventos: { create: { organizationId: user.organizationId, userId: user.id, descricao: 'Pedido criado' } },
       },
       include: {
         cliente: { select: clientePedidoSelect },

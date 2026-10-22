@@ -1,4 +1,6 @@
 'use client'
+import OperacaoPedido from '@/components/pedido/OperacaoPedido'
+import CheckoutOnline from '@/components/payment/CheckoutOnline'
 
 import CompartilharRastreio from '@/components/pedido/CompartilharRastreio'
 import { useSession } from 'next-auth/react'
@@ -443,6 +445,9 @@ export default function PedidoDetalhePage() {
             )}
           </div>
         </div>
+        <div className="mt-5"><Link href={`/cliente/nova-entrega?repetir=${pedido.id}`} className="inline-flex min-h-12 items-center rounded-xl bg-brand px-5 font-semibold text-brand-fg">Repetir esta entrega</Link></div>
+        <OperacaoPedido pedidoId={pedido.id} />
+        {pedido.status !== 'CANCELADO' && <CheckoutOnline pedidoId={pedido.id} />}
       </main>
 
       {pedido.motoboy && ['ACEITO', 'EM_COLETA', 'EM_ENTREGA'].includes(pedido.status) && (

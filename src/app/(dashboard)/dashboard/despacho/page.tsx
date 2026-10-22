@@ -10,6 +10,8 @@ import { EmptyState, PageHeader } from '@/components/ui/Feedback'
 import { formatarMoeda } from '@/lib/pricing'
 import { LABELS_TIPO_SERVICO, codigoPedido } from '@/utils/helpers'
 import type { TipoServico } from '@prisma/client'
+import ConsoleOperacional from '@/components/org/ConsoleOperacional'
+import { Alert } from '@/components/ui/Feedback'
 
 interface PedidoFila {
   id: string; createdAt: string; tipoServico: TipoServico; dataAgendada: string | null; valorTotal: number
@@ -41,9 +43,11 @@ export default function DespachoPage() {
   const [fila, setFila] = useState<Fila | null>(null)
   const [escolha, setEscolha] = useState<Record<string, string>>({})
   const [agora, setAgora] = useState(() => Date.now())
+  const [erro, setErro] = useState('')
+  const [ocupado, setOcupado] = useState<string | null>(null)
 
   const carregar = useCallback(() => {
-    fetch('/api/despacho/fila').then((r) => r.json()).then((b) => { if (b.success) setFila(b.data) }).catch(() => {})
+    fetch('/api/despacho/fila').then((r) => r.json()).then((b) => { if (!b.success) throw new Error(b.error); setFila(b.data); setErro('') }).catch(() => setErro('Não foi possível atualizar a fila. Verifique a conexão.'))
   }, [])
   useEffect(() => {
     carregar()
@@ -53,26 +57,36 @@ export default function DespachoPage() {
   }, [carregar])
 
   const atribuir = async (pedidoId: string) => {
+    if (ocupado) return
     const motoboyId = escolha[pedidoId]
     if (!motoboyId) return toast.error('Escolha o motoboy')
+    setOcupado(pedidoId)
+    try {
     const body = await (await fetch(`/api/pedidos/${pedidoId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'ACEITO', motoboyId }),
     })).json()
     if (body.success) { toast.success('Pedido atribuído'); carregar() } else toast.error(body.error)
+    } catch { toast.error('Não foi possível confirmar a atribuição. Atualize a fila.') } finally { setOcupado(null) }
   }
 
   const reofertar = async (pedidoId: string) => {
+    if (ocupado) return
+    setOcupado(pedidoId)
+    try {
     const body = await (await fetch('/api/despacho/fila', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pedidoId }),
     })).json()
     if (!body.success) return toast.error(body.error)
     toast[body.data.tipo === 'ofertado' ? 'success' : 'error'](body.data.tipo === 'ofertado' ? 'Oferta enviada' : 'Nenhum motoboy online para ofertar')
     carregar()
+    } catch { toast.error('Não foi possível confirmar a nova oferta. Atualize a fila.') } finally { setOcupado(null) }
   }
 
   return (
     <>
       <PageHeader title="Despacho" description="O sistema oferece cada corrida ao melhor motoboy online e passa ao próximo se ele não aceitar a tempo. Depois das tentativas, o pedido vem para a fila abaixo." />
+      <ConsoleOperacional />
+      {erro && <Alert variant="warning" className="mb-4">{erro}<Button variant="ghost" onClick={carregar}>Tentar novamente</Button></Alert>}
 
       <section className="mb-6">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-2">
@@ -93,8 +107,8 @@ export default function DespachoPage() {
                     <option value="">{fila.motoboysDisponiveis.length ? 'Escolher motoboy' : 'Nenhum online'}</option>
                     {fila.motoboysDisponiveis.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
                   </select>
-                  <Button size="sm" onClick={() => atribuir(p.id)} disabled={!escolha[p.id]}>Atribuir</Button>
-                  <Button size="sm" variant="outline" onClick={() => reofertar(p.id)}><RotateCcw className="h-3.5 w-3.5" /> Ofertar de novo</Button>
+                  <Button size="sm" onClick={() => atribuir(p.id)} disabled={!escolha[p.id] || !!ocupado}>Atribuir</Button>
+                  <Button size="sm" variant="outline" disabled={!!ocupado} onClick={() => reofertar(p.id)}><RotateCcw className="h-3.5 w-3.5" /> Ofertar de novo</Button>
                 </div>
               </li>
             ))}

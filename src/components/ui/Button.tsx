@@ -23,10 +23,10 @@ export const buttonVariants: Record<Variant, string> = {
 }
 
 export const buttonSizes: Record<Size, string> = {
-  sm: 'h-8 px-3 text-[13px] gap-1.5',
-  md: 'h-9 px-4 text-sm gap-2',
-  lg: 'h-11 px-5 text-[15px] gap-2',
-  icon: 'h-9 w-9',
+  sm: 'h-11 sm:h-8 px-3 text-[13px] gap-1.5',
+  md: 'h-12 sm:h-10 px-4 text-sm gap-2',
+  lg: 'h-13 px-5 text-[15px] gap-2',
+  icon: 'h-11 w-11',
 }
 
 export function buttonClass(variant: Variant = 'primary', size: Size = 'md', className?: string) {

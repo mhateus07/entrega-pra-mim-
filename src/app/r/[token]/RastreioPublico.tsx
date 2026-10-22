@@ -11,14 +11,15 @@ type Status = 'SOLICITADO' | 'ACEITO' | 'EM_COLETA' | 'EM_ENTREGA' | 'ENTREGUE' 
 interface Rastreio {
   codigo: string
   status: Status
-  horarios: Record<'criado' | 'aceito' | 'coletado' | 'entregue' | 'cancelado', string | null>
+  horarios: Record<'criado' | 'aceito' | 'chegadaColeta' | 'coletado' | 'entregue' | 'cancelado', string | null>
+  localizacaoDesatualizada: boolean
   origem: { bairro: string; cidade: string }
   destino: { bairro: string; cidade: string; latitude?: number; longitude?: number }
   motoboy: { nome: string } | null
   posicao: { latitude: number; longitude: number; atualizadoEm: string | null } | null
   etaMinutos: number | null
   comprovanteUrl: string | null
-  central: { nome: string; corPrimaria: string | null; logoUrl: string | null }
+  central: { nome: string; corPrimaria: string | null; logoUrl: string | null; telefoneSuporte: string | null }
   atualizadoEm: string
 }
 
@@ -33,7 +34,7 @@ const TITULO: Record<Status, string> = {
 
 const ETAPAS = [
   { status: 'ACEITO', titulo: 'Pedido aceito', horario: 'aceito' },
-  { status: 'EM_COLETA', titulo: 'Na coleta', horario: 'aceito' },
+  { status: 'EM_COLETA', titulo: 'Na coleta', horario: 'chegadaColeta' },
   { status: 'EM_ENTREGA', titulo: 'Saiu para entrega', horario: 'coletado' },
   { status: 'ENTREGUE', titulo: 'Entregue, com foto', horario: 'entregue' },
 ] as const
@@ -90,6 +91,8 @@ export default function RastreioPublico({ token }: { token: string }) {
   return (
     <div className="min-h-screen bg-page sm:py-8" style={estilo}>
       <div className="mx-auto min-h-screen max-w-md overflow-hidden bg-surface sm:min-h-0 sm:rounded-[28px] sm:border sm:border-line sm:shadow-pop">
+        {dados?.localizacaoDesatualizada && <p role="status" className="bg-warning-soft px-5 py-3 text-sm text-warning">Aguardando uma nova posição do entregador. A previsão será atualizada quando o GPS retornar.</p>}
+        {dados?.central.telefoneSuporte && <a className="block px-5 pt-4 text-sm font-medium underline" href={`tel:${dados.central.telefoneSuporte.replace(/[^+\d]/g, '')}`}>Precisa de ajuda? Ligue para a central</a>}
         <header className="flex items-center gap-2.5 px-5 pb-4 pt-6">
           {marcaPropria ? (
             dados?.central.logoUrl

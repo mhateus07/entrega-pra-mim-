@@ -7,6 +7,7 @@ import { ArrowRight, Inbox } from 'lucide-react'
 import { usePaginatedList } from '@/hooks/usePaginatedList'
 import Pagination from '@/components/ui/Pagination'
 import Select from '@/components/ui/Select'
+import Input from '@/components/ui/Input'
 import { PageHeader, Segmented, EmptyState } from '@/components/ui/Feedback'
 import { PedidoStatusBadge } from '@/components/ui/StatusBadge'
 import { TableCard, Table, THead, TBody, TH, TD } from '@/components/ui/Table'
@@ -34,10 +35,18 @@ export default function PedidosAdminPage() {
   const router = useRouter()
   const [filtroStatus, setFiltroStatus] = useState<StatusPedido | 'TODOS'>('TODOS')
   const [filtroTipo, setFiltroTipo] = useState<TipoServico | ''>('')
+  const [busca, setBusca] = useState('')
+  const [buscaAplicada, setBuscaAplicada] = useState('')
+  // Espera a digitação parar para não consultar a cada tecla
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaAplicada(busca.trim()), 350)
+    return () => clearTimeout(t)
+  }, [busca])
 
   const params = new URLSearchParams()
   if (filtroStatus !== 'TODOS') params.set('status', filtroStatus)
   if (filtroTipo) params.set('tipoServico', filtroTipo)
+  if (buscaAplicada) params.set('busca', buscaAplicada)
   const query = params.toString()
   const list = usePaginatedList<Pedido>(status === 'authenticated' ? `/api/pedidos${query ? `?${query}` : ''}` : null, 30_000)
   const pedidos = list.data
@@ -71,6 +80,7 @@ export default function PedidosAdminPage() {
       </div>
 
       <TableCard>
+        <div className="p-4"><Input label="Buscar pedidos" placeholder="Código, cliente, destinatário, referência ou endereço" value={busca} onChange={e => setBusca(e.target.value)} /></div>
         {pedidos.length === 0 ? (
           list.loading ? (
             <div className="space-y-2 p-5">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-10" />)}</div>

@@ -128,8 +128,11 @@ export const createPedidoSchema = z.object({
   descricaoItem: z.string().optional(),
   observacoes: z.string().optional(),
   pesoAproximado: z.number().positive().optional(),
-  dataAgendada: z.string().datetime().optional(),
-})
+  dataAgendada: z.union([z.string().datetime(), z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)]).optional(),
+  destinatarioNome: z.string().trim().max(120).optional(),
+  destinatarioTelefone: z.string().trim().max(30).optional(),
+  referenciaCliente: z.string().trim().max(100).optional(),
+}).refine(d => d.tipoServico !== 'AGENDADA' || !!d.dataAgendada, { path: ['dataAgendada'], message: 'Informe a data e hora da coleta' })
 
 export const updatePedidoStatusSchema = z.object({
   status: z.enum([

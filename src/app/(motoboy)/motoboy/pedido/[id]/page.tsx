@@ -1,4 +1,5 @@
 'use client'
+import OperacaoPedido from '@/components/pedido/OperacaoPedido'
 
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
@@ -351,6 +352,7 @@ export default function PedidoMotoboyDetailPage() {
             {pedido.avaliacao.comentario && <p className="mt-2 text-sm text-fg-2">“{pedido.avaliacao.comentario}”</p>}
           </Card>
         )}
+        <OperacaoPedido pedidoId={pedido.id} />
       </main>
 
       {pedidoEmAndamento && <ChatBox pedidoId={pedidoId} userType="MOTOBOY" enabled={true} />}

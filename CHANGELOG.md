@@ -8,6 +8,31 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ## [Não lançado] — SaaS multi-tenant para centrais de motofrete
 
+### Evolução operacional (2026-10-22)
+
+**Na prática**
+- **Despacho mais confiável:** o motoboy só fica disponível depois que o GPS confirma onde ele está, e o sistema só oferece corrida para quem mandou posição nos últimos 2 minutos. A tela do motoboy avisa se o GPS falhar.
+- **Agendamento no horário da central:** a data agendada é lida no fuso da central, não no do navegador de quem pede.
+- **Repasse congelado:** cada corrida nova guarda o valor do motoboy na criação. Mudar o percentual depois não altera corridas antigas. As corridas antigas recebem um valor estimado e o fechamento avisa quantas são.
+- **Ocorrências e histórico:** motoboy, cliente e central registram problemas no pedido (destinatário ausente, endereço errado etc.). A central resolve, e todo pedido tem uma linha do tempo.
+- **Troca de motoboy** antes da coleta, com motivo registrado.
+- **Painel de atrasos** no despacho: corridas paradas além do limite da central (coleta e entrega, configuráveis), ocorrências abertas e telefone de suporte.
+- **Busca de pedidos** por código, cliente, destinatário, referência ou endereço.
+- **Aviso de conexão** no topo quando a internet cai, e erros de rede visíveis no despacho e no fechamento.
+- **Nova entrega:** nome e telefone de quem recebe, referência da venda, rascunho e "repetir esta entrega".
+- **Acertos:** a central registra cada pagamento ao motoboy (com referência do comprovante); o motoboy vê o saldo a acertar.
+- **Rastreio público:** horário real de chegada na coleta, aviso quando o GPS do motoboy está desatualizado e botão para ligar na central.
+- **Landing:** exemplos por segmento e os 3 passos de ativação.
+- **Pagamento online (inativo):** checkout pela conta da própria central (Stripe Connect). Só aparece quando a plataforma configurar as chaves; sem elas, nada muda para a central.
+
+**Técnico**
+- Migrations `202610220001_evolucao_operacional` (campos em `organization_settings`, `motoboys` e `pedidos`; tabelas `pedido_eventos`, `ocorrencias`, `acertos`) e `202610220002_stripe_connect` (`stripeAccountId`, `gateway_eventos`). Rodar `prisma migrate deploy` antes de subir o servidor novo.
+- A migration preenche `valorRepasse` dos pedidos antigos com `repasseEstimado = true`; não toca em pagamentos, transações nem saldos.
+- `src/lib/agendamento.ts` (`dataNoFuso`) converte o relógio local da central para UTC e recusa horários que não existem no fuso.
+- `ofertarPedido` filtra `localizacaoEm` dos últimos 120 s; o ócio para o desempate vem de `disponivelDesde`.
+- Rotas novas: `api/pedidos/[id]/operacao`, `api/operacao`, `api/acertos` (idempotente por `chave`), `api/organizacao/pagamentos`, `api/pagamentos/checkout` e `api/pagamentos/stripe/webhook` (assinado, idempotente por `gateway_eventos`, confere conta conectada × central × valor).
+- Teste de isolamento cobre todas as rotas novas, incluindo webhook assinado de outra central.
+
 ### Transições entre telas (2026-10-11)
 
 **Na prática**

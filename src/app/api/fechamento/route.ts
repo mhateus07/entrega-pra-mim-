@@ -22,12 +22,12 @@ export async function GET(request: NextRequest) {
     if (de > ate) return badRequest('A data inicial deve ser anterior à final')
     if (Date.parse(ate) - Date.parse(de) > 366 * 86_400_000) return badRequest('Período máximo de um ano')
 
-    const { pedidos, repasse } = await carregarPedidosFechamento(auth.user.organizationId, de, ate)
+    const { pedidos, repasse, legadosEstimados } = await carregarPedidosFechamento(auth.user.organizationId, de, ate)
 
     if (visao === 'motoboy') {
       const linhas = porMotoboy(pedidos, repasse)
       if (q.get('formato') === 'csv') return csv(csvMotoboys(linhas), `fechamento-motoboys-${de}_${ate}.csv`)
-      return jsonResponse({ success: true, data: { visao, de, ate, repasse: Number(repasse), linhas } })
+      return jsonResponse({ success: true, data: { visao, de, ate, repasse: Number(repasse), linhas, legadosEstimados } })
     }
     const linhas = porCliente(pedidos)
     if (q.get('formato') === 'csv') return csv(csvClientes(linhas), `fechamento-clientes-${de}_${ate}.csv`)

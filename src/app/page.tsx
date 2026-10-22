@@ -101,6 +101,7 @@ export default function HomePage() {
                 </Link>
                 <a href="#como-funciona" className={buttonClass('outline', 'lg', 'bg-page/60 backdrop-blur')}>Ver como funciona</a>
               </div>
+              <p className="mt-4 text-sm text-fg-3">Após o cadastro, nossa equipe ajuda a configurar sua central e ativar o acesso.</p>
             </div>
           </div>
         </section>
@@ -117,6 +118,14 @@ export default function HomePage() {
           </dl>
         </section>
 
+        <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+          <p className="text-sm text-fg-3">Feito para o seu dia a dia</p>
+          <h2 className="titulo-display mt-3 max-w-xl text-3xl sm:text-4xl">Da primeira coleta ao último acerto.</h2>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[['Farmácias', 'Endereço e instruções do destinatário organizados para cada entrega.'], ['Restaurantes', 'Fila de despacho e acompanhamento para os horários de maior movimento.'], ['Lojas', 'Referência da venda, comprovante e histórico em um só pedido.'], ['Documentos', 'Acompanhamento das etapas e foto para registrar a conclusão.']].map(([titulo, texto]) => <article key={titulo} className="rounded-2xl border border-line bg-surface p-6"><span className="mb-6 block h-1 w-8 bg-brand-mark" /><h3 className="text-lg font-semibold">{titulo}</h3><p className="mt-3 text-sm leading-relaxed text-fg-2">{texto}</p></article>)}
+          </div>
+          <div className="mt-8 rounded-2xl bg-surface-2 p-6 sm:p-8"><h3 className="text-xl font-semibold">Sua central começa com acompanhamento.</h3><ol className="mt-5 grid gap-5 sm:grid-cols-3">{[['1', 'Cadastre sua central', 'Conte como funciona sua operação.'], ['2', 'Prepare sua equipe', 'Configure preços e convide clientes e entregadores.'], ['3', 'Faça a primeira corrida', 'Ative o acesso com apoio da nossa equipe.']].map(([n, titulo, texto]) => <li key={n}><span className="font-mono text-brand">{n.padStart(2, '0')}</span><p className="mt-2 font-semibold">{titulo}</p><p className="mt-1 text-sm text-fg-2">{texto}</p></li>)}</ol></div>
+        </section>
         {/* Antes e depois: o grupo de WhatsApp */}
         <section className="bg-[#121314] text-white">
           <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:py-28">

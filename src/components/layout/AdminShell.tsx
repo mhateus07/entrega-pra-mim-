@@ -10,6 +10,7 @@ import Logo from '@/components/brand/Logo'
 import ThemeToggle from '@/components/ui/ThemeToggle'
 import { cn } from '@/utils/cn'
 import { Fixo, TransicaoTela } from '@/components/layout/Transicao'
+import ConnectionStatus from './ConnectionStatus'
 
 const nav = [
   { href: '/dashboard', label: 'Visão geral', icon: LayoutDashboard, exact: true },
@@ -112,6 +113,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="min-h-screen bg-page lg:pl-60">
+      <ConnectionStatus />
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface-2 px-3 pb-4 lg:flex">
         <Link href="/dashboard" className="mb-6 mt-5 px-2">
