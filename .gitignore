@@ -73,3 +73,5 @@ deploy/.env*
 *.swp
 .claude/settings.local.json
 scripts/kit-vendas/.src-pacote.zip
+.env*
+!.env*.example

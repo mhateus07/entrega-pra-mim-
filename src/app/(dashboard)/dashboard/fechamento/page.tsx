@@ -8,6 +8,8 @@ import { Alert, EmptyState, PageHeader, Segmented } from '@/components/ui/Feedba
 import { TableCard, Table, THead, TBody, TH, TD } from '@/components/ui/Table'
 import { formatarMoeda } from '@/lib/pricing'
 import { cn } from '@/utils/cn'
+import AcertoMotoboy from '@/components/org/AcertoMotoboy'
+import ConfigurarPagamentos from '@/components/payment/ConfigurarPagamentos'
 
 type Visao = 'motoboy' | 'cliente'
 interface LinhaMotoboy { motoboyId: string; nome: string; corridas: number; km: number; valorCorridas: number; repasse: number; dinheiroRecebido: number; saldoAcerto: number }
@@ -32,6 +34,8 @@ export default function FechamentoPage() {
   const [[de, ate], setPeriodo] = useState<[string, string]>(() => periodo('hoje'))
   const [linhas, setLinhas] = useState<(LinhaMotoboy | LinhaCliente)[] | null>(null)
   const [repasse, setRepasse] = useState<number | null>(null)
+  const [legados, setLegados] = useState(0)
+  const [motoboyAcerto, setMotoboyAcerto] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const consulta = `de=${de}&ate=${ate}&visao=${visao}`
 
@@ -43,9 +47,10 @@ export default function FechamentoPage() {
         if (!body.success) { setErro(body.error); setLinhas([]); return }
         setErro(null)
         setLinhas(body.data.linhas)
+        setLegados(body.data.legadosEstimados ?? 0)
         if (body.data.repasse != null) setRepasse(body.data.repasse)
       })
-      .catch(() => {})
+      .catch(() => { if (!controller.signal.aborted) setErro('Não foi possível atualizar o fechamento. Confira a conexão e tente novamente.') })
     return () => controller.abort()
   }, [consulta])
 
@@ -84,9 +89,10 @@ export default function FechamentoPage() {
       </div>
 
       {erro && <Alert variant="danger" className="mb-4">{erro}</Alert>}
+      {legados > 0 && <Alert variant="warning" className="mb-4">{legados} corridas antigas usam repasse estimado na migração. Confira os acertos anteriores antes de pagar.</Alert>}
       {visao === 'motoboy' && repasse != null && (
         <p className="mb-3 text-[13px] text-fg-3">
-          Repasse de {Math.round(repasse * 100)}% do valor das corridas (ajuste em Preços). Saldo do acerto = repasse − dinheiro que o motoboy recebeu em mãos; negativo significa que ele deve devolver à central.
+          Regra atual: {Math.round(repasse * 100)}%. Cada corrida nova preserva o repasse acordado na criação. Saldo do acerto = repasse − dinheiro recebido; negativo significa valor a devolver à central.
         </p>
       )}
 
@@ -108,7 +114,7 @@ export default function FechamentoPage() {
               {visao === 'motoboy'
                 ? (linhas as LinhaMotoboy[]).map((l) => (
                   <tr key={l.motoboyId}>
-                    <TD className="font-medium text-fg">{l.nome}</TD>
+                    <TD className="font-medium text-fg"><button className="underline underline-offset-4" onClick={() => setMotoboyAcerto(l.motoboyId)}>{l.nome} · Ver acerto</button></TD>
                     <TD className="text-right tabular">{l.corridas}</TD>
                     <TD className="text-right tabular">{l.km.toLocaleString('pt-BR')}</TD>
                     <TD className="text-right font-mono tabular">{formatarMoeda(l.valorCorridas)}</TD>
@@ -140,6 +146,8 @@ export default function FechamentoPage() {
           </Table>
         )}
       </TableCard>
+      {motoboyAcerto && <AcertoMotoboy key={motoboyAcerto} motoboyId={motoboyAcerto} />}
+      <ConfigurarPagamentos />
     </>
   )
 }

@@ -143,7 +143,8 @@ export function useLocationSharing(motoboyId: string | null, enabled = false) {
     }
     navigator.geolocation.getCurrentPosition(sendLocation, fail)
     const watchId = navigator.geolocation.watchPosition(sendLocation, fail, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 })
-    return () => { active = false; controller.abort(); navigator.geolocation.clearWatch(watchId) }
+    const heartbeat = setInterval(() => navigator.geolocation.getCurrentPosition(sendLocation, fail, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }), 30000)
+    return () => { active = false; controller.abort(); clearInterval(heartbeat); navigator.geolocation.clearWatch(watchId) }
   }, [enabled, requested, motoboyId])
   const startSharing = useCallback(() => setRequested(true), [])
   const stopSharing = useCallback(() => setRequested(false), [])

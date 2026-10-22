@@ -19,12 +19,12 @@ export async function buscarPedidoPorToken(token: string) {
   return prisma.pedido.findUnique({
     where: { trackingToken: token },
     select: {
-      id: true, status: true, tipoServico: true, createdAt: true, aceitoEm: true, coletadoEm: true, entregueEm: true, canceladoEm: true,
+      id: true, status: true, tipoServico: true, createdAt: true, aceitoEm: true, chegadaColetaEm: true, coletadoEm: true, entregueEm: true, canceladoEm: true,
       duracaoEstimada: true, fotoComprovante: true,
       enderecoOrigem: { select: { bairro: true, cidade: true } },
       enderecoDestino: { select: { bairro: true, cidade: true, latitude: true, longitude: true } },
-      motoboy: { select: { latitudeAtual: true, longitudeAtual: true, ultimaAtividade: true, user: { select: { nome: true } } } },
-      organization: { select: { nome: true, slug: true, plano: true, settings: { select: { nomeExibicao: true, corPrimaria: true, logoArquivo: true } } } },
+      motoboy: { select: { latitudeAtual: true, longitudeAtual: true, ultimaAtividade: true, localizacaoEm: true, user: { select: { nome: true } } } },
+      organization: { select: { nome: true, slug: true, plano: true, settings: { select: { nomeExibicao: true, corPrimaria: true, logoArquivo: true, telefoneSuporte: true } } } },
     },
   })
 }
@@ -33,8 +33,9 @@ export function montarRastreioPublico(pedido: NonNullable<Awaited<ReturnType<typ
   const emEntrega = pedido.status === 'EM_ENTREGA'
   const destino = pedido.enderecoDestino
   const m = pedido.motoboy
-  const posicao = emEntrega && m?.latitudeAtual != null && m.longitudeAtual != null
-    ? { latitude: m.latitudeAtual, longitude: m.longitudeAtual, atualizadoEm: m.ultimaAtividade }
+  const localizacaoRecente = !!m?.localizacaoEm && Date.now() - m.localizacaoEm.getTime() < 120_000
+  const posicao = emEntrega && localizacaoRecente && m?.latitudeAtual != null && m.longitudeAtual != null
+    ? { latitude: m.latitudeAtual, longitude: m.longitudeAtual, atualizadoEm: m.localizacaoEm }
     : null
 
   // ETA aproximado pela distância em linha reta (o ETA real pela rota é fase 2)
@@ -53,7 +54,8 @@ export function montarRastreioPublico(pedido: NonNullable<Awaited<ReturnType<typ
     codigo: `#${pedido.id.slice(-6).toUpperCase()}`,
     status: pedido.status,
     tipoServico: pedido.tipoServico,
-    horarios: { criado: pedido.createdAt, aceito: pedido.aceitoEm, coletado: pedido.coletadoEm, entregue: pedido.entregueEm, cancelado: pedido.canceladoEm },
+    horarios: { criado: pedido.createdAt, aceito: pedido.aceitoEm, chegadaColeta: pedido.chegadaColetaEm, coletado: pedido.coletadoEm, entregue: pedido.entregueEm, cancelado: pedido.canceladoEm },
+    localizacaoDesatualizada: emEntrega && !localizacaoRecente,
     origem: { bairro: pedido.enderecoOrigem.bairro, cidade: pedido.enderecoOrigem.cidade },
     destino: {
       bairro: destino.bairro, cidade: destino.cidade,
@@ -68,6 +70,7 @@ export function montarRastreioPublico(pedido: NonNullable<Awaited<ReturnType<typ
     central: {
       nome: (marcaPropria && settings?.nomeExibicao) || pedido.organization.nome,
       slug: pedido.organization.slug,
+      telefoneSuporte: settings?.telefoneSuporte ?? null,
       // Logo e cor só no plano Marca própria (Etapa 5); nos outros aparece a marca do EPM
       corPrimaria: marcaPropria ? settings?.corPrimaria ?? null : null,
       logoUrl: marcaPropria && nomeArquivoLogoSeguro(settings?.logoArquivo) ? `/api/publico/organizacoes/${pedido.organization.slug}/logo` : null,

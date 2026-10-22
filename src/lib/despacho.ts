@@ -71,9 +71,10 @@ export async function ofertarPedido(pedidoId: string): Promise<ResultadoOferta> 
     const candidatos = await tx.motoboy.findMany({
       where: {
         organizationId: pedido.organizationId, status: 'DISPONIVEL', aprovacao: 'APROVADO',
+        localizacaoEm: { gte: new Date(agora.getTime() - 120_000) },
         id: { notIn: [...ciclo, ...ocupados].map(o => o.motoboyId) },
       },
-      select: { id: true, latitudeAtual: true, longitudeAtual: true, avaliacaoMedia: true, ultimaAtividade: true, status: true },
+      select: { id: true, latitudeAtual: true, longitudeAtual: true, avaliacaoMedia: true, ultimaAtividade: true, disponivelDesde: true, status: true },
     })
     // Estar online é a disponibilidade que vale aqui (a escala de horário é opcional)
     const melhor = encontrarMelhorMotoboy(candidatos, { latitude, longitude }, false)
@@ -110,6 +111,7 @@ export async function aceitarOferta(ofertaId: string, user: OrgUser) {
     if (pedido.status !== 'SOLICITADO' || pedido.motoboyId) throw new OperacaoError('Este pedido já foi atribuído')
     await reservarMotoboy(tx, user.organizationId, motoboyId)
     await encerrarOfertas(tx, oferta.pedidoId)
+    await tx.pedidoEvento.create({ data: { pedidoId: oferta.pedidoId, organizationId: user.organizationId, userId: user.id, descricao: 'Oferta aceita pelo entregador' } })
     return tx.pedido.update({
       where: { id: oferta.pedidoId },
       data: { status: 'ACEITO', motoboyId, aceitoEm: agora, despachoManual: false },

@@ -1,4 +1,5 @@
 'use client'
+import AcertoMotoboy from '@/components/org/AcertoMotoboy'
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -133,7 +134,8 @@ export default function GanhosPage() {
     <div className="conteudo-chega">
 
       <main className="mx-auto max-w-4xl space-y-4 px-4 py-6 sm:px-6">
-        <PageHeader title="Ganhos" description="Saldo, repasses e histórico de transações." />
+        <PageHeader title="Ganhos" description="Remuneração, dinheiro recebido e acertos com a central." />
+        {session?.user?.motoboyId && <AcertoMotoboy motoboyId={session.user.motoboyId} />}
 
         <section className="grid grid-cols-1 divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-xs sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <div className="p-5">

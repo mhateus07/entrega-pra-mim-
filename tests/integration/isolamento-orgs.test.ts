@@ -120,6 +120,24 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
   // Um caso por arquivo route.ts. Rotas públicas ou sem dados de central ficam
   // explicitamente marcadas, com o motivo.
   const casos: Record<string, () => Promise<void>> = {
+    'acertos': async () => {
+      logarComo(donoA)
+      await negado(await chamar('acertos', 'GET', { query: `motoboyId=${motoboyB.motoboyId}` }))
+      await negado(await chamar('acertos', 'POST', { body: { motoboyId: motoboyB.motoboyId, chave: '94a48704-6394-4ce1-84a9-460890a83b08', valor: 10, referencia: 'Teste de isolamento' } }))
+    },
+    'operacao': async () => {
+      logarComo(donoA)
+      const res = await chamar('operacao', 'GET')
+      expect(res.status).toBe(200)
+      expect(JSON.stringify(await res.json())).not.toContain(b.pedido)
+      logarComo(clienteA)
+      await negado(await chamar('operacao', 'GET'))
+    },
+    'pedidos/[id]/operacao': async () => {
+      logarComo(donoA)
+      await negado(await chamar('pedidos/[id]/operacao', 'GET', { id: b.pedido }))
+      await negado(await chamar('pedidos/[id]/operacao', 'POST', { id: b.pedido, body: { acao: 'ocorrencia', tipo: 'OUTRO', descricao: 'Teste de isolamento' } }))
+    },
     'auth/[...nextauth]': async () => { /* NextAuth: sem dados de central */ },
     'health/live': async () => { /* público, sem dados */ },
     'health/ready': async () => { /* público, sem dados */ },
@@ -141,6 +159,14 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       const tabela = { precoPorKm: 1, valorMinimo: 0, multiplicadores: { AGENDADA: 1, DOCUMENTOS: 1, EXPRESSA: 1 }, bairros: [] }
       expect((await chamar('organizacao/precos', 'PUT', { body: tabela })).status).toBe(200)
       expect(await db.pricingBairro.count({ where: { organizationId: orgB } })).toBe(1)
+    },
+    'organizacao/pagamentos': async () => {
+      logarComo(donoA)
+      const res = await chamar('organizacao/pagamentos', 'GET')
+      expect(res.status).toBe(200)
+      semDadosDeB(await res.json())
+      logarComo(clienteA)
+      expect((await chamar('organizacao/pagamentos', 'POST')).status).toBe(403)
     },
     'organizacao/uso': async () => {
       logarComo(donoA)
@@ -182,8 +208,12 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       sessao.atual = null
       const res = await chamar('publico/rastreio/[token]', 'GET', { id: TOKEN_B })
       expect(res.status).toBe(200)
-      const texto = JSON.stringify(await res.json())
-      for (const proibido of [SEGREDO_B, 'telefone', 'valorTotal', 'cpfCnpj', 'email', clienteB.clienteId!, orgB]) expect(texto).not.toContain(proibido)
+      const resultado = await res.json()
+      const texto = JSON.stringify(resultado)
+      expect(resultado.data.motoboy).not.toHaveProperty('telefone')
+      expect(resultado.data).not.toHaveProperty('destinatarioTelefone')
+      expect(resultado.data.central.telefoneSuporte).toBeNull()
+      for (const proibido of [SEGREDO_B, 'valorTotal', 'cpfCnpj', 'email', clienteB.clienteId!, orgB]) expect(texto).not.toContain(proibido)
     },
     'publico/rastreio/[token]/comprovante': async () => {
       sessao.atual = null
@@ -353,6 +383,36 @@ async function chamar(rota: string, metodo: string, opts: { id?: string; query?:
       logarComo(donoA)
       await listaOk(await chamar('pagamentos', 'GET'))
       await negado(await chamar('pagamentos', 'POST', { body: { pedidoId: b.pedido, metodo: 'DINHEIRO' } }))
+    },
+    'pagamentos/checkout': async () => {
+      logarComo(donoA)
+      await negado(await chamar('pagamentos/checkout', 'POST', { body: { pedidoId: b.pedido } }))
+    },
+    'pagamentos/stripe/webhook': async () => {
+      // Público, mas só aceita evento assinado e da conta conectada dona do pedido
+      sessao.atual = null
+      const anterior = { key: process.env.STRIPE_SECRET_KEY, secret: process.env.STRIPE_WEBHOOK_SECRET }
+      process.env.STRIPE_SECRET_KEY = 'sk_test_isolamento'
+      process.env.STRIPE_WEBHOOK_SECRET = 'whsec_isolamento'
+      try {
+        await db.organizationSettings.upsert({ where: { organizationId: orgA }, create: { organizationId: orgA, stripeAccountId: 'acct_isolamento_a' }, update: { stripeAccountId: 'acct_isolamento_a' } })
+        const payload = JSON.stringify({ id: 'evt_isolamento', object: 'event', type: 'checkout.session.completed', account: 'acct_isolamento_a',
+          data: { object: { id: 'cs_isolamento', object: 'checkout.session', payment_status: 'paid', currency: 'brl', amount_total: 1000,
+            metadata: { pedidoId: b.pedido, pagamentoId: b.pagamento, organizationId: orgB } } } })
+        const { default: Stripe } = await import('stripe')
+        const assinatura = new Stripe('sk_test_isolamento').webhooks.generateTestHeaderString({ payload, secret: 'whsec_isolamento' })
+        const { POST } = await import('../../src/app/api/pagamentos/stripe/webhook/route')
+        const enviar = (headers: Record<string, string>) => POST(new NextRequest('http://localhost/api/pagamentos/stripe/webhook', { method: 'POST', body: payload, headers }))
+        expect((await enviar({})).status).toBe(400)
+        expect((await enviar({ 'stripe-signature': assinatura })).status).toBe(400)
+        expect((await db.pagamento.findUniqueOrThrow({ where: { id: b.pagamento } })).status).not.toBe('APROVADO')
+        expect(await db.gatewayEvento.count({ where: { id: 'evt_isolamento' } })).toBe(0)
+      } finally {
+        process.env.STRIPE_SECRET_KEY = anterior.key
+        process.env.STRIPE_WEBHOOK_SECRET = anterior.secret
+        if (anterior.key === undefined) delete process.env.STRIPE_SECRET_KEY
+        if (anterior.secret === undefined) delete process.env.STRIPE_WEBHOOK_SECRET
+      }
     },
     'pagamentos/[id]': async () => {
       logarComo(donoA)

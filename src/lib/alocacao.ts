@@ -18,6 +18,7 @@ export interface MotoboyParaAlocacao {
   longitudeAtual: number | null
   avaliacaoMedia: number
   ultimaAtividade: Date | null
+  disponivelDesde?: Date | null
   status: StatusMotoboy
   disponibilidades?: {
     diaSemana: DiaSemana
@@ -110,7 +111,7 @@ export function calcularScoreMotoboy(
   )
 
   // Calcular tempo ocioso
-  const tempoOciosoMinutos = calcularTempoOcioso(motoboy.ultimaAtividade)
+  const tempoOciosoMinutos = calcularTempoOcioso(motoboy.disponivelDesde ?? motoboy.ultimaAtividade)
 
   // Normalizar valores (inverter proximidade pois menor é melhor)
   const minDist = Math.min(...todasDistancias)
@@ -183,7 +184,7 @@ export function encontrarMelhorMotoboy(
   )
 
   const todosTemposOciosos = motoboysFiltrados.map((m) =>
-    calcularTempoOcioso(m.ultimaAtividade)
+    calcularTempoOcioso(m.disponivelDesde ?? m.ultimaAtividade)
   )
 
   const todasAvaliacoes = motoboysFiltrados.map((m) => m.avaliacaoMedia)
@@ -239,7 +240,7 @@ export function encontrarMotoboysOrdenados(
   )
 
   const todosTemposOciosos = motoboysFiltrados.map((m) =>
-    calcularTempoOcioso(m.ultimaAtividade)
+    calcularTempoOcioso(m.disponivelDesde ?? m.ultimaAtividade)
   )
 
   const todasAvaliacoes = motoboysFiltrados.map((m) => m.avaliacaoMedia)

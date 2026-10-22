@@ -20,6 +20,7 @@ export interface PedidoFechamento {
   clienteNome: string
   distanciaKm: number
   valorTotal: Prisma.Decimal
+  valorRepasse?: Prisma.Decimal | null
   pagamento: { metodo: string; status: string; valor: Prisma.Decimal } | null
 }
 
@@ -36,19 +37,20 @@ export interface LinhaCliente {
 const zero = () => new Prisma.Decimal(0)
 
 export function porMotoboy(pedidos: PedidoFechamento[], repasse: Prisma.Decimal.Value): LinhaMotoboy[] {
-  const grupos = new Map<string, { nome: string; corridas: number; km: number; valor: Prisma.Decimal; dinheiro: Prisma.Decimal }>()
+  const grupos = new Map<string, { nome: string; corridas: number; km: number; valor: Prisma.Decimal; dinheiro: Prisma.Decimal; repasse: Prisma.Decimal }>()
   for (const p of pedidos) {
     if (!p.motoboyId) continue
-    const g = grupos.get(p.motoboyId) ?? { nome: p.motoboyNome ?? '—', corridas: 0, km: 0, valor: zero(), dinheiro: zero() }
+    const g = grupos.get(p.motoboyId) ?? { nome: p.motoboyNome ?? '—', corridas: 0, km: 0, valor: zero(), dinheiro: zero(), repasse: zero() }
     g.corridas++
     g.km += p.distanciaKm
     g.valor = g.valor.plus(p.valorTotal)
+    g.repasse = g.repasse.plus(p.valorRepasse ?? money(p.valorTotal.mul(new Prisma.Decimal(repasse))))
     // Dinheiro na entrega fica com o motoboy até o acerto com a central
     if (p.pagamento?.metodo === 'DINHEIRO' && p.pagamento.status === 'APROVADO') g.dinheiro = g.dinheiro.plus(p.pagamento.valor)
     grupos.set(p.motoboyId, g)
   }
   return [...grupos].map(([motoboyId, g]) => {
-    const valorRepasse = money(g.valor.mul(new Prisma.Decimal(repasse)))
+    const valorRepasse = money(g.repasse)
     return {
       motoboyId, nome: g.nome, corridas: g.corridas, km: Math.round(g.km * 10) / 10,
       valorCorridas: money(g.valor).toNumber(), repasse: valorRepasse.toNumber(),
@@ -90,7 +92,7 @@ export async function carregarPedidosFechamento(organizationId: string, de: stri
   const rows = await prisma.pedido.findMany({
     where: { organizationId, status: 'ENTREGUE', entregueEm: { gte: inicio, lt: fim } },
     select: {
-      motoboyId: true, clienteId: true, distanciaKm: true, valorTotal: true,
+      motoboyId: true, clienteId: true, distanciaKm: true, valorTotal: true, valorRepasse: true, repasseEstimado: true,
       motoboy: { select: { user: { select: { nome: true } } } },
       cliente: { select: { razaoSocial: true, user: { select: { nome: true } } } },
       pagamento: { select: { metodo: true, status: true, valor: true } },
@@ -99,9 +101,9 @@ export async function carregarPedidosFechamento(organizationId: string, de: stri
   const pedidos: PedidoFechamento[] = rows.map(r => ({
     motoboyId: r.motoboyId, motoboyNome: r.motoboy?.user.nome ?? null,
     clienteId: r.clienteId, clienteNome: r.cliente.razaoSocial || r.cliente.user.nome,
-    distanciaKm: r.distanciaKm, valorTotal: r.valorTotal, pagamento: r.pagamento,
+    distanciaKm: r.distanciaKm, valorTotal: r.valorTotal, valorRepasse: r.valorRepasse, pagamento: r.pagamento,
   }))
-  return { pedidos, repasse: settings?.repasseMotoboy ?? new Prisma.Decimal(0.7) }
+  return { pedidos, repasse: settings?.repasseMotoboy ?? new Prisma.Decimal(0.7), legadosEstimados: rows.filter(r => r.repasseEstimado).length }
 }
 
 // ---------------------------------------------------------------------------

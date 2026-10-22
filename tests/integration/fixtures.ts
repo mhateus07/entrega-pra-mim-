@@ -21,7 +21,7 @@ export async function criarUsuario(db: PrismaClient, organizationId: string, pap
   if (papel === 'DRIVER') {
     motoboyId = (await db.motoboy.create({ data: {
       organizationId, userId: user.id, cnh: randomUUID(), veiculoTipo: 'Moto', veiculoMarca: 'Teste', veiculoModelo: 'Teste',
-      veiculoPlaca: randomUUID(), status: 'DISPONIVEL', aprovacao: opts.aprovado === false ? 'PENDENTE_APROVACAO' : 'APROVADO',
+      veiculoPlaca: randomUUID(), status: 'DISPONIVEL', localizacaoEm: new Date(), disponivelDesde: new Date(), aprovacao: opts.aprovado === false ? 'PENDENTE_APROVACAO' : 'APROVADO',
     } })).id
   }
   if (papel === 'CLIENT') {
@@ -33,6 +33,9 @@ export async function criarUsuario(db: PrismaClient, organizationId: string, pap
 /** Remove a central de teste e tudo que pertence a ela. */
 export async function removerOrg(db: PrismaClient, organizationId: string) {
   const where = { organizationId }
+  await db.ocorrencia.deleteMany({ where })
+  await db.acerto.deleteMany({ where })
+  await db.gatewayEvento.deleteMany({ where })
   await db.mensagem.deleteMany({ where })
   await db.avaliacao.deleteMany({ where })
   await db.transacaoMotoboy.deleteMany({ where })

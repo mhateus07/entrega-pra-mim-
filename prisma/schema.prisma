@@ -163,6 +163,10 @@ model OrganizationSettings {
   // Despacho: tempo para o motoboy aceitar e tentativas antes da fila manual
   despachoTtlSegundos   Int      @default(90)
   despachoMaxTentativas Int      @default(3)
+  atrasoColetaMinutos   Int      @default(20)
+  atrasoEntregaMinutos  Int      @default(45)
+  telefoneSuporte      String?  @db.VarChar(30)
+  stripeAccountId      String? @unique @db.VarChar(100)
   updatedAt             DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -250,6 +254,8 @@ model Motoboy {
   avaliacaoMedia  Float            @default(5.0)
   totalEntregas   Int              @default(0)
   ultimaAtividade DateTime?
+  localizacaoEm   DateTime?
+  disponivelDesde DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -366,12 +372,18 @@ model Pedido {
   valorBase       Decimal @db.Decimal(14, 2)
   multiplicador   Float
   valorTotal      Decimal @db.Decimal(14, 2)
+  valorRepasse    Decimal? @db.Decimal(14, 2)
+  repasseEstimado Boolean @default(false)
+  destinatarioNome String? @db.VarChar(120)
+  destinatarioTelefone String? @db.VarChar(30)
+  referenciaCliente String? @db.VarChar(100)
 
   // Agendamento (para entregas agendadas)
   dataAgendada DateTime?
 
   // Timestamps de status
   aceitoEm           DateTime?
+  chegadaColetaEm    DateTime?
   coletadoEm         DateTime?
   entregueEm         DateTime?
   canceladoEm        DateTime?
@@ -393,6 +405,8 @@ model Pedido {
   pagamento       Pagamento?
   transacoes      TransacaoMotoboy[]
   ofertas         DispatchOffer[]
+  eventos         PedidoEvento[]
+  ocorrencias     Ocorrencia[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -403,6 +417,57 @@ model Pedido {
   @@index([clienteId, createdAt, id])
   @@index([motoboyId, status, createdAt, id])
   @@map("pedidos")
+}
+
+model PedidoEvento {
+  id String @id @default(cuid())
+  pedidoId String
+  organizationId String
+  userId String?
+  descricao String @db.VarChar(500)
+  createdAt DateTime @default(now())
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  @@index([organizationId, pedidoId, createdAt])
+  @@map("pedido_eventos")
+}
+
+model Ocorrencia {
+  id String @id @default(cuid())
+  organizationId String
+  pedidoId String
+  autorId String
+  tipo String @db.VarChar(50)
+  descricao String @db.VarChar(1000)
+  resolucao String? @db.VarChar(1000)
+  resolvidaEm DateTime?
+  resolvidaPorId String?
+  createdAt DateTime @default(now())
+  pedido Pedido @relation(fields: [pedidoId], references: [id])
+  @@index([organizationId, resolvidaEm, createdAt])
+  @@map("ocorrencias")
+}
+
+model Acerto {
+  id String @id @default(cuid())
+  organizationId String
+  motoboyId String
+  criadoPorId String
+  chave String @db.VarChar(100)
+  valor Decimal @db.Decimal(14, 2)
+  referencia String @db.VarChar(200)
+  createdAt DateTime @default(now())
+  @@unique([organizationId, chave])
+  @@index([organizationId, motoboyId, createdAt])
+  @@map("acertos")
+}
+
+model GatewayEvento {
+  id String @id @db.VarChar(100)
+  organizationId String
+  tipo String @db.VarChar(100)
+  createdAt DateTime @default(now())
+  @@index([organizationId, createdAt])
+  @@map("gateway_eventos")
 }
 
 model Avaliacao {

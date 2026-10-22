@@ -53,7 +53,7 @@ interface PagamentoResult {
 
 type Step = 'form' | 'payment' | 'pix' | 'success'
 
-type TabelaPreco = { precoPorKm: number; multiplicadores: Record<TipoServico, number> }
+type TabelaPreco = { precoPorKm: number; multiplicadores: Record<TipoServico, number>; fusoHorario?: string }
 
 // Preço por km de cada serviço pela tabela da central (padrão enquanto carrega)
 function tiposServico(tabela: TabelaPreco | null) {
@@ -91,10 +91,49 @@ export default function NovaEntregaPage() {
   // Form state
   const [enderecoOrigemId, setEnderecoOrigemId] = useState('')
   const [enderecoDestinoId, setEnderecoDestinoId] = useState('')
-  const [tipoServico, setTipoServico] = useState<TipoServico>('AGENDADA')
+  const [tipoServico, setTipoServico] = useState<TipoServico>('EXPRESSA')
   const [descricaoItem, setDescricaoItem] = useState('')
   const [observacoes, setObservacoes] = useState('')
   const [dataAgendada, setDataAgendada] = useState('')
+  const [destinatarioNome, setDestinatarioNome] = useState('')
+  const [destinatarioTelefone, setDestinatarioTelefone] = useState('')
+  const [referenciaCliente, setReferenciaCliente] = useState('')
+  const [avisoRascunho, setAvisoRascunho] = useState('')
+  const chaveRascunho = `entrega:rascunho:${session?.user?.id}:${session?.user?.clienteId}`
+  function salvarRascunho() {
+    try {
+      sessionStorage.setItem(chaveRascunho, JSON.stringify({ enderecoOrigemId, enderecoDestinoId, tipoServico, descricaoItem, observacoes, dataAgendada, destinatarioNome, destinatarioTelefone, referenciaCliente }))
+      setAvisoRascunho('Rascunho salvo nesta aba. Ele será removido quando o pedido for criado.')
+    } catch { setError('O navegador não permitiu salvar o rascunho') }
+  }
+  function recuperarRascunho() {
+    try {
+      const texto = sessionStorage.getItem(chaveRascunho)
+      if (!texto) { setAvisoRascunho('Nenhum rascunho salvo nesta aba.'); return }
+      const d = JSON.parse(texto)
+      setEnderecoOrigemId(d.enderecoOrigemId ?? ''); setEnderecoDestinoId(d.enderecoDestinoId ?? '')
+      setTipoServico(['AGENDADA', 'EXPRESSA', 'DOCUMENTOS'].includes(d.tipoServico) ? d.tipoServico : 'EXPRESSA')
+      setDescricaoItem(d.descricaoItem ?? ''); setObservacoes(d.observacoes ?? ''); setDataAgendada(d.dataAgendada ?? '')
+      setDestinatarioNome(d.destinatarioNome ?? ''); setDestinatarioTelefone(d.destinatarioTelefone ?? ''); setReferenciaCliente(d.referenciaCliente ?? '')
+      setAvisoRascunho('Rascunho recuperado. Confira o trajeto e o novo preço antes de enviar.')
+    } catch { setError('Não foi possível recuperar o rascunho') }
+  }
+  useEffect(() => {
+    if (!session?.user?.clienteId) return
+    const repetir = new URLSearchParams(window.location.search).get('repetir')
+    if (!repetir) return
+    const controller = new AbortController()
+    fetch(`/api/pedidos/${encodeURIComponent(repetir)}`, { signal: controller.signal }).then(r => r.json()).then(b => {
+      if (!b.success) throw new Error(b.error)
+      const d = b.data
+      if (d.clienteId !== session.user.clienteId) throw new Error('Pedido de outro cliente')
+      setEnderecoOrigemId(d.enderecoOrigemId); setEnderecoDestinoId(d.enderecoDestinoId)
+      setTipoServico(d.tipoServico); setDescricaoItem(d.descricaoItem ?? ''); setObservacoes(d.observacoes ?? '')
+      setDestinatarioNome(d.destinatarioNome ?? ''); setDestinatarioTelefone(d.destinatarioTelefone ?? '')
+      setAvisoRascunho('Trajeto copiado. Confira o preço e informe um novo horário, se necessário.')
+    }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Erro ao repetir entrega') })
+    return () => controller.abort()
+  }, [session?.user?.clienteId])
 
   // Novo endereço state
   const [mostrarNovoEndereco, setMostrarNovoEndereco] = useState(false)
@@ -267,6 +306,7 @@ export default function NovaEntregaPage() {
           descricaoItem: descricaoItem || undefined,
           observacoes: observacoes || undefined,
           dataAgendada: dataAgendada || undefined,
+          destinatarioNome, destinatarioTelefone, referenciaCliente,
         }),
       })
       chavePedido.current = null
@@ -274,6 +314,7 @@ export default function NovaEntregaPage() {
       const data = await response.json()
 
       if (data.success) {
+        try { sessionStorage.removeItem(chaveRascunho) } catch { /* pedido já confirmado */ }
         // Salvar dados do pedido e ir para pagamento
         setPedidoCriado({
           id: data.data.id,
@@ -502,6 +543,7 @@ export default function NovaEntregaPage() {
   return shell(
     <>
       {error && <Alert variant="danger" icon={AlertCircle} className="mb-4">{error}</Alert>}
+      <div className="mb-4 flex flex-wrap items-center gap-2"><Button variant="outline" size="sm" onClick={salvarRascunho}>Salvar rascunho</Button><Button variant="ghost" size="sm" onClick={recuperarRascunho}>Recuperar rascunho</Button>{avisoRascunho && <p role="status" className="text-sm text-fg-2">{avisoRascunho}</p>}</div>
 
       {mostrarNovoEndereco ? (
         <Card className="mx-auto max-w-2xl">
@@ -573,7 +615,8 @@ export default function NovaEntregaPage() {
               </div>
               {tipoServico === 'AGENDADA' && (
                 <div className="mt-4 sm:max-w-xs">
-                  <Input type="datetime-local" label="Data e hora da coleta" value={dataAgendada} onChange={(e) => setDataAgendada(e.target.value)} />
+                  <Input type="datetime-local" label="Data e hora da coleta" required value={dataAgendada} onChange={(e) => setDataAgendada(e.target.value)} />
+                  <p className="mt-2 text-xs text-fg-3">Horário da central: {tabelaPreco?.fusoHorario ?? 'America/Sao_Paulo'}</p>
                 </div>
               )}
             </Card>
@@ -581,6 +624,8 @@ export default function NovaEntregaPage() {
             <Card>
               <CardHeader><CardTitle>Detalhes do envio</CardTitle></CardHeader>
               <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2"><Input label="Nome de quem recebe" value={destinatarioNome} maxLength={120} onChange={e => setDestinatarioNome(e.target.value)} /><Input label="Telefone do destinatário" type="tel" value={destinatarioTelefone} maxLength={30} onChange={e => setDestinatarioTelefone(e.target.value)} /></div>
+                <Input label="Referência do pedido na sua empresa" value={referenciaCliente} maxLength={100} placeholder="Ex.: venda 1234" onChange={e => setReferenciaCliente(e.target.value)} />
                 <Input
                   label="O que será entregue? (opcional)"
                   value={descricaoItem}
