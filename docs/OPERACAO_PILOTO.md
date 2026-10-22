@@ -81,6 +81,11 @@ gunzip -c backups/banco-AAAAMMDD-HHMM.sql.gz \
 - abrir o link público e confirmar que ele não expõe dados desnecessários;
 - registrar localização, chat e comprovante de entrega;
 - concluir a corrida e conferir o fechamento/CSV;
+- conferir que o motoboy só fica disponível com o GPS liberado e que, com a tela fechada por mais de 2 minutos, ele deixa de receber ofertas (orientar a manter o app aberto no turno);
+- registrar uma ocorrência pelo motoboy, resolver pela central e conferir a linha do tempo do pedido;
+- trocar o motoboy antes da coleta e conferir que o anterior volta a ficar disponível;
+- avisar o destinatário pelo botão do WhatsApp nas etapas "saiu para entrega" e "entregue";
+- registrar um acerto com o motoboy e conferir o saldo na tela de ganhos dele;
 - repetir duas ações concorrentes e confirmar que não há dupla atribuição ou crédito;
 - verificar cancelamento, auditoria e permissões entre duas organizações.
 
