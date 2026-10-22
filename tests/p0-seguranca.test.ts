@@ -211,6 +211,9 @@ describe('boot e health', () => {
     expect(isPublicApi('GET', '/api/health/live')).toBe(true)
     expect(isPublicApi('GET', '/api/health/ready')).toBe(true)
     expect(isPublicApi('POST', '/api/health/ready')).toBe(false)
+    expect(isPublicApi('POST', '/api/pagamentos/stripe/webhook')).toBe(true)
+    expect(isPublicApi('GET', '/api/pagamentos/stripe/webhook')).toBe(false)
+    expect(isPublicApi('POST', '/api/pagamentos/checkout')).toBe(false)
   })
 
   it('live responde 200 sem depender do banco', async () => {

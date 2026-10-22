@@ -5,5 +5,7 @@ export function isPublicApi(method: string, path: string): boolean {
   if (method === 'GET' && (path === '/api/health/live' || path === '/api/health/ready')) return true
   // Job autenticado por CRON_SECRET na própria rota
   if (method === 'POST' && path === '/api/jobs/despacho') return true
+  // Webhook do provedor de pagamento, autenticado pela assinatura na própria rota
+  if (method === 'POST' && path === '/api/pagamentos/stripe/webhook') return true
   return (method === 'GET' || method === 'POST') && path.startsWith('/api/publico/')
 }
