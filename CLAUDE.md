@@ -37,3 +37,12 @@ Documentação de estudo e de apresentação em `~/obsidian/Projetos_Dev/02 Prod
 - Ajuste trivial (texto, estilo) não precisa. Revisão completa: `/atualizar-vault`.
 - Se o cofre não estiver acessível (ex.: sessão na nuvem), avise no fim da tarefa em vez de pular em silêncio.
 
+## Deploy
+<!-- Lido pela rotina /finalizar (regras globais em ~/.claude/CLAUDE.md). Edite à vontade. -->
+deploy automático: não
+merge automático: sim
+branch principal: main
+build/teste: npm run typecheck && npm test
+comando de deploy: (ainda não padronizado — hoje é docker compose up -d --build direto na VPS, ver docs/OPERACAO_PILOTO.md)
+verificação: npm run smoke
+contexto: CHANGELOG.md e docs/Devlog.md

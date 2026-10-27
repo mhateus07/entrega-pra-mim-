@@ -45,6 +45,7 @@ O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 - `ofertarPedido` filtra `localizacaoEm` dos últimos 120 s; o ócio para o desempate vem de `disponivelDesde`.
 - Rotas novas: `api/pedidos/[id]/operacao`, `api/operacao`, `api/acertos` (idempotente por `chave`), `api/organizacao/pagamentos`, `api/pagamentos/checkout` e `api/pagamentos/stripe/webhook` (assinado, idempotente por `gateway_eventos`, confere conta conectada × central × valor).
 - Teste de isolamento cobre todas as rotas novas, incluindo webhook assinado de outra central.
+- `src/lib/public-api.ts` libera `POST /api/pagamentos/stripe/webhook` no proxy, que antes respondia 401 ao provedor (PR #40).
 
 ### Transições entre telas (2026-10-11)
 
